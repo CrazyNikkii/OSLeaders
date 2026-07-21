@@ -1,7 +1,7 @@
 # OSLeaders Product Specification
 
 Version: 0.2
-Status: Draft for review
+Status: Approved for architecture design
 
 ## 1. Product summary
 
