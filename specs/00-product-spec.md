@@ -1,6 +1,6 @@
 # OSLeaders Product Specification
 
-Version: 0.2
+Version: 0.3
 Status: Approved for architecture design
 
 ## 1. Product summary
@@ -67,7 +67,7 @@ A linked account may:
 - Be grouped under the Discord user in daily recaps.
 - Be used as part of the user’s combined competition score.
 - Be edited or removed by the linked user.
-- Be managed by server administrators.
+- Be managed by authorized account administrators.
 
 Registration does not prove ownership of the RuneScape account. A linked account only represents a server-managed association.
 
@@ -89,7 +89,7 @@ A watchlist account cannot:
 - Receive a Discord competition role.
 - Submit its own target-race claim.
 
-The user who added the watchlist account and server administrators may edit or remove it.
+The user who added the watchlist account and authorized account administrators may edit or remove it.
 
 ## 5. Account limits and uniqueness
 
@@ -127,7 +127,18 @@ Group Ironman and Hardcore Group Ironman must remain distinct displayed modes. I
 
 Account registration is primarily a guided slash-command interaction.
 
-A normal user may register a linked account only for themselves. A server administrator may register or reassign a linked account for another Discord member. Any permitted server member may add a watchlist account, subject to the normal account limit.
+For account administration, an authorized account administrator is either:
+
+- A member with Discord Administrator permission.
+- A member with the configured bot-manager role.
+
+The bot-manager role may perform approved account-administration actions,
+including registering an account for another member, editing accounts,
+reassignment, conversion approval and removal. The competition-manager role
+remains limited to competition management and does not grant general
+account-administration authority.
+
+A normal user may register a linked account only for themselves. An authorized account administrator may register or reassign a linked account for another Discord member. Any permitted server member may add a watchlist account, subject to the normal account limit.
 
 The registration flow must:
 
@@ -170,14 +181,14 @@ Linked accounts may be:
 - Renamed after an OSRS name change.
 - Changed to another game mode after successful validation.
 - Removed by the linked Discord user.
-- Managed by server administrators.
+- Managed by authorized account administrators.
 
 Watchlist accounts may be:
 
 - Renamed.
 - Changed to another game mode after successful validation.
 - Removed by the user who added them.
-- Managed by server administrators.
+- Managed by authorized account administrators.
 
 Removing an account requires explicit confirmation through an interaction button.
 
@@ -195,7 +206,7 @@ When an account contributes to an active competition:
 - Its game mode cannot be changed.
 - Normal self-service renaming is blocked.
 
-A server administrator may approve a genuine RSN change during an active competition when:
+An authorized account administrator may approve a genuine RSN change during an active competition when:
 
 - The account is successfully validated.
 - The administrator confirms the change.
@@ -225,7 +236,7 @@ If the Discord user later rejoins using the same Discord account, the existing l
 
 ## 12. Converting account association
 
-A watchlist account may be converted into a linked account with server-administrator approval.
+A watchlist account may be converted into a linked account with authorized account-administrator approval.
 
 This conversion must preserve:
 
@@ -237,11 +248,11 @@ This conversion must preserve:
 A linked account may be converted into a watchlist account by:
 
 - The linked Discord user.
-- A server administrator.
+- An authorized account administrator.
 
 The conversion is blocked while the account contributes to an active competition.
 
-OSLeaders does not claim that linked accounts are ownership-verified. Server administrators resolve false or incorrect links.
+OSLeaders does not claim that linked accounts are ownership-verified. Authorized account administrators resolve false or incorrect links.
 
 ## 13. Command interfaces
 
@@ -582,6 +593,9 @@ Target races do not use constant polling.
 
 A participant submits a claim through a competition claim command.
 
+The bot records the claim receipt time in UTC and assigns a stable claim ID
+before fetching Hiscores.
+
 The bot then:
 
 1. Finds all selected contributing accounts for the entrant.
@@ -590,7 +604,9 @@ The bot then:
 4. Combines their gains.
 5. Verifies whether the target has been reached.
 
-The first successful verified claim wins.
+The earliest successfully verified claim wins. When multiple concurrent claims
+are valid, the earliest receipt time wins. If receipt timestamps are identical,
+the stable claim ID is the deterministic tie-breaker.
 
 The competition is therefore defined as:
 
@@ -603,6 +619,10 @@ If the target has not been reached, the bot responds privately with:
 - Remaining amount.
 
 A target race may have an optional deadline.
+
+- A claim received after the stored deadline cannot win.
+- A claim received on or before the deadline may finish verification after
+  the deadline.
 
 If nobody submits a successful claim before the deadline:
 
