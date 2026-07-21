@@ -1,6 +1,6 @@
 # OSLeaders Product Specification
 
-Version: 0.1
+Version: 0.2
 Status: Draft for review
 
 ## 1. Product summary
@@ -48,7 +48,9 @@ The following must never be shared automatically between servers:
 
 The same OSRS account may be registered independently in different Discord servers.
 
-Within one Discord server, one specific OSRS account may only be registered once.
+Within one Discord server, a normalized OSRS username may only be registered once, regardless of capitalization, selected game mode or account association type.
+
+Renaming an account is rejected if the new normalized username is already tracked in that server.
 
 ## 4. OSRS account types
 
@@ -115,13 +117,17 @@ The product supports these displayed account modes:
 
 The account mode belongs to the OSRS account, not to the Discord user.
 
-The exact hiscore-fetching method for each mode must be verified before implementation is considered complete.
+OSLeaders retrieves player statistics directly from Jagex's Old School Hiscores service. The service returns rank, level and experience or activity score data. OSLeaders does not require RuneLite or RuneLite plugins.
 
-Group Ironman and Hardcore Group Ironman must remain distinct displayed modes even if their individual statistics use the same underlying hiscore-fetching method as Main accounts.
+The exact Jagex hiscore endpoint or fetch strategy for every supported mode must be verified before implementation is considered complete.
+
+Group Ironman and Hardcore Group Ironman must remain distinct displayed modes. If Jagex's individual hiscore data cannot independently verify one of these modes, OSLeaders validates that the account can be fetched through the appropriate available Old School Hiscores strategy and stores the selected mode as server-managed account information. The bot must not describe an account mode as independently verified when the Jagex data cannot verify it.
 
 ## 7. Account registration
 
 Account registration is primarily a guided slash-command interaction.
+
+A normal user may register a linked account only for themselves. A server administrator may register or reassign a linked account for another Discord member. Any permitted server member may add a watchlist account, subject to the normal account limit.
 
 The registration flow must:
 
@@ -131,8 +137,8 @@ The registration flow must:
 4. Present the supported game modes through a Discord select menu.
 5. Display a text label for every game mode.
 6. Allow configurable custom game-mode emojis.
-7. Validate the selected username and game mode through the appropriate hiscore lookup.
-8. Reject the registration when the account cannot be fetched using the selected mode.
+7. Validate the username through Jagex's Old School Hiscores service and validate the selected mode where the available Jagex data supports independent mode verification.
+8. Reject the registration when the username cannot be fetched, or when the selected mode is verifiably incompatible with the returned data.
 9. Save the account only after successful validation.
 10. Immediately create the first daily-recap baseline.
 11. Announce successful registration publicly.
@@ -415,6 +421,8 @@ Slash commands show the top 10 by default and allow users to request more or all
 
 Prefix commands may show all entries when the result fits comfortably in Discord’s message limits.
 
+If some tracked accounts cannot be fetched, the leaderboard still displays all successfully fetched accounts and reports the failed accounts separately. A failed account must not cause the entire leaderboard request to fail.
+
 ## 19. Competition types
 
 The first version supports exactly four individual competition types.
@@ -577,7 +585,7 @@ A participant submits a claim through a competition claim command.
 The bot then:
 
 1. Finds all selected contributing accounts for the entrant.
-2. Fetches their current values.
+2. Fetches fresh current values directly from the hiscore service, bypassing the normal short-lived lookup cache.
 3. Compares them with stored starting values.
 4. Combines their gains.
 5. Verifies whether the target has been reached.
@@ -744,12 +752,18 @@ The baseline includes:
 At recap time, the bot:
 
 1. Loads the stored baseline.
-2. Fetches current hiscores.
-3. Calculates positive changes.
-4. Produces the recap.
-5. Merges valid current values into the saved baseline.
-6. Keeps old values when a current category is unavailable.
-7. Saves the merged result as the new rolling baseline.
+2. Requests a fresh and complete hiscore result.
+3. Validates that the result contains the expected complete account data.
+4. Calculates positive changes and produces the recap.
+5. Replaces the previous baseline with the new complete state and capture time.
+
+If the account fetch fails or returns incomplete data:
+
+- No changes are calculated for that account.
+- The complete previous baseline is retained unchanged.
+- The failure is reported separately.
+
+A recap baseline is therefore updated atomically per account. It must not contain skill or boss values captured at different times under one shared timestamp.
 
 Historical daily snapshots are not retained.
 
@@ -828,8 +842,10 @@ The first version supports:
 ### Recap send
 
 - Restricted to authorized administrators or bot managers.
+- Requires explicit confirmation because it advances the recap baselines.
+- Requests fresh hiscore data rather than relying on the normal lookup cache.
 - Posts the recap to the configured channel.
-- Updates the rolling baselines.
+- Updates the rolling baselines only for accounts with complete successful results.
 
 ## 37. Response formatting
 
@@ -930,12 +946,21 @@ Full technical details remain in local application or system logs.
 
 ## 40. Hiscore reliability
 
-Successful hiscore results are cached for one minute.
+Successful hiscore results are cached for one minute for ordinary non-critical lookups and standings.
 
 Cache entries must distinguish at least:
 
 - Normalized OSRS username.
 - Hiscore-fetching mode or endpoint.
+
+Operations that create, advance or finalize stored snapshots must request fresh hiscore data and bypass the normal cache. These operations include:
+
+- Initial recap baseline creation.
+- Competition starting snapshots.
+- Competition finishing snapshots.
+- Target-race claims.
+- Automatic daily recap collection.
+- Manual recap sending.
 
 Temporary hiscore failures are retried once after a short delay.
 
@@ -968,6 +993,7 @@ PostgreSQL stores persistent application data, including:
 - Competition entrants.
 - Contributing accounts.
 - Starting values.
+- Latest successfully observed competition values and their observation times.
 - Final values.
 - Competition results.
 - Historical cancelled and finished competition summaries.
@@ -979,6 +1005,8 @@ The database does not store:
 - Every daily historical snapshot.
 - Every hiscore response.
 - Every progress fetch.
+
+For an active competition account, only the starting value, latest successfully observed value and timestamp, and final value are retained. A new successful progress check replaces the previous rolling latest-known value instead of creating a full progress history.
 
 ## 43. Production backups
 
@@ -1045,7 +1073,7 @@ The first complete version is acceptable when:
 
 1. A server can register linked and watchlist OSRS accounts.
 2. Game modes are selected through guided Discord components.
-3. Invalid account and mode combinations are rejected.
+3. Invalid usernames and verifiably invalid account-mode combinations are rejected.
 4. One Discord user can manage multiple linked accounts.
 5. Default-account behaviour works.
 6. Server data is isolated from other servers.
@@ -1073,3 +1101,10 @@ The first complete version is acceptable when:
 28. Automated tests verify core account, leaderboard, competition and recap behaviour.
 29. The production bot runs continuously on the headless Debian laptop.
 30. Production PostgreSQL data is backed up automatically.
+
+## 47. Reference material
+
+These pages are reference material for design and implementation. OSLeaders does not query the wiki during normal bot operation.
+
+- Old School Hiscores API overview and endpoint reference: https://runescape.wiki/w/Application_programming_interface#Old_School_Hiscores
+- OSRS experience formula and level thresholds: https://oldschool.runescape.wiki/w/Experience
