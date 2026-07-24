@@ -1,0 +1,7 @@
+specs/
+package-lock.json
+dist/
+coverage/
+node_modules/
+.env
+.env.*
