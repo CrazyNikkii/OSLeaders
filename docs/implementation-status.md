@@ -18,12 +18,13 @@ merged.
 
 Stage 4 — Guild configuration, permissions, and audit foundations.
 
-The current unmerged branch establishes the guild-configuration persistence and
+The latest merged work establishes the guild-configuration persistence and
 service foundation: one configuration record per guild, configured manager-role
 and administrative-log channel IDs, Standard or Verbose audit-log mode, and
-guild-isolation coverage. It intentionally does not add Discord command wiring,
-permission evaluation, audit delivery, or the remaining guild settings owned by
-later feature slices.
+guild-isolation coverage. The current branch adds Discord-independent
+application-level permission evaluation. It intentionally does not add Discord
+command wiring, audit delivery, or the remaining guild settings owned by later
+feature slices.
 
 ## Later planned stages
 
@@ -40,14 +41,6 @@ later feature slices.
 
 ## Previous merged implementation work
 
-`807b2e9` (2026-07-24) — Merge Hiscores success cache.
-
-This merged a bounded, one-minute successful-response cache with normalized
-username and endpoint keys, least-recently-used eviction, and a fresh-fetch
-bypass into the centralized Hiscores client.
-
-## Latest merged implementation work
-
 `3815eaf` (2026-07-24) — Merge account-mode validation.
 
 This merged validation coordination for the approved endpoint strategy,
@@ -55,14 +48,20 @@ including the required Hardcore and Ultimate exclusions before regular Ironman
 is accepted. With the prior contract, parser, transport, and cache work, it
 completed Stage 3.
 
+## Latest merged implementation work
+
+`c12419b` (2026-07-24) — Merge guild-configuration foundation.
+
+This merged per-guild configuration persistence and service foundations for
+configured manager-role IDs, administrative-log channel IDs, Standard or
+Verbose log mode, and guild-isolation coverage.
+
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-After the current guild-configuration foundation branch is reviewed and merged,
-continue Stage 4 with application-level permission evaluation. It should use
-the configured manager-role IDs and Discord Administrator input through a
-Discord-independent authorization request model, without Discord command
-wiring. Follow with structured audit and local logging foundations as a
-separate branch-sized task.
+After the current permission-evaluation branch is reviewed and merged,
+continue Stage 4 with structured audit and local logging foundations. Keep
+audit events Discord-independent, sanitize data before any Discord delivery,
+and ensure failed audit delivery never undoes a valid product operation.
