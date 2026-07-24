@@ -21,14 +21,13 @@ The implementation must verify the Jagex Old School Hiscores endpoint strategy
 and mode-verification matrix before account or snapshot work can be considered
 complete.
 
-The merged Stage 3 parser foundation implements the OSRS-only endpoint and
+The merged Stage 3 foundation implements the OSRS-only endpoint and
 mode-verification contract, typed result model, current named skill and boss
-catalogue, sanitized fixture, deterministic JSON parser, and focused parser
-tests. The current unmerged branch adds the centralized HTTP transport:
-encoded request construction, typed HTTP and timeout results, one bounded
-retry for temporary failures, a small concurrency limiter, and controlled
-local-server tests. Caching, account-registration validation orchestration,
-and snapshot persistence remain outside the branch.
+catalogue, sanitized fixture, deterministic JSON parser, centralized HTTP
+transport, and focused controlled-server tests. The current unmerged branch
+adds the bounded successful-response cache and fresh-fetch bypass. Account
+registration validation orchestration and snapshot persistence remain outside
+the branch.
 
 ## Later planned stages
 
@@ -45,19 +44,21 @@ and snapshot persistence remain outside the branch.
 
 ## Latest merged implementation work
 
-`e6448e6` (2026-07-24) — Merge OSRS Hiscores contract parser.
+`1cc93e8` (2026-07-24) — Merge OSRS Hiscores HTTP transport.
 
-This merged the verified OSRS endpoint and mode-verification contract, typed
-Hiscores result model, current named skill and boss catalogue, sanitized
-response fixture, deterministic parser, and focused parser tests.
+This merged encoded request construction, typed HTTP and timeout results, one
+bounded retry for temporary failures, a small concurrency limiter, and
+controlled local-server tests into the centralized Hiscores client.
 
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-After the centralized HTTP transport is reviewed and merged, continue Stage 3
-with a bounded one-minute successful-response cache and a fresh-fetch bypass
-for snapshot-changing callers. Include cache-key, expiry, maximum-entry, and
-controlled-server tests; keep account registration and snapshot persistence
-outside that branch.
+After the successful-response cache is reviewed and merged, continue Stage 3
+with account-registration validation orchestration. It should select the
+verified endpoint strategy for each account mode, apply the required
+Hardcore/Ultimate exclusion before accepting regular Ironman, and preserve
+the server-managed label contract for Main and Group Ironman modes. Keep
+database persistence and Discord registration interactions outside that
+branch.
