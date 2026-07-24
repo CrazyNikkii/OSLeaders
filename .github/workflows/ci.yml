@@ -19,6 +19,24 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: osleaders_test
+          POSTGRES_PASSWORD: osleaders_ci_only
+          POSTGRES_USER: osleaders_test
+        options: >-
+          --health-cmd "pg_isready -U osleaders_test -d osleaders_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    env:
+      DATABASE_TEST_URL: postgresql://osleaders_test:osleaders_ci_only@127.0.0.1:5432/osleaders_test
+      NODE_ENV: test
 
     steps:
       - name: Check out repository
@@ -36,17 +54,5 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
-      - name: Check formatting
-        run: npm run format:check
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Type-check
-        run: npm run typecheck
-
-      - name: Run unit tests
-        run: npm run test
-
-      - name: Build
-        run: npm run build
+      - name: Run the complete check set
+        run: npm run check

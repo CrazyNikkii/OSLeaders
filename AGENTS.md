@@ -17,6 +17,9 @@ behaviour or architecture.
   workers, or microservices without an approved architecture change.
 - Never commit tokens, passwords, real connection strings, or populated `.env`
   files.
+- Review generated SQL migrations and Drizzle metadata before accepting them.
+- Never use schema push. Only the guarded test reset command may clear database
+  schemas, and it must never be aimed at development or production data.
 - Add focused tests for new behaviour and relevant edge cases.
 - Do not add a dependency unless the current stage needs it.
 - Run `npm run check` and `git diff --check` before handing work back.
