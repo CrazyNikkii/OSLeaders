@@ -4,11 +4,11 @@ OSLeaders is a Discord bot for small private Old School RuneScape communities.
 The approved product requirements are in `specs/00-product-spec.md`, and the
 approved technical design is in `specs/01-architecture.md`.
 
-This repository contains the project foundation and database foundation: an
-initial guild tenancy-root schema, reviewed SQL migrations, and PostgreSQL
-integration-test foundations. It does not yet contain Discord functionality,
-account registration, competitions, recaps, leaderboards, or other product
-features.
+This repository contains the project and database foundations: centralized
+runtime configuration validation, an initial guild tenancy-root schema,
+reviewed SQL migrations, and PostgreSQL integration-test foundations. It does
+not yet contain Discord connectivity, account registration, competitions,
+recaps, leaderboards, or other product features.
 
 ## Prerequisites
 
@@ -48,6 +48,13 @@ Copy-Item .env.test.example .env.test
 Use `.env` for normal development values and `.env.test` only for the local
 test database. Replace their placeholders with your own private values. Never
 commit either file or paste its secrets into an issue, pull request, or chat.
+
+The runtime configuration loader accepts `NODE_ENV=development` or
+`NODE_ENV=production` and the log levels `debug`, `info`, `warn`, or `error`.
+It requires an explicit PostgreSQL database URL. The Discord application ID
+must contain decimal digits only and remains a string so it cannot lose
+precision. Shell and CI values take precedence over the optional local `.env`
+file.
 
 Before running database commands, open PowerShell and connect with PostgreSQL's
 interactive client as the PostgreSQL administrator:

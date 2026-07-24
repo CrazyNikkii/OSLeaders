@@ -20,6 +20,52 @@ describe('database environment safety', () => {
     });
   });
 
+  it('rejects an invalid runtime database URL before connecting', () => {
+    expect(() => {
+      parseRuntimeDatabaseConfiguration({
+        DATABASE_POOL_MAX: '4',
+        DATABASE_URL: 'not-a-database-url',
+      });
+    }).toThrow('DATABASE_URL must be a valid PostgreSQL connection URL.');
+  });
+
+  it('rejects the example runtime database URL before connecting', () => {
+    expect(() => {
+      parseRuntimeDatabaseConfiguration({
+        DATABASE_POOL_MAX: '4',
+        DATABASE_URL:
+          'postgresql://REPLACE_WITH_USERNAME:REPLACE_WITH_PASSWORD@localhost:5432/osleaders_dev',
+      });
+    }).toThrow('DATABASE_URL must not use the example placeholder.');
+  });
+
+  it('rejects a runtime database URL with a non-PostgreSQL protocol', () => {
+    expect(() => {
+      parseRuntimeDatabaseConfiguration({
+        DATABASE_POOL_MAX: '4',
+        DATABASE_URL: 'https://localhost/osleaders_dev',
+      });
+    }).toThrow('DATABASE_URL must use the postgresql protocol.');
+  });
+
+  it('rejects a runtime database URL without an explicit database name', () => {
+    expect(() => {
+      parseRuntimeDatabaseConfiguration({
+        DATABASE_POOL_MAX: '4',
+        DATABASE_URL: 'postgresql://osleaders_dev:private@localhost:5432',
+      });
+    }).toThrow('DATABASE_URL must include a database name.');
+  });
+
+  it('rejects a remote runtime database URL before connecting', () => {
+    expect(() => {
+      parseRuntimeDatabaseConfiguration({
+        DATABASE_POOL_MAX: '4',
+        DATABASE_URL: 'postgresql://osleaders:private@example.com:5432/osleaders',
+      });
+    }).toThrow('DATABASE_URL must target a local PostgreSQL host.');
+  });
+
   it('rejects a test URL that targets the development database before connecting', () => {
     expect(() => {
       assertSafeTestDatabaseUrl('postgresql://osleaders_test:private@localhost:5432/osleaders_dev');
