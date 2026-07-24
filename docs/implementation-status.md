@@ -11,25 +11,19 @@ merged.
   configuration validation, code-quality tools, and test harness.
 - Stage 2 — PostgreSQL connection and migration foundation, guild tenancy-root
   schema, and guarded PostgreSQL integration-test safety.
+- Stage 3 — Hiscores investigation, result model, parser fixtures, centralized
+  HTTP client, bounded success cache, and account-mode validation.
 
 ## Current implementation stage
 
-Stage 3 — Hiscores investigation, result model, parser fixtures, and the
-centralized Hiscores client.
+Stage 4 — Guild configuration, permissions, and audit foundations.
 
-The implementation must verify the Jagex Old School Hiscores endpoint strategy
-and mode-verification matrix before account or snapshot work can be considered
-complete.
-
-The merged Stage 3 foundation implements the OSRS-only endpoint and
-mode-verification contract, typed result model, current named skill and boss
-catalogue, sanitized fixture, deterministic JSON parser, centralized HTTP
-transport, bounded successful-response cache, fresh-fetch bypass, and focused
-controlled-server tests. The current unmerged branch adds account-mode
-validation coordination, including the required Hardcore and Ultimate
-exclusion before accepting regular Ironman. Account registration persistence,
-initial recap-baseline creation, and Discord registration interactions remain
-outside the branch.
+The current unmerged branch establishes the guild-configuration persistence and
+service foundation: one configuration record per guild, configured manager-role
+and administrative-log channel IDs, Standard or Verbose audit-log mode, and
+guild-isolation coverage. It intentionally does not add Discord command wiring,
+permission evaluation, audit delivery, or the remaining guild settings owned by
+later feature slices.
 
 ## Later planned stages
 
@@ -46,26 +40,29 @@ outside the branch.
 
 ## Previous merged implementation work
 
-`1cc93e8` (2026-07-24) — Merge OSRS Hiscores HTTP transport.
-
-This merged encoded request construction, typed HTTP and timeout results, one
-bounded retry for temporary failures, a small concurrency limiter, and
-controlled local-server tests into the centralized Hiscores client.
-
-## Latest merged implementation work
-
-`807b2e9` (2026-07-24) - Merge Hiscores success cache.
+`807b2e9` (2026-07-24) — Merge Hiscores success cache.
 
 This merged a bounded, one-minute successful-response cache with normalized
 username and endpoint keys, least-recently-used eviction, and a fresh-fetch
 bypass into the centralized Hiscores client.
+
+## Latest merged implementation work
+
+`3815eaf` (2026-07-24) — Merge account-mode validation.
+
+This merged validation coordination for the approved endpoint strategy,
+including the required Hardcore and Ultimate exclusions before regular Ironman
+is accepted. With the prior contract, parser, transport, and cache work, it
+completed Stage 3.
 
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-After the current account-mode validation branch is reviewed and merged, begin
-Stage 4 with the guild-configuration foundation: guild-scoped configuration
-storage and service interfaces, without Discord command wiring. Follow with
-the permission and audit foundations as separate branch-sized tasks.
+After the current guild-configuration foundation branch is reviewed and merged,
+continue Stage 4 with application-level permission evaluation. It should use
+the configured manager-role IDs and Discord Administrator input through a
+Discord-independent authorization request model, without Discord command
+wiring. Follow with structured audit and local logging foundations as a
+separate branch-sized task.
