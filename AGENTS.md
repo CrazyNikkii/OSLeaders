@@ -34,6 +34,10 @@ history.
   workers, or microservices without an approved architecture change.
 - Never commit tokens, passwords, real connection strings, or populated `.env`
   files.
+- When checking GitHub CLI authentication or performing GitHub CLI operations,
+  use the elevated Windows credential context (`require_escalated`). Sandboxed
+  `gh` commands cannot access the Windows keyring and may falsely report an
+  invalid token.
 - Review generated SQL migrations and Drizzle metadata before accepting them.
 - Never use schema push. Only the guarded test reset command may clear database
   schemas, and it must never be aimed at development or production data.
