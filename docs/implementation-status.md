@@ -34,7 +34,7 @@ complete.
   testing.
 - Stage 10 — Deployment and backup specification based on the actual laptop.
 
-## Latest merged work
+## Latest merged implementation work
 
 `83d9bc6` (2026-07-24) — Add runtime configuration validation.
 
@@ -42,6 +42,9 @@ This added centralized typed runtime configuration for Discord, PostgreSQL,
 runtime environment and log settings; guarded environment-file precedence;
 placeholder and unsafe-value rejection; focused tests; and stricter local
 PostgreSQL URL validation.
+
+Documentation-only maintenance commits may be newer; Git history remains the
+authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
