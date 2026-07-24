@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { loadTestDatabaseConfiguration } from '../../src/infrastructure/config/database-environment.js';
@@ -10,7 +10,8 @@ import {
   type DatabaseConnection,
   withTransaction,
 } from '../../src/infrastructure/database/connection.js';
-import { guilds } from '../../src/infrastructure/database/schema/index.js';
+import { PostgresGuildConfigurationRepository } from '../../src/infrastructure/database/postgres-guild-configuration-repository.js';
+import { guildConfigurations, guilds } from '../../src/infrastructure/database/schema/index.js';
 
 let connection: DatabaseConnection;
 
@@ -39,10 +40,10 @@ describe('database foundation', () => {
     expect(result.rows).toEqual([{ connected: 1 }]);
   });
 
-  it('applies the guild tenancy migration to an empty test database', async () => {
-    const committedMigration = await readCommittedMigration();
-    const guildTables = await connection.pool.query<{ table_name: string }>(
-      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'guilds'",
+  it('applies the committed database migrations to an empty test database', async () => {
+    const committedMigrations = await readCommittedMigrations();
+    const applicationTables = await connection.pool.query<{ table_name: string }>(
+      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('guild_configurations', 'guilds') ORDER BY table_name",
     );
     const migrationTables = await connection.pool.query<{ table_name: string }>(
       "SELECT table_name FROM information_schema.tables WHERE table_schema = 'drizzle' AND table_name = '__drizzle_migrations'",
@@ -51,9 +52,12 @@ describe('database foundation', () => {
       'SELECT hash, created_at FROM drizzle.__drizzle_migrations ORDER BY created_at',
     );
 
-    expect(guildTables.rows).toEqual([{ table_name: 'guilds' }]);
+    expect(applicationTables.rows).toEqual([
+      { table_name: 'guild_configurations' },
+      { table_name: 'guilds' },
+    ]);
     expect(migrationTables.rows).toEqual([{ table_name: '__drizzle_migrations' }]);
-    expect(migrationRecords.rows).toEqual([committedMigration]);
+    expect(migrationRecords.rows).toEqual(committedMigrations);
   });
 
   it('commits a successful transaction', async () => {
@@ -86,22 +90,81 @@ describe('database foundation', () => {
 
     expect(result.rows).toEqual([]);
   });
+
+  it('stores configuration independently for each guild and allows nullable settings to be cleared', async () => {
+    const repository = new PostgresGuildConfigurationRepository(connection.database);
+
+    await expect(repository.getOrCreate('configuration-guild-one')).resolves.toEqual({
+      administrativeLogChannelId: null,
+      administrativeLogMode: 'standard',
+      botManagerRoleId: null,
+      competitionManagerRoleId: null,
+      guildId: 'configuration-guild-one',
+    });
+    await repository.update('configuration-guild-one', {
+      administrativeLogChannelId: 'audit-channel-one',
+      administrativeLogMode: 'verbose',
+      botManagerRoleId: 'bot-manager-one',
+    });
+    await repository.update('configuration-guild-two', {
+      competitionManagerRoleId: 'competition-manager-two',
+    });
+    const [beforeClear] = await connection.database
+      .select()
+      .from(guildConfigurations)
+      .where(eq(guildConfigurations.guildId, 'configuration-guild-one'));
+    if (beforeClear === undefined) {
+      throw new Error('Expected the first guild configuration to exist.');
+    }
+
+    await waitForClockTick(beforeClear.updatedAt);
+    await repository.update('configuration-guild-one', {
+      administrativeLogChannelId: null,
+      botManagerRoleId: null,
+    });
+
+    await expect(repository.getOrCreate('configuration-guild-one')).resolves.toMatchObject({
+      administrativeLogChannelId: null,
+      administrativeLogMode: 'verbose',
+      botManagerRoleId: null,
+      competitionManagerRoleId: null,
+    });
+    await expect(repository.getOrCreate('configuration-guild-two')).resolves.toMatchObject({
+      administrativeLogChannelId: null,
+      administrativeLogMode: 'standard',
+      botManagerRoleId: null,
+      competitionManagerRoleId: 'competition-manager-two',
+    });
+
+    const configurationRows = await connection.database.select().from(guildConfigurations);
+    expect(configurationRows).toHaveLength(2);
+    const clearedConfiguration = configurationRows.find(
+      ({ guildId }) => guildId === 'configuration-guild-one',
+    );
+    expect(clearedConfiguration?.updatedAt.getTime()).toBeGreaterThan(
+      beforeClear.updatedAt.getTime(),
+    );
+  });
 });
 
-async function readCommittedMigration(): Promise<{ created_at: string; hash: string }> {
-  const migrationTag = '0000_database-foundation';
-  const migrationFile = new URL(`../../drizzle/${migrationTag}.sql`, import.meta.url);
+async function readCommittedMigrations(): Promise<{ created_at: string; hash: string }[]> {
   const journalFile = new URL('../../drizzle/meta/_journal.json', import.meta.url);
-  const migrationSql = await readFile(migrationFile, 'utf8');
   const journal = JSON.parse(await readFile(journalFile, 'utf8')) as DrizzleJournal;
-  const journalEntry = journal.entries.find((entry) => entry.tag === migrationTag);
 
-  if (journalEntry === undefined) {
-    throw new Error(`The Drizzle journal does not contain ${migrationTag}.`);
+  return Promise.all(
+    journal.entries.map(async (entry) => {
+      const migrationFile = new URL(`../../drizzle/${entry.tag}.sql`, import.meta.url);
+      const migrationSql = await readFile(migrationFile, 'utf8');
+      return {
+        created_at: String(entry.when),
+        hash: createHash('sha256').update(migrationSql).digest('hex'),
+      };
+    }),
+  );
+}
+
+async function waitForClockTick(previousTime: Date): Promise<void> {
+  while (Date.now() <= previousTime.getTime()) {
+    await new Promise<void>((resolve) => setTimeout(resolve, 1));
   }
-
-  return {
-    created_at: String(journalEntry.when),
-    hash: createHash('sha256').update(migrationSql).digest('hex'),
-  };
 }

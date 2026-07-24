@@ -1,0 +1,127 @@
+{
+  "id": "8852256b-d502-45d2-a42c-18e23cfb7bd0",
+  "prevId": "526fc9e4-7f6c-46d8-88cf-954652f4879f",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.guild_configurations": {
+      "name": "guild_configurations",
+      "schema": "",
+      "columns": {
+        "guild_id": {
+          "name": "guild_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "bot_manager_role_id": {
+          "name": "bot_manager_role_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "competition_manager_role_id": {
+          "name": "competition_manager_role_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "administrative_log_channel_id": {
+          "name": "administrative_log_channel_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "administrative_log_mode": {
+          "name": "administrative_log_mode",
+          "type": "administrative_log_mode",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'standard'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "guild_configurations_guild_id_guilds_guild_id_fk": {
+          "name": "guild_configurations_guild_id_guilds_guild_id_fk",
+          "tableFrom": "guild_configurations",
+          "tableTo": "guilds",
+          "columnsFrom": [
+            "guild_id"
+          ],
+          "columnsTo": [
+            "guild_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.guilds": {
+      "name": "guilds",
+      "schema": "",
+      "columns": {
+        "guild_id": {
+          "name": "guild_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.administrative_log_mode": {
+      "name": "administrative_log_mode",
+      "schema": "public",
+      "values": [
+        "standard",
+        "verbose"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
