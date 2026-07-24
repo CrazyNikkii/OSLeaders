@@ -4,6 +4,23 @@ Read `specs/00-product-spec.md` and `specs/01-architecture.md` before any
 significant implementation work and before proposing changes to product
 behaviour or architecture.
 
+## Implementation progress
+
+For every implementation task:
+
+- Read `docs/implementation-status.md` before planning.
+- Verify its statements against the checked-out repository and current Git
+  history before relying on or changing it.
+- Update it in the same pull request to reflect completed work, the current
+  stage, the latest merged work, and the next recommended branch-sized task.
+- Never mark work as completed unless it is implemented and merged.
+- After finishing, recommend the next smallest sensible task.
+- Ask the user when a real product decision is required; do not invent one.
+
+Every independent review must also verify that
+`docs/implementation-status.md` accurately reflects the repository and Git
+history.
+
 - The product specification is authoritative for user-visible behaviour.
 - Follow the feature boundaries and dependency direction in the architecture.
 - Keep each change within its approved implementation stage.
