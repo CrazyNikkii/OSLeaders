@@ -21,11 +21,14 @@ The implementation must verify the Jagex Old School Hiscores endpoint strategy
 and mode-verification matrix before account or snapshot work can be considered
 complete.
 
-The current unmerged Stage 3 branch implements the OSRS-only endpoint and
+The merged Stage 3 parser foundation implements the OSRS-only endpoint and
 mode-verification contract, typed result model, current named skill and boss
 catalogue, sanitized fixture, deterministic JSON parser, and focused parser
-tests. This work remains in progress until it is reviewed and merged. HTTP
-transport and client policy remain outside the current branch.
+tests. The current unmerged branch adds the centralized HTTP transport:
+encoded request construction, typed HTTP and timeout results, one bounded
+retry for temporary failures, a small concurrency limiter, and controlled
+local-server tests. Caching, account-registration validation orchestration,
+and snapshot persistence remain outside the branch.
 
 ## Later planned stages
 
@@ -42,21 +45,19 @@ transport and client policy remain outside the current branch.
 
 ## Latest merged implementation work
 
-`83d9bc6` (2026-07-24) — Add runtime configuration validation.
+`e6448e6` (2026-07-24) — Merge OSRS Hiscores contract parser.
 
-This added centralized typed runtime configuration for Discord, PostgreSQL,
-runtime environment and log settings; guarded environment-file precedence;
-placeholder and unsafe-value rejection; focused tests; and stricter local
-PostgreSQL URL validation.
+This merged the verified OSRS endpoint and mode-verification contract, typed
+Hiscores result model, current named skill and boss catalogue, sanitized
+response fixture, deterministic parser, and focused parser tests.
 
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-After the Hiscores contract and parser foundation is reviewed and merged,
-continue Stage 3 with the centralized HTTP transport: request construction,
-status-to-result mapping, explicit timeout, one bounded retry for temporary
-failures, a small concurrency limiter, and focused controlled-server tests.
-Keep caching, account registration, and snapshot persistence outside that
-branch.
+After the centralized HTTP transport is reviewed and merged, continue Stage 3
+with a bounded one-minute successful-response cache and a fresh-fetch bypass
+for snapshot-changing callers. Include cache-key, expiry, maximum-entry, and
+controlled-server tests; keep account registration and snapshot persistence
+outside that branch.
