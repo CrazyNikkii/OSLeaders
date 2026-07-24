@@ -12,7 +12,7 @@ merged.
 - Stage 2 — PostgreSQL connection and migration foundation, guild tenancy-root
   schema, and guarded PostgreSQL integration-test safety.
 
-## Next planned stage
+## Current implementation stage
 
 Stage 3 — Hiscores investigation, result model, parser fixtures, and the
 centralized Hiscores client.
@@ -20,6 +20,12 @@ centralized Hiscores client.
 The implementation must verify the Jagex Old School Hiscores endpoint strategy
 and mode-verification matrix before account or snapshot work can be considered
 complete.
+
+The current unmerged Stage 3 branch implements the OSRS-only endpoint and
+mode-verification contract, typed result model, current named skill and boss
+catalogue, sanitized fixture, deterministic JSON parser, and focused parser
+tests. This work remains in progress until it is reviewed and merged. HTTP
+transport and client policy remain outside the current branch.
 
 ## Later planned stages
 
@@ -48,8 +54,9 @@ authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-Begin Stage 3 with the Hiscores contract and parser foundation: record the
-verified endpoint and mode-verification matrix, define the typed result model,
-add sanitized response fixtures, and implement deterministic parser tests.
-Keep HTTP transport, caching, retries, account registration, and snapshot
-persistence outside that branch.
+After the Hiscores contract and parser foundation is reviewed and merged,
+continue Stage 3 with the centralized HTTP transport: request construction,
+status-to-result mapping, explicit timeout, one bounded retry for temporary
+failures, a small concurrency limiter, and focused controlled-server tests.
+Keep caching, account registration, and snapshot persistence outside that
+branch.
