@@ -1,4 +1,8 @@
 import { loadEnvironmentFileIfPresent } from './environment-file.js';
+import {
+  requiredConfiguredEnvironmentValue,
+  requiredEnvironmentValue,
+} from './environment-values.js';
 
 const DEVELOPMENT_DATABASE_NAME = 'osleaders_dev';
 const LOCAL_DATABASE_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
@@ -13,12 +17,6 @@ export interface TestDatabaseConfiguration {
   connectionString: string;
 }
 
-export function loadRuntimeDatabaseConfiguration(): DatabaseConfiguration {
-  loadEnvironmentFileIfPresent('.env');
-
-  return parseRuntimeDatabaseConfiguration(process.env);
-}
-
 export function loadDevelopmentMigrationConfiguration(): DatabaseConfiguration {
   loadEnvironmentFileIfPresent('.env');
 
@@ -31,8 +29,12 @@ export function loadDevelopmentMigrationConfiguration(): DatabaseConfiguration {
 export function parseRuntimeDatabaseConfiguration(
   environment: NodeJS.ProcessEnv,
 ): DatabaseConfiguration {
+  const connectionString = requiredConfiguredEnvironmentValue(environment, 'DATABASE_URL');
+  const databaseUrl = assertPostgreSqlUrl(connectionString, 'DATABASE_URL');
+  assertLocalDatabaseHost(databaseUrl, 'DATABASE_URL');
+
   return {
-    connectionString: requiredEnvironmentValue(environment, 'DATABASE_URL'),
+    connectionString,
     poolMax: parsePositiveInteger(
       requiredEnvironmentValue(environment, 'DATABASE_POOL_MAX'),
       'DATABASE_POOL_MAX',
@@ -82,6 +84,23 @@ function assertSafeLocalDatabaseUrl(
   environmentVariableName: string,
   expectedDatabaseName: string,
 ): void {
+  const databaseUrl = assertPostgreSqlUrl(connectionString, environmentVariableName);
+  const databaseName = decodeURIComponent(databaseUrl.pathname.slice(1));
+
+  if (databaseName !== expectedDatabaseName) {
+    throw new Error(`${environmentVariableName} must target exactly ${expectedDatabaseName}.`);
+  }
+
+  assertLocalDatabaseHost(databaseUrl, environmentVariableName);
+}
+
+function assertLocalDatabaseHost(databaseUrl: URL, environmentVariableName: string): void {
+  if (!LOCAL_DATABASE_HOSTS.has(databaseUrl.hostname)) {
+    throw new Error(`${environmentVariableName} must target a local PostgreSQL host.`);
+  }
+}
+
+function assertPostgreSqlUrl(connectionString: string, environmentVariableName: string): URL {
   let databaseUrl: URL;
 
   try {
@@ -94,25 +113,19 @@ function assertSafeLocalDatabaseUrl(
     throw new Error(`${environmentVariableName} must use the postgresql protocol.`);
   }
 
-  const databaseName = decodeURIComponent(databaseUrl.pathname.slice(1));
+  let databaseName: string;
 
-  if (databaseName !== expectedDatabaseName) {
-    throw new Error(`${environmentVariableName} must target exactly ${expectedDatabaseName}.`);
+  try {
+    databaseName = decodeURIComponent(databaseUrl.pathname.slice(1));
+  } catch {
+    throw new Error(`${environmentVariableName} must be a valid PostgreSQL connection URL.`);
   }
 
-  if (!LOCAL_DATABASE_HOSTS.has(databaseUrl.hostname)) {
-    throw new Error(`${environmentVariableName} must target a local PostgreSQL host.`);
-  }
-}
-
-function requiredEnvironmentValue(environment: NodeJS.ProcessEnv, name: string): string {
-  const value = environment[name];
-
-  if (value === undefined || value.trim() === '') {
-    throw new Error(`${name} must be set.`);
+  if (databaseName === '') {
+    throw new Error(`${environmentVariableName} must include a database name.`);
   }
 
-  return value;
+  return databaseUrl;
 }
 
 function parsePositiveInteger(value: string, name: string): number {

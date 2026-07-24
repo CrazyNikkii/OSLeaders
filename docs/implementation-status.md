@@ -5,14 +5,21 @@ verified against the checked-out code and Git history before it is relied on or
 updated. A stage is complete only when its approved scope is implemented and
 merged.
 
-## Completed stages
+## Merged implementation foundations
 
-- Stage 1 — Project skeleton, locked dependencies, configuration validation,
-  code-quality tools, and test harness.
-- Stage 2 — PostgreSQL connection and migration foundation, guild tenancy-root
-  schema, and guarded PostgreSQL integration-test safety.
+- Stage 1 has the project skeleton, locked dependencies, code-quality tools,
+  and test harness merged. Centralized runtime configuration validation is not
+  yet merged, so Stage 1 is not recorded as complete.
+- Stage 2 has the PostgreSQL connection and migration foundation, guild
+  tenancy-root schema, and guarded PostgreSQL integration-test safety merged.
 
-## Current stage
+## Current implementation work
+
+The current branch completes Stage 1's centralized runtime configuration
+validation. This work remains pending until it is reviewed, committed, and
+merged.
+
+## Next planned stage
 
 Stage 3 — Hiscores investigation, result model, parser fixtures, and the
 centralized Hiscores client.
@@ -36,7 +43,13 @@ complete.
 
 ## Latest merged work
 
-`56bd401` (2026-07-24) — Add PostgreSQL database foundation.
+`639ebf5` (2026-07-24) — Document implementation progress requirements.
+
+This is the latest merged repository change. It added this implementation
+status record and the progress-maintenance requirements in `AGENTS.md`.
+
+The latest merged implementation change is `56bd401` (2026-07-24) — Add
+PostgreSQL database foundation.
 
 This added the initial `guilds` tenancy-root migration, Drizzle migration
 configuration and metadata, guarded separate-test-database reset and migration
@@ -45,7 +58,9 @@ coverage for the complete check set.
 
 ## Next recommended branch-sized task
 
-Implement Stage 3's Hiscores investigation and foundation: record the verified
-endpoint and mode-verification matrix, define the typed result model, add
-sanitized parser fixtures, and create focused tests. Do not add account
-registration or snapshot persistence in this task.
+Finish review and merge the current Stage 1 runtime-configuration work. After
+that merges, begin Stage 3 with the Hiscores contract and parser foundation:
+record the verified endpoint and mode-verification matrix, define the typed
+result model, add sanitized response fixtures, and implement deterministic
+parser tests. Keep HTTP transport, caching, retries, account registration, and
+snapshot persistence outside that branch.
