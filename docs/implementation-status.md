@@ -24,10 +24,12 @@ complete.
 The merged Stage 3 foundation implements the OSRS-only endpoint and
 mode-verification contract, typed result model, current named skill and boss
 catalogue, sanitized fixture, deterministic JSON parser, centralized HTTP
-transport, and focused controlled-server tests. The current unmerged branch
-adds the bounded successful-response cache and fresh-fetch bypass. Account
-registration validation orchestration and snapshot persistence remain outside
-the branch.
+transport, bounded successful-response cache, fresh-fetch bypass, and focused
+controlled-server tests. The current unmerged branch adds account-mode
+validation coordination, including the required Hardcore and Ultimate
+exclusion before accepting regular Ironman. Account registration persistence,
+initial recap-baseline creation, and Discord registration interactions remain
+outside the branch.
 
 ## Later planned stages
 
@@ -42,7 +44,7 @@ the branch.
   testing.
 - Stage 10 — Deployment and backup specification based on the actual laptop.
 
-## Latest merged implementation work
+## Previous merged implementation work
 
 `1cc93e8` (2026-07-24) — Merge OSRS Hiscores HTTP transport.
 
@@ -50,15 +52,20 @@ This merged encoded request construction, typed HTTP and timeout results, one
 bounded retry for temporary failures, a small concurrency limiter, and
 controlled local-server tests into the centralized Hiscores client.
 
+## Latest merged implementation work
+
+`807b2e9` (2026-07-24) - Merge Hiscores success cache.
+
+This merged a bounded, one-minute successful-response cache with normalized
+username and endpoint keys, least-recently-used eviction, and a fresh-fetch
+bypass into the centralized Hiscores client.
+
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-After the successful-response cache is reviewed and merged, continue Stage 3
-with account-registration validation orchestration. It should select the
-verified endpoint strategy for each account mode, apply the required
-Hardcore/Ultimate exclusion before accepting regular Ironman, and preserve
-the server-managed label contract for Main and Group Ironman modes. Keep
-database persistence and Discord registration interactions outside that
-branch.
+After the current account-mode validation branch is reviewed and merged, begin
+Stage 4 with the guild-configuration foundation: guild-scoped configuration
+storage and service interfaces, without Discord command wiring. Follow with
+the permission and audit foundations as separate branch-sized tasks.
