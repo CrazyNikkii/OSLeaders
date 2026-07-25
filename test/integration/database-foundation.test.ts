@@ -476,6 +476,42 @@ describe('database foundation', () => {
     expect(results.filter((result) => result.kind === 'username_taken')).toHaveLength(1);
   });
 
+  it('changes an account mode within its guild without replacing its identity or recap baseline', async () => {
+    const repository = new PostgresAccountRegistrationRepository(connection.database);
+    const guildId = 'account-mode-change-guild';
+
+    await repository.register(
+      account({
+        id: 'mode-change-account',
+        guildId,
+        displayUsername: 'Mode Change',
+        normalizedUsername: 'mode change',
+      }),
+      initialRecapBaseline(),
+    );
+
+    await expect(
+      repository.changeMode(guildId, 'mode-change-account', 'ironman'),
+    ).resolves.toMatchObject({
+      kind: 'mode_changed',
+      account: {
+        accountMode: 'ironman',
+        id: 'mode-change-account',
+        isDefault: true,
+        quotaOwnerDiscordUserId: 'member-one',
+      },
+    });
+    await expect(
+      repository.changeMode('different-guild', 'mode-change-account', 'ultimate_ironman'),
+    ).resolves.toEqual({ kind: 'account_not_found' });
+    await expect(
+      connection.database
+        .select()
+        .from(recapBaselines)
+        .where(eq(recapBaselines.accountId, 'mode-change-account')),
+    ).resolves.toHaveLength(1);
+  });
+
   it('rolls back the account when initial recap-baseline insertion fails', async () => {
     const repository = new PostgresAccountRegistrationRepository(connection.database);
     const accountId = 'baseline-failure-account';
