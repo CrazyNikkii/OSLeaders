@@ -386,6 +386,96 @@ describe('database foundation', () => {
     expect(defaults[0]?.id).toMatch(/^concurrent-default-selection-(one|two)$/);
   });
 
+  it('renames an account within its guild without replacing its stable identity or recap baseline', async () => {
+    const repository = new PostgresAccountRegistrationRepository(connection.database);
+    const guildId = 'account-rename-guild';
+
+    await repository.register(
+      account({
+        id: 'rename-account-one',
+        guildId,
+        displayUsername: 'Rename One',
+        normalizedUsername: 'rename one',
+      }),
+      initialRecapBaseline(),
+    );
+    await repository.register(
+      account({
+        id: 'rename-account-two',
+        guildId,
+        displayUsername: 'Rename Two',
+        normalizedUsername: 'rename two',
+      }),
+      initialRecapBaseline(),
+    );
+
+    await expect(
+      repository.rename(guildId, 'rename-account-one', {
+        displayUsername: 'Renamed Account',
+        normalizedUsername: 'renamed account',
+      }),
+    ).resolves.toMatchObject({
+      kind: 'renamed',
+      account: { id: 'rename-account-one', displayUsername: 'Renamed Account' },
+    });
+    await expect(
+      repository.rename(guildId, 'rename-account-two', {
+        displayUsername: 'Duplicate',
+        normalizedUsername: 'renamed account',
+      }),
+    ).resolves.toEqual({ kind: 'username_taken' });
+    await expect(
+      repository.rename('different-guild', 'rename-account-one', {
+        displayUsername: 'Wrong Guild',
+        normalizedUsername: 'wrong guild',
+      }),
+    ).resolves.toEqual({ kind: 'account_not_found' });
+    await expect(
+      connection.database
+        .select()
+        .from(recapBaselines)
+        .where(eq(recapBaselines.accountId, 'rename-account-one')),
+    ).resolves.toHaveLength(1);
+  });
+
+  it('serializes concurrent renames so only one account can claim a normalized username', async () => {
+    const repository = new PostgresAccountRegistrationRepository(connection.database);
+    const guildId = 'concurrent-account-rename-guild';
+
+    await repository.register(
+      account({
+        id: 'concurrent-rename-one',
+        guildId,
+        displayUsername: 'Concurrent Rename One',
+        normalizedUsername: 'concurrent rename one',
+      }),
+      initialRecapBaseline(),
+    );
+    await repository.register(
+      account({
+        id: 'concurrent-rename-two',
+        guildId,
+        displayUsername: 'Concurrent Rename Two',
+        normalizedUsername: 'concurrent rename two',
+      }),
+      initialRecapBaseline(),
+    );
+
+    const results = await Promise.all([
+      repository.rename(guildId, 'concurrent-rename-one', {
+        displayUsername: 'Contested Name',
+        normalizedUsername: 'contested name',
+      }),
+      repository.rename(guildId, 'concurrent-rename-two', {
+        displayUsername: 'Contested Name',
+        normalizedUsername: 'contested name',
+      }),
+    ]);
+
+    expect(results.filter((result) => result.kind === 'renamed')).toHaveLength(1);
+    expect(results.filter((result) => result.kind === 'username_taken')).toHaveLength(1);
+  });
+
   it('rolls back the account when initial recap-baseline insertion fails', async () => {
     const repository = new PostgresAccountRegistrationRepository(connection.database);
     const accountId = 'baseline-failure-account';
