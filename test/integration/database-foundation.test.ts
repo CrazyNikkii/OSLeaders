@@ -5,6 +5,8 @@ import { and, eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { loadTestDatabaseConfiguration } from '../../src/infrastructure/config/database-environment.js';
+import { AccountRetrievalService } from '../../src/features/accounts/account-retrieval.js';
+import { DefaultAccountSelectionService } from '../../src/features/accounts/select-default-account.js';
 import {
   createDatabaseConnection,
   type DatabaseConnection,
@@ -269,6 +271,119 @@ describe('database foundation', () => {
       .from(trackedAccounts)
       .where(and(eq(trackedAccounts.guildId, guildId), eq(trackedAccounts.isDefault, true)));
     expect(defaults).toHaveLength(1);
+  });
+
+  it('retrieves accounts within their guild and atomically changes a linked member default', async () => {
+    const repository = new PostgresAccountRegistrationRepository(connection.database);
+    const accounts = new AccountRetrievalService(repository);
+    const selection = new DefaultAccountSelectionService(repository, repository);
+    const guildId = 'account-retrieval-guild';
+
+    await repository.register(
+      account({
+        id: 'retrieval-account-one',
+        guildId,
+        displayUsername: 'Retrieval One',
+        normalizedUsername: 'retrieval one',
+      }),
+      initialRecapBaseline(),
+    );
+    await repository.register(
+      account({
+        id: 'retrieval-account-two',
+        guildId,
+        displayUsername: 'Retrieval Two',
+        normalizedUsername: 'retrieval two',
+      }),
+      initialRecapBaseline(),
+    );
+    await repository.register(
+      account({
+        id: 'retrieval-account-other-guild',
+        guildId: 'account-retrieval-other-guild',
+        displayUsername: 'Retrieval Other Guild',
+        normalizedUsername: 'retrieval other guild',
+      }),
+      initialRecapBaseline(),
+    );
+
+    await expect(accounts.listForGuild(guildId)).resolves.toHaveLength(2);
+    await expect(
+      accounts.getById(guildId, 'retrieval-account-other-guild'),
+    ).resolves.toBeUndefined();
+    await expect(
+      selection.select({
+        accountId: 'retrieval-account-two',
+        canManageAccounts: false,
+        guildId,
+        requesterDiscordUserId: 'member-one',
+      }),
+    ).resolves.toMatchObject({ kind: 'selected', account: { isDefault: true } });
+    await expect(accounts.getDefaultForMember(guildId, 'member-one')).resolves.toMatchObject({
+      id: 'retrieval-account-two',
+      isDefault: true,
+    });
+    await expect(accounts.getById(guildId, 'retrieval-account-one')).resolves.toMatchObject({
+      isDefault: false,
+    });
+  });
+
+  it('serializes concurrent default selections so a linked member retains exactly one default', async () => {
+    const repository = new PostgresAccountRegistrationRepository(connection.database);
+    const selection = new DefaultAccountSelectionService(repository, repository);
+    const guildId = 'concurrent-default-selection-guild';
+
+    await repository.register(
+      account({
+        id: 'concurrent-default-selection-one',
+        guildId,
+        displayUsername: 'Concurrent Default One',
+        normalizedUsername: 'concurrent default one',
+      }),
+      initialRecapBaseline(),
+    );
+    await repository.register(
+      account({
+        id: 'concurrent-default-selection-two',
+        guildId,
+        displayUsername: 'Concurrent Default Two',
+        normalizedUsername: 'concurrent default two',
+      }),
+      initialRecapBaseline(),
+    );
+
+    await expect(
+      Promise.all([
+        selection.select({
+          accountId: 'concurrent-default-selection-one',
+          canManageAccounts: false,
+          guildId,
+          requesterDiscordUserId: 'member-one',
+        }),
+        selection.select({
+          accountId: 'concurrent-default-selection-two',
+          canManageAccounts: false,
+          guildId,
+          requesterDiscordUserId: 'member-one',
+        }),
+      ]),
+    ).resolves.toEqual([
+      expect.objectContaining({ kind: 'selected' }),
+      expect.objectContaining({ kind: 'selected' }),
+    ]);
+
+    const defaults = await connection.database
+      .select({ id: trackedAccounts.id })
+      .from(trackedAccounts)
+      .where(
+        and(
+          eq(trackedAccounts.guildId, guildId),
+          eq(trackedAccounts.linkedDiscordUserId, 'member-one'),
+          eq(trackedAccounts.isDefault, true),
+        ),
+      );
+    expect(defaults).toHaveLength(1);
+    expect(defaults[0]?.id).toMatch(/^concurrent-default-selection-(one|two)$/);
   });
 
   it('rolls back the account when initial recap-baseline insertion fails', async () => {
