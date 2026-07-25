@@ -50,7 +50,7 @@ normalized username uniqueness. Focused unit and PostgreSQL integration tests
 cover authorization, validation failures, conflicts, guild isolation, and
 preserved recap baselines.
 
-The current unmerged branch adds account-mode changes with successful Hiscores
+The merged account-mode-change work adds successful Hiscores
 validation against the selected mode and the account's stored username. It
 authorizes linked-account owners and watchlist registrants, plus account
 managers. A guild-scoped serialized update preserves the stable account ID,
@@ -77,25 +77,24 @@ scheduling, and delivery work owned by later slices.
 
 ## Previous merged implementation work
 
-`5486bd6` (2026-07-25) - Merge account retrieval and default selection.
-
-This merged guild-scoped account retrieval and atomic default-account
-selection, including application-level authorization and focused unit and
-PostgreSQL integration coverage.
-
-## Latest merged implementation work
-
 `0ed4dbc` (2026-07-25) - Merge account renaming.
 
 This merged validated account renaming, preserving stable account identity and
 recap baselines with focused unit and PostgreSQL integration coverage.
+
+## Latest merged implementation work
+
+`86809d2` (2026-07-25) - Merge account mode changes.
+
+This merged validated, authorized account-mode changes that preserve stable
+account identity and recap baselines, with focused unit and PostgreSQL
+integration coverage.
 
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-After the current account-mode-change branch is reviewed and merged, add
-account-association conversion. Keep Discord command wiring, destructive
+Add account-association conversion. Keep Discord command wiring, destructive
 removal confirmation, and active-competition restrictions out of that focused
 branch.
