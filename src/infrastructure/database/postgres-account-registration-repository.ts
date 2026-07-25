@@ -1,7 +1,12 @@
-import { and, asc, count, eq, sql } from 'drizzle-orm';
+import { and, asc, count, eq, ne, sql } from 'drizzle-orm';
 
 import type { AccountRetrievalRepository } from '../../features/accounts/account-retrieval.js';
 import type { AccountModeChangeRepository } from '../../features/accounts/change-account-mode.js';
+import {
+  canConvertAccountAssociation,
+  type AccountAssociationConversionRepository,
+  type ConvertAccountAssociationRequest,
+} from '../../features/accounts/convert-account-association.js';
 import type { DefaultAccountSelectionRepository } from '../../features/accounts/select-default-account.js';
 import type { AccountRenameRepository } from '../../features/accounts/rename-account.js';
 import {
@@ -20,7 +25,8 @@ export class PostgresAccountRegistrationRepository
     AccountRetrievalRepository,
     DefaultAccountSelectionRepository,
     AccountModeChangeRepository,
-    AccountRenameRepository
+    AccountRenameRepository,
+    AccountAssociationConversionRepository
 {
   public constructor(private readonly database: Database) {}
 
@@ -249,6 +255,124 @@ export class PostgresAccountRegistrationRepository
       return changed === undefined
         ? { kind: 'account_not_found' }
         : { kind: 'mode_changed', account: toTrackedAccount(changed) };
+    });
+  }
+
+  public convertAssociation(
+    request: ConvertAccountAssociationRequest,
+  ): Promise<
+    | { kind: 'converted'; account: TrackedAccount }
+    | { kind: 'forbidden' }
+    | { kind: 'account_not_found' }
+    | { kind: 'association_unchanged' }
+    | { kind: 'account_limit_reached' }
+  > {
+    const { accountId, guildId, targetAssociation } = request;
+    return this.database.transaction(async (transaction) => {
+      await transaction.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${guildId}, 0))`);
+      const [stored] = await transaction
+        .select()
+        .from(trackedAccounts)
+        .where(and(eq(trackedAccounts.guildId, guildId), eq(trackedAccounts.id, accountId)));
+      if (stored === undefined) {
+        return { kind: 'account_not_found' };
+      }
+
+      const account = toTrackedAccount(stored);
+      if (account.association.type === targetAssociation.type) {
+        return { kind: 'association_unchanged' };
+      }
+      if (!canConvertAccountAssociation(account, request)) {
+        return { kind: 'forbidden' };
+      }
+
+      const quotaOwnerDiscordUserId =
+        targetAssociation.type === 'linked'
+          ? targetAssociation.discordUserId
+          : account.registeredByDiscordUserId;
+      const [countResult] = await transaction
+        .select({ accountCount: count() })
+        .from(trackedAccounts)
+        .where(
+          and(
+            eq(trackedAccounts.guildId, guildId),
+            eq(trackedAccounts.quotaOwnerDiscordUserId, quotaOwnerDiscordUserId),
+            ne(trackedAccounts.id, accountId),
+          ),
+        );
+      if (countResult === undefined) {
+        throw new Error('Account quota count was not returned.');
+      }
+      if (countResult.accountCount >= MAX_TRACKED_ACCOUNTS_PER_MEMBER) {
+        return { kind: 'account_limit_reached' };
+      }
+
+      if (targetAssociation.type === 'linked') {
+        const [linkedAccount] = await transaction
+          .select({ id: trackedAccounts.id })
+          .from(trackedAccounts)
+          .where(
+            and(
+              eq(trackedAccounts.guildId, guildId),
+              eq(trackedAccounts.linkedDiscordUserId, targetAssociation.discordUserId),
+            ),
+          )
+          .limit(1);
+        const [converted] = await transaction
+          .update(trackedAccounts)
+          .set({
+            associationType: 'linked',
+            isDefault: linkedAccount === undefined,
+            linkedDiscordUserId: targetAssociation.discordUserId,
+            quotaOwnerDiscordUserId,
+          })
+          .where(and(eq(trackedAccounts.guildId, guildId), eq(trackedAccounts.id, accountId)))
+          .returning();
+        if (converted === undefined) {
+          throw new Error('Tracked account disappeared during association conversion.');
+        }
+        return { kind: 'converted', account: toTrackedAccount(converted) };
+      }
+
+      if (account.association.type !== 'linked') {
+        throw new Error('Watchlist account cannot be converted to watchlist.');
+      }
+      const previousLinkedDiscordUserId = account.association.discordUserId;
+      const [converted] = await transaction
+        .update(trackedAccounts)
+        .set({
+          associationType: 'watchlist',
+          isDefault: false,
+          linkedDiscordUserId: null,
+          quotaOwnerDiscordUserId,
+        })
+        .where(and(eq(trackedAccounts.guildId, guildId), eq(trackedAccounts.id, accountId)))
+        .returning();
+      if (converted === undefined) {
+        throw new Error('Tracked account disappeared during association conversion.');
+      }
+      if (account.isDefault) {
+        const [replacement] = await transaction
+          .select({ id: trackedAccounts.id })
+          .from(trackedAccounts)
+          .where(
+            and(
+              eq(trackedAccounts.guildId, guildId),
+              eq(trackedAccounts.linkedDiscordUserId, previousLinkedDiscordUserId),
+            ),
+          )
+          .orderBy(asc(trackedAccounts.createdAt), asc(trackedAccounts.id))
+          .limit(1);
+        if (replacement !== undefined) {
+          await transaction
+            .update(trackedAccounts)
+            .set({ isDefault: true })
+            .where(
+              and(eq(trackedAccounts.guildId, guildId), eq(trackedAccounts.id, replacement.id)),
+            );
+        }
+      }
+      return { kind: 'converted', account: toTrackedAccount(converted) };
     });
   }
 
