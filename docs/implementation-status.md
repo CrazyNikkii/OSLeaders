@@ -58,14 +58,20 @@ association, default selection, quota attribution, and recap baseline. Focused
 unit and PostgreSQL integration tests cover authorization, validation failures,
 guild isolation, and preserved account data.
 
-Account-association conversion is implemented on
-`codex/account-association-conversion` and is pending merge. It is not yet
-recorded as completed.
+The merged account-association-conversion work authorizes watchlist-to-linked
+conversion only for account managers, and linked-to-watchlist conversion for
+the linked member or an account manager. Authorization, current association
+state, quota enforcement, and the write are serialized in one guild-scoped
+transaction. It preserves the stable account ID, registration metadata, and
+recap baseline; it also assigns or replaces the member default account as
+needed. Returning an account to watchlist restores quota attribution to its
+original adder. Focused unit and PostgreSQL integration tests cover those
+rules, including stale-ownership protection and guild isolation.
 
 Stage 5 is not complete. It intentionally does not add Discord command wiring,
-public announcements, administrative-channel delivery, removal, conversion,
-member-presence tracking, or the durable daily-recap run,
-scheduling, and delivery work owned by later slices.
+public announcements, administrative-channel delivery, removal,
+linked-account reassignment, member-presence tracking, or the durable
+daily-recap run, scheduling, and delivery work owned by later slices.
 
 ## Later planned stages
 
@@ -81,24 +87,25 @@ scheduling, and delivery work owned by later slices.
 
 ## Previous merged implementation work
 
-`0ed4dbc` (2026-07-25) - Merge account renaming.
-
-This merged validated account renaming, preserving stable account identity and
-recap baselines with focused unit and PostgreSQL integration coverage.
-
-## Latest merged implementation work
-
 `86809d2` (2026-07-25) - Merge account mode changes.
 
 This merged validated, authorized account-mode changes that preserve stable
 account identity and recap baselines, with focused unit and PostgreSQL
 integration coverage.
 
+## Latest merged implementation work
+
+`466bef8` (2026-07-25) - Merge account association conversion.
+
+This merged authorized association conversion with atomic state,
+authorization, quota, and default-account handling while preserving stable
+account identity, registration metadata, and recap baselines.
+
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-Add account-association conversion. Keep Discord command wiring, destructive
-removal confirmation, and active-competition restrictions out of that focused
-branch.
+Add manager-only linked-account reassignment. Keep Discord command wiring,
+destructive removal confirmation, and active-competition restrictions out of
+that focused branch.
