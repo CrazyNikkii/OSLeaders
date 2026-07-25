@@ -58,6 +58,10 @@ association, default selection, quota attribution, and recap baseline. Focused
 unit and PostgreSQL integration tests cover authorization, validation failures,
 guild isolation, and preserved account data.
 
+Account-association conversion is implemented on
+`codex/account-association-conversion` and is pending merge. It is not yet
+recorded as completed.
+
 Stage 5 is not complete. It intentionally does not add Discord command wiring,
 public announcements, administrative-channel delivery, removal, conversion,
 member-presence tracking, or the durable daily-recap run,

@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { loadTestDatabaseConfiguration } from '../../src/infrastructure/config/database-environment.js';
 import { AccountRetrievalService } from '../../src/features/accounts/account-retrieval.js';
+import { AccountAssociationConversionService } from '../../src/features/accounts/convert-account-association.js';
 import { DefaultAccountSelectionService } from '../../src/features/accounts/select-default-account.js';
 import {
   createDatabaseConnection,
@@ -512,6 +513,150 @@ describe('database foundation', () => {
     ).resolves.toHaveLength(1);
   });
 
+  it('converts account associations atomically while preserving baselines and defaults', async () => {
+    const repository = new PostgresAccountRegistrationRepository(connection.database);
+    const conversion = new AccountAssociationConversionService(repository);
+    const guildId = 'account-conversion-guild';
+
+    await repository.register(
+      account({
+        association: { type: 'watchlist' },
+        displayUsername: 'Watchlisted Friend',
+        guildId,
+        id: 'conversion-watchlist',
+        normalizedUsername: 'watchlisted friend',
+        quotaOwnerDiscordUserId: 'original-adder',
+        registeredByDiscordUserId: 'original-adder',
+      }),
+      initialRecapBaseline(),
+    );
+    await repository.register(
+      account({
+        displayUsername: 'Member Backup',
+        guildId,
+        id: 'conversion-backup',
+        normalizedUsername: 'member backup',
+      }),
+      initialRecapBaseline(),
+    );
+
+    await expect(
+      conversion.convert({
+        accountId: 'conversion-watchlist',
+        canManageAccounts: true,
+        guildId,
+        requesterDiscordUserId: 'manager-one',
+        targetAssociation: { type: 'linked', discordUserId: 'member-one' },
+      }),
+    ).resolves.toMatchObject({
+      kind: 'converted',
+      account: {
+        association: { type: 'linked', discordUserId: 'member-one' },
+        id: 'conversion-watchlist',
+        isDefault: false,
+        quotaOwnerDiscordUserId: 'member-one',
+        registeredByDiscordUserId: 'original-adder',
+      },
+    });
+    await expect(
+      conversion.convert({
+        accountId: 'conversion-backup',
+        canManageAccounts: false,
+        guildId,
+        requesterDiscordUserId: 'member-one',
+        targetAssociation: { type: 'watchlist' },
+      }),
+    ).resolves.toMatchObject({
+      kind: 'converted',
+      account: {
+        association: { type: 'watchlist' },
+        id: 'conversion-backup',
+        quotaOwnerDiscordUserId: 'member-one',
+      },
+    });
+    await expect(repository.getDefaultForMember(guildId, 'member-one')).resolves.toMatchObject({
+      id: 'conversion-watchlist',
+      isDefault: true,
+    });
+    await expect(
+      connection.database
+        .select()
+        .from(recapBaselines)
+        .where(eq(recapBaselines.accountId, 'conversion-watchlist')),
+    ).resolves.toHaveLength(1);
+
+    await expect(
+      conversion.convert({
+        accountId: 'conversion-backup',
+        canManageAccounts: true,
+        guildId,
+        requesterDiscordUserId: 'manager-one',
+        targetAssociation: { type: 'linked', discordUserId: 'member-two' },
+      }),
+    ).resolves.toMatchObject({
+      kind: 'converted',
+      account: { association: { type: 'linked', discordUserId: 'member-two' } },
+    });
+    await expect(
+      conversion.convert({
+        accountId: 'conversion-backup',
+        canManageAccounts: false,
+        guildId,
+        requesterDiscordUserId: 'member-one',
+        targetAssociation: { type: 'watchlist' },
+      }),
+    ).resolves.toEqual({ kind: 'forbidden' });
+    await expect(repository.getById(guildId, 'conversion-backup')).resolves.toMatchObject({
+      association: { type: 'linked', discordUserId: 'member-two' },
+    });
+  });
+
+  it('rejects association conversion when the destination quota is full', async () => {
+    const repository = new PostgresAccountRegistrationRepository(connection.database);
+    const conversion = new AccountAssociationConversionService(repository);
+    const guildId = 'account-conversion-quota-guild';
+
+    for (let index = 0; index < 10; index += 1) {
+      await repository.register(
+        account({
+          displayUsername: `Full Quota ${index}`,
+          guildId,
+          id: `full-quota-${index}`,
+          normalizedUsername: `full quota ${index}`,
+          quotaOwnerDiscordUserId: 'destination-member',
+          registeredByDiscordUserId: 'destination-member',
+        }),
+        initialRecapBaseline(),
+      );
+    }
+    await repository.register(
+      account({
+        association: { type: 'watchlist' },
+        displayUsername: 'Quota Watchlist',
+        guildId,
+        id: 'quota-watchlist',
+        normalizedUsername: 'quota watchlist',
+        quotaOwnerDiscordUserId: 'original-adder',
+        registeredByDiscordUserId: 'original-adder',
+      }),
+      initialRecapBaseline(),
+    );
+
+    await expect(
+      conversion.convert({
+        accountId: 'quota-watchlist',
+        canManageAccounts: true,
+        guildId,
+        requesterDiscordUserId: 'manager-one',
+        targetAssociation: { type: 'linked', discordUserId: 'destination-member' },
+      }),
+    ).resolves.toEqual({ kind: 'account_limit_reached' });
+    await expect(repository.getById(guildId, 'quota-watchlist')).resolves.toMatchObject({
+      association: { type: 'watchlist' },
+      quotaOwnerDiscordUserId: 'original-adder',
+    });
+  });
+
   it('rolls back the account when initial recap-baseline insertion fails', async () => {
     const repository = new PostgresAccountRegistrationRepository(connection.database);
     const accountId = 'baseline-failure-account';
@@ -560,10 +705,12 @@ function initialRecapBaseline() {
 
 function account(
   overrides: Partial<{
+    association: { type: 'linked'; discordUserId: string } | { type: 'watchlist' };
     displayUsername: string;
     guildId: string;
     id: string;
     normalizedUsername: string;
+    quotaOwnerDiscordUserId: string;
     registeredByDiscordUserId: string;
   }>,
 ) {
