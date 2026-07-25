@@ -77,15 +77,24 @@ integration tests cover authorization, linked-account-only handling, guild
 isolation, default transitions, baseline preservation, and concurrent quota
 enforcement.
 
-The current unmerged member-presence branch adds guild-scoped durable presence
-state keyed by Discord user ID. Its Discord-independent Accounts service marks
-members absent or present without deleting or unlinking their accounts. The
-PostgreSQL upsert preserves one state per guild/member pair, and focused unit
-and PostgreSQL integration tests cover departure, rejoin, guild isolation,
-schema migration, and preservation of linked accounts and recap baselines.
+The merged member-presence work adds guild-scoped durable presence state keyed
+by Discord user ID. Its Discord-independent Accounts service marks members
+absent or present without deleting or unlinking their accounts. The PostgreSQL
+upsert preserves one state per guild/member pair, and focused unit and
+PostgreSQL integration tests cover departure, rejoin, guild isolation, schema
+migration, and preservation of linked accounts and recap baselines.
+
+The current unmerged account-removal foundation authorizes linked-account
+owners and watchlist registrants, plus account managers, to remove an account
+within its guild. Its serialized PostgreSQL deletion repairs a removed linked
+member's default account by selecting the oldest remaining linked account, and
+the existing foreign-key cascade removes the daily-recap baseline. Focused unit
+and PostgreSQL integration tests cover authorization, guild isolation, default
+replacement, and baseline deletion. Discord confirmation and active-competition
+guards remain outside this focused branch.
 
 Stage 5 is not complete. It intentionally does not add Discord command wiring,
-public announcements, administrative-channel delivery, removal, or the durable
+public announcements, administrative-channel delivery, or the durable
 daily-recap run, scheduling, and delivery work owned by later slices.
 
 ## Later planned stages
@@ -102,26 +111,24 @@ daily-recap run, scheduling, and delivery work owned by later slices.
 
 ## Previous merged implementation work
 
-`466bef8` (2026-07-25) - Merge account association conversion.
-
-This merged authorized association conversion with atomic state,
-authorization, quota, and default-account handling while preserving stable
-account identity, registration metadata, and recap baselines.
-
-## Latest merged implementation work
-
 `9a0bc3d` (2026-07-25) - Merge linked-account reassignment.
 
 This merged manager-only linked-account reassignment with atomic quota and
 default-account handling while preserving stable account identity,
 registration metadata, and recap baselines.
 
+## Latest merged implementation work
+
+`79317dd` (2026-07-25) - Merge member-presence persistence.
+
+This merged guild-scoped durable member presence state, allowing departures
+and rejoins to be recorded without unlinking or deleting accounts.
+
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-After the member-presence branch is reviewed and merged, add the
-Discord-independent account-removal foundation (`codex/account-removal-foundation`).
-Keep destructive Discord confirmation wiring and active-competition
-restrictions out of that focused branch.
+Review and merge the current Discord-independent account-removal foundation
+(`codex/account-removal-foundation`). Keep destructive Discord confirmation
+wiring and active-competition restrictions out of that focused branch.

@@ -8,6 +8,7 @@ import { loadTestDatabaseConfiguration } from '../../src/infrastructure/config/d
 import { AccountRetrievalService } from '../../src/features/accounts/account-retrieval.js';
 import { AccountAssociationConversionService } from '../../src/features/accounts/convert-account-association.js';
 import { MemberPresenceService } from '../../src/features/accounts/member-presence.js';
+import { AccountRemovalService } from '../../src/features/accounts/remove-account.js';
 import { LinkedAccountReassignmentService } from '../../src/features/accounts/reassign-linked-account.js';
 import { DefaultAccountSelectionService } from '../../src/features/accounts/select-default-account.js';
 import {
@@ -839,6 +840,99 @@ describe('database foundation', () => {
     ).resolves.toMatchObject({
       id: 'reassignment-destination-0',
     });
+  });
+
+  it('removes accounts within their guild, cascades baselines, and repairs defaults', async () => {
+    const repository = new PostgresAccountRegistrationRepository(connection.database);
+    const removal = new AccountRemovalService(repository);
+    const guildId = 'account-removal-guild';
+
+    await repository.register(
+      account({
+        displayUsername: 'Removal Default',
+        guildId,
+        id: 'removal-default',
+        normalizedUsername: 'removal default',
+      }),
+      initialRecapBaseline(),
+    );
+    await repository.register(
+      account({
+        displayUsername: 'Removal Oldest Replacement',
+        guildId,
+        id: 'removal-oldest-replacement',
+        normalizedUsername: 'removal oldest replacement',
+      }),
+      initialRecapBaseline(),
+    );
+    await repository.register(
+      account({
+        displayUsername: 'Removal Newer Replacement',
+        guildId,
+        id: 'removal-newer-replacement',
+        normalizedUsername: 'removal newer replacement',
+      }),
+      initialRecapBaseline(),
+    );
+
+    await expect(
+      removal.remove({
+        accountId: 'removal-default',
+        canManageAccounts: false,
+        guildId,
+        requesterDiscordUserId: 'member-one',
+      }),
+    ).resolves.toMatchObject({
+      kind: 'removed',
+      account: { id: 'removal-default' },
+      replacementDefaultAccount: { id: 'removal-oldest-replacement', isDefault: true },
+    });
+    await expect(repository.getById(guildId, 'removal-default')).resolves.toBeUndefined();
+    await expect(repository.getDefaultForMember(guildId, 'member-one')).resolves.toMatchObject({
+      id: 'removal-oldest-replacement',
+      isDefault: true,
+    });
+    await expect(
+      connection.database
+        .select()
+        .from(recapBaselines)
+        .where(eq(recapBaselines.accountId, 'removal-default')),
+    ).resolves.toEqual([]);
+  });
+
+  it('does not remove accounts from another guild or allow an unauthorized requester', async () => {
+    const repository = new PostgresAccountRegistrationRepository(connection.database);
+    const removal = new AccountRemovalService(repository);
+
+    await repository.register(
+      account({
+        displayUsername: 'Removal Protected',
+        guildId: 'account-removal-protected-guild',
+        id: 'removal-protected',
+        normalizedUsername: 'removal protected',
+      }),
+      initialRecapBaseline(),
+    );
+
+    await expect(
+      removal.remove({
+        accountId: 'removal-protected',
+        canManageAccounts: true,
+        guildId: 'another-guild',
+        requesterDiscordUserId: 'manager-one',
+      }),
+    ).resolves.toEqual({ kind: 'account_not_found' });
+    await expect(
+      removal.remove({
+        accountId: 'removal-protected',
+        canManageAccounts: false,
+        guildId: 'account-removal-protected-guild',
+        requesterDiscordUserId: 'member-two',
+      }),
+    ).resolves.toEqual({ kind: 'forbidden' });
+    await expect(
+      repository.getById('account-removal-protected-guild', 'removal-protected'),
+    ).resolves.toMatchObject({ id: 'removal-protected' });
   });
 
   it('rolls back the account when initial recap-baseline insertion fails', async () => {
