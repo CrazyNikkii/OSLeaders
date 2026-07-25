@@ -84,14 +84,14 @@ upsert preserves one state per guild/member pair, and focused unit and
 PostgreSQL integration tests cover departure, rejoin, guild isolation, schema
 migration, and preservation of linked accounts and recap baselines.
 
-The current unmerged account-removal foundation authorizes linked-account
+The merged account-removal foundation authorizes linked-account
 owners and watchlist registrants, plus account managers, to remove an account
 within its guild. Its serialized PostgreSQL deletion repairs a removed linked
 member's default account by selecting the oldest remaining linked account, and
 the existing foreign-key cascade removes the daily-recap baseline. Focused unit
 and PostgreSQL integration tests cover authorization, guild isolation, default
 replacement, and baseline deletion. Discord confirmation and active-competition
-guards remain outside this focused branch.
+guards remain deferred.
 
 Stage 5 is not complete. It intentionally does not add Discord command wiring,
 public announcements, administrative-channel delivery, or the durable
@@ -111,24 +111,25 @@ daily-recap run, scheduling, and delivery work owned by later slices.
 
 ## Previous merged implementation work
 
-`9a0bc3d` (2026-07-25) - Merge linked-account reassignment.
-
-This merged manager-only linked-account reassignment with atomic quota and
-default-account handling while preserving stable account identity,
-registration metadata, and recap baselines.
-
-## Latest merged implementation work
-
 `79317dd` (2026-07-25) - Merge member-presence persistence.
 
 This merged guild-scoped durable member presence state, allowing departures
 and rejoins to be recorded without unlinking or deleting accounts.
+
+## Latest merged implementation work
+
+`0cddd5e` (2026-07-25) - Merge account-removal foundation.
+
+This merged authorized, guild-scoped account removal with atomic default repair
+and recap-baseline deletion.
 
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-Review and merge the current Discord-independent account-removal foundation
-(`codex/account-removal-foundation`). Keep destructive Discord confirmation
-wiring and active-competition restrictions out of that focused branch.
+After the exact account command names and interaction layouts are selected,
+add the Discord account-command foundation
+(`codex/discord-account-command-foundation`). Start with command registration,
+interaction authorization inputs, and explicit account-removal confirmation;
+keep active-competition restrictions in the later competition stage.
