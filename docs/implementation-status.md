@@ -68,15 +68,14 @@ needed. Returning an account to watchlist restores quota attribution to its
 original adder. Focused unit and PostgreSQL integration tests cover those
 rules, including stale-ownership protection and guild isolation.
 
-The current unmerged `codex/linked-account-reassignment` branch adds
+The merged linked-account-reassignment work adds
 manager-only reassignment of a linked account to another member. The
 guild-scoped serialized write enforces the destination quota, preserves stable
 account identity, registration metadata, and the recap baseline, and repairs
 the source and destination default selections. Focused unit and PostgreSQL
 integration tests cover authorization, linked-account-only handling, guild
 isolation, default transitions, baseline preservation, and concurrent quota
-enforcement. This work is awaiting review and is not yet a completed stage or
-merged implementation record.
+enforcement.
 
 Stage 5 is not complete. It intentionally does not add Discord command wiring,
 public announcements, administrative-channel delivery, removal,
@@ -97,19 +96,19 @@ delivery work owned by later slices.
 
 ## Previous merged implementation work
 
-`86809d2` (2026-07-25) - Merge account mode changes.
-
-This merged validated, authorized account-mode changes that preserve stable
-account identity and recap baselines, with focused unit and PostgreSQL
-integration coverage.
-
-## Latest merged implementation work
-
 `466bef8` (2026-07-25) - Merge account association conversion.
 
 This merged authorized association conversion with atomic state,
 authorization, quota, and default-account handling while preserving stable
 account identity, registration metadata, and recap baselines.
+
+## Latest merged implementation work
+
+`9a0bc3d` (2026-07-25) - Merge linked-account reassignment.
+
+This merged manager-only linked-account reassignment with atomic quota and
+default-account handling while preserving stable account identity,
+registration metadata, and recap baselines.
 
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
