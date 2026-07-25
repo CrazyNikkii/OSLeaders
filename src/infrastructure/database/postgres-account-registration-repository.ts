@@ -14,6 +14,12 @@ import type {
 } from '../../features/accounts/member-presence.js';
 import type { AccountRenameRepository } from '../../features/accounts/rename-account.js';
 import {
+  canRemoveAccount,
+  type AccountRemovalRepository,
+  type RemoveAccountRequest,
+  type RemoveAccountResult,
+} from '../../features/accounts/remove-account.js';
+import {
   canReassignLinkedAccount,
   type LinkedAccountReassignmentRepository,
   type ReassignLinkedAccountRequest,
@@ -36,6 +42,7 @@ export class PostgresAccountRegistrationRepository
     DefaultAccountSelectionRepository,
     AccountModeChangeRepository,
     AccountRenameRepository,
+    AccountRemovalRepository,
     AccountAssociationConversionRepository,
     LinkedAccountReassignmentRepository,
     MemberPresenceRepository
@@ -503,6 +510,62 @@ export class PostgresAccountRegistrationRepository
       }
 
       return { kind: 'reassigned', account: toTrackedAccount(reassigned) };
+    });
+  }
+
+  public removeAccount(request: RemoveAccountRequest): Promise<RemoveAccountResult> {
+    const { accountId, guildId } = request;
+    return this.database.transaction(async (transaction) => {
+      await transaction.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${guildId}, 0))`);
+      const [stored] = await transaction
+        .select()
+        .from(trackedAccounts)
+        .where(and(eq(trackedAccounts.guildId, guildId), eq(trackedAccounts.id, accountId)));
+      if (stored === undefined) {
+        return { kind: 'account_not_found' };
+      }
+
+      const account = toTrackedAccount(stored);
+      if (!canRemoveAccount(account, request)) {
+        return { kind: 'forbidden' };
+      }
+
+      await transaction
+        .delete(trackedAccounts)
+        .where(and(eq(trackedAccounts.guildId, guildId), eq(trackedAccounts.id, accountId)));
+
+      if (account.association.type !== 'linked' || !account.isDefault) {
+        return { kind: 'removed', account };
+      }
+
+      const [replacement] = await transaction
+        .select()
+        .from(trackedAccounts)
+        .where(
+          and(
+            eq(trackedAccounts.guildId, guildId),
+            eq(trackedAccounts.linkedDiscordUserId, account.association.discordUserId),
+          ),
+        )
+        .orderBy(asc(trackedAccounts.createdAt), asc(trackedAccounts.id))
+        .limit(1);
+      if (replacement === undefined) {
+        return { kind: 'removed', account };
+      }
+
+      const [selected] = await transaction
+        .update(trackedAccounts)
+        .set({ isDefault: true })
+        .where(and(eq(trackedAccounts.guildId, guildId), eq(trackedAccounts.id, replacement.id)))
+        .returning();
+      if (selected === undefined) {
+        throw new Error('Default replacement account disappeared during removal.');
+      }
+      return {
+        kind: 'removed',
+        account,
+        replacementDefaultAccount: toTrackedAccount(selected),
+      };
     });
   }
 
