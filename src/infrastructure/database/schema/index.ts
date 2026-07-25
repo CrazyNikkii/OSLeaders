@@ -1,4 +1,5 @@
 export { guilds } from './guilds.js';
+export { guildMemberPresences } from './guild-member-presences.js';
 export { recapBaselines } from './recap-baselines.js';
 export {
   accountAssociationType,

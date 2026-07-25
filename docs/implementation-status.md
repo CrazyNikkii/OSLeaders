@@ -77,10 +77,16 @@ integration tests cover authorization, linked-account-only handling, guild
 isolation, default transitions, baseline preservation, and concurrent quota
 enforcement.
 
+The current unmerged member-presence branch adds guild-scoped durable presence
+state keyed by Discord user ID. Its Discord-independent Accounts service marks
+members absent or present without deleting or unlinking their accounts. The
+PostgreSQL upsert preserves one state per guild/member pair, and focused unit
+and PostgreSQL integration tests cover departure, rejoin, guild isolation,
+schema migration, and preservation of linked accounts and recap baselines.
+
 Stage 5 is not complete. It intentionally does not add Discord command wiring,
-public announcements, administrative-channel delivery, removal,
-member-presence tracking, or the durable daily-recap run, scheduling, and
-delivery work owned by later slices.
+public announcements, administrative-channel delivery, removal, or the durable
+daily-recap run, scheduling, and delivery work owned by later slices.
 
 ## Later planned stages
 
@@ -115,7 +121,7 @@ authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-After the reassignment branch is reviewed and merged, add guild-scoped member
-presence persistence (`codex/member-presence-persistence`). Keep Discord event
-wiring, destructive removal confirmation, and active-competition restrictions
-out of that focused branch.
+After the member-presence branch is reviewed and merged, add the
+Discord-independent account-removal foundation (`codex/account-removal-foundation`).
+Keep destructive Discord confirmation wiring and active-competition
+restrictions out of that focused branch.
