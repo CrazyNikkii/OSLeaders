@@ -18,13 +18,14 @@ merged.
 
 Stage 4 — Guild configuration, permissions, and audit foundations.
 
-The latest merged work establishes the guild-configuration persistence and
-service foundation: one configuration record per guild, configured manager-role
-and administrative-log channel IDs, Standard or Verbose audit-log mode, and
-guild-isolation coverage. The current branch adds Discord-independent
-application-level permission evaluation. It intentionally does not add Discord
-command wiring, audit delivery, or the remaining guild settings owned by later
-feature slices.
+The latest merged work establishes the guild-configuration and permission
+foundation: one configuration record per guild, configured manager-role and
+administrative-log channel IDs, Standard or Verbose audit-log mode,
+Discord-independent application-level permission evaluation, and guild-isolation
+coverage. The current branch adds structured audit events, central sanitization,
+error-reference IDs, administrative-log policy selection, and local structured
+logging. It intentionally does not add Discord command wiring, administrative
+audit delivery, or the remaining guild settings owned by later feature slices.
 
 ## Later planned stages
 
@@ -50,18 +51,19 @@ completed Stage 3.
 
 ## Latest merged implementation work
 
-`c12419b` (2026-07-24) — Merge guild-configuration foundation.
+`dafbf7b` (2026-07-24) — Merge permission-evaluation foundation.
 
-This merged per-guild configuration persistence and service foundations for
-configured manager-role IDs, administrative-log channel IDs, Standard or
-Verbose log mode, and guild-isolation coverage.
+This merged Discord-independent application-level permission evaluation for
+account and competition management, based on Discord Administrator permission
+and the requesting guild's configured manager-role IDs.
 
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-After the current permission-evaluation branch is reviewed and merged,
-continue Stage 4 with structured audit and local logging foundations. Keep
-audit events Discord-independent, sanitize data before any Discord delivery,
-and ensure failed audit delivery never undoes a valid product operation.
+After the current audit and local-logging branch is reviewed and merged, begin
+Stage 5 with the account persistence and registration transaction foundation.
+Keep account data strictly guild-scoped, preserve stable account identity, and
+coordinate username uniqueness, quota attribution, linked-account defaults,
+and successful Hiscores validation in one transaction.
