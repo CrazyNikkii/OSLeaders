@@ -1,0 +1,149 @@
+import { and, count, eq, sql } from 'drizzle-orm';
+
+import {
+  MAX_TRACKED_ACCOUNTS_PER_MEMBER,
+  type AccountRegistrationRepository,
+  type InitialRecapBaseline,
+  type TrackedAccount,
+} from '../../features/accounts/register-account.js';
+import type { Database, Transaction } from './connection.js';
+import { guilds, recapBaselines, trackedAccounts } from './schema/index.js';
+
+export class PostgresAccountRegistrationRepository implements AccountRegistrationRepository {
+  public constructor(private readonly database: Database) {}
+
+  public register(
+    account: Omit<TrackedAccount, 'createdAt' | 'isDefault'>,
+    initialRecapBaseline: InitialRecapBaseline,
+  ): Promise<
+    | { kind: 'registered'; account: TrackedAccount }
+    | { kind: 'username_taken' }
+    | { kind: 'account_limit_reached' }
+  > {
+    return this.database.transaction(async (transaction) => {
+      await transaction.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtextextended(${account.guildId}, 0))`,
+      );
+      await transaction.insert(guilds).values({ guildId: account.guildId }).onConflictDoNothing();
+
+      const existing = await this.findByNormalizedUsername(
+        transaction,
+        account.guildId,
+        account.normalizedUsername,
+      );
+      if (existing !== undefined) {
+        return { kind: 'username_taken' };
+      }
+
+      const [countResult] = await transaction
+        .select({ accountCount: count() })
+        .from(trackedAccounts)
+        .where(
+          and(
+            eq(trackedAccounts.guildId, account.guildId),
+            eq(trackedAccounts.quotaOwnerDiscordUserId, account.quotaOwnerDiscordUserId),
+          ),
+        );
+      if (countResult === undefined) {
+        throw new Error('Account quota count was not returned.');
+      }
+      if (countResult.accountCount >= MAX_TRACKED_ACCOUNTS_PER_MEMBER) {
+        return { kind: 'account_limit_reached' };
+      }
+
+      const isDefault =
+        account.association.type === 'linked' &&
+        !(await this.hasLinkedAccount(
+          transaction,
+          account.guildId,
+          account.association.discordUserId,
+        ));
+      const [stored] = await transaction
+        .insert(trackedAccounts)
+        .values({
+          accountMode: account.accountMode,
+          associationType: account.association.type,
+          displayUsername: account.displayUsername,
+          guildId: account.guildId,
+          id: account.id,
+          isDefault,
+          linkedDiscordUserId:
+            account.association.type === 'linked' ? account.association.discordUserId : null,
+          normalizedUsername: account.normalizedUsername,
+          quotaOwnerDiscordUserId: account.quotaOwnerDiscordUserId,
+          registeredByDiscordUserId: account.registeredByDiscordUserId,
+        })
+        .returning();
+
+      if (stored === undefined) {
+        throw new Error('Tracked account was not created.');
+      }
+      await transaction.insert(recapBaselines).values({
+        accountId: stored.id,
+        bossKillCounts: initialRecapBaseline.bossKillCounts,
+        capturedAt: initialRecapBaseline.capturedAt,
+        guildId: account.guildId,
+        skillExperience: initialRecapBaseline.skillExperience,
+        skillLevels: initialRecapBaseline.skillLevels,
+      });
+
+      return { kind: 'registered', account: toTrackedAccount(stored) };
+    });
+  }
+
+  private async findByNormalizedUsername(
+    database: Transaction,
+    guildId: string,
+    normalizedUsername: string,
+  ) {
+    const [account] = await database
+      .select({ id: trackedAccounts.id })
+      .from(trackedAccounts)
+      .where(
+        and(
+          eq(trackedAccounts.guildId, guildId),
+          eq(trackedAccounts.normalizedUsername, normalizedUsername),
+        ),
+      );
+    return account;
+  }
+
+  private async hasLinkedAccount(database: Transaction, guildId: string, discordUserId: string) {
+    const [account] = await database
+      .select({ id: trackedAccounts.id })
+      .from(trackedAccounts)
+      .where(
+        and(
+          eq(trackedAccounts.guildId, guildId),
+          eq(trackedAccounts.linkedDiscordUserId, discordUserId),
+        ),
+      )
+      .limit(1);
+    return account !== undefined;
+  }
+}
+
+function toTrackedAccount(account: typeof trackedAccounts.$inferSelect): TrackedAccount {
+  return {
+    accountMode: account.accountMode,
+    association:
+      account.associationType === 'linked'
+        ? { type: 'linked', discordUserId: nonNull(account.linkedDiscordUserId) }
+        : { type: 'watchlist' },
+    createdAt: account.createdAt,
+    displayUsername: account.displayUsername,
+    guildId: account.guildId,
+    id: account.id,
+    isDefault: account.isDefault,
+    normalizedUsername: account.normalizedUsername,
+    quotaOwnerDiscordUserId: account.quotaOwnerDiscordUserId,
+    registeredByDiscordUserId: account.registeredByDiscordUserId,
+  };
+}
+
+function nonNull(value: string | null): string {
+  if (value === null) {
+    throw new Error('A linked account is missing its linked Discord user ID.');
+  }
+  return value;
+}

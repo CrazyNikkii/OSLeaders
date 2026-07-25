@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { loadTestDatabaseConfiguration } from '../../src/infrastructure/config/database-environment.js';
@@ -11,7 +11,13 @@ import {
   withTransaction,
 } from '../../src/infrastructure/database/connection.js';
 import { PostgresGuildConfigurationRepository } from '../../src/infrastructure/database/postgres-guild-configuration-repository.js';
-import { guildConfigurations, guilds } from '../../src/infrastructure/database/schema/index.js';
+import { PostgresAccountRegistrationRepository } from '../../src/infrastructure/database/postgres-account-registration-repository.js';
+import {
+  guildConfigurations,
+  guilds,
+  recapBaselines,
+  trackedAccounts,
+} from '../../src/infrastructure/database/schema/index.js';
 
 let connection: DatabaseConnection;
 
@@ -25,7 +31,7 @@ interface DrizzleJournal {
 beforeAll(() => {
   connection = createDatabaseConnection({
     ...loadTestDatabaseConfiguration(),
-    poolMax: 1,
+    poolMax: 2,
   });
 });
 
@@ -43,7 +49,7 @@ describe('database foundation', () => {
   it('applies the committed database migrations to an empty test database', async () => {
     const committedMigrations = await readCommittedMigrations();
     const applicationTables = await connection.pool.query<{ table_name: string }>(
-      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('guild_configurations', 'guilds') ORDER BY table_name",
+      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('guild_configurations', 'guilds', 'recap_baselines', 'tracked_accounts') ORDER BY table_name",
     );
     const migrationTables = await connection.pool.query<{ table_name: string }>(
       "SELECT table_name FROM information_schema.tables WHERE table_schema = 'drizzle' AND table_name = '__drizzle_migrations'",
@@ -55,6 +61,8 @@ describe('database foundation', () => {
     expect(applicationTables.rows).toEqual([
       { table_name: 'guild_configurations' },
       { table_name: 'guilds' },
+      { table_name: 'recap_baselines' },
+      { table_name: 'tracked_accounts' },
     ]);
     expect(migrationTables.rows).toEqual([{ table_name: '__drizzle_migrations' }]);
     expect(migrationRecords.rows).toEqual(committedMigrations);
@@ -145,7 +153,191 @@ describe('database foundation', () => {
       beforeClear.updatedAt.getTime(),
     );
   });
+
+  it('keeps account names guild-scoped and selects the first linked account as default', async () => {
+    const repository = new PostgresAccountRegistrationRepository(connection.database);
+
+    const first = await repository.register(account({ id: 'account-one' }), initialRecapBaseline());
+    const second = await repository.register(
+      account({
+        id: 'account-two',
+        normalizedUsername: 'other player',
+        displayUsername: 'Other Player',
+      }),
+      initialRecapBaseline(),
+    );
+    const sameNameOtherGuild = await repository.register(
+      account({ id: 'account-three', guildId: 'account-guild-two' }),
+      initialRecapBaseline(),
+    );
+    const duplicate = await repository.register(
+      account({ id: 'account-four', registeredByDiscordUserId: 'member-two' }),
+      initialRecapBaseline(),
+    );
+
+    expect(first).toMatchObject({ kind: 'registered', account: { isDefault: true } });
+    expect(second).toMatchObject({ kind: 'registered', account: { isDefault: false } });
+    expect(sameNameOtherGuild).toMatchObject({ kind: 'registered' });
+    expect(duplicate).toEqual({ kind: 'username_taken' });
+    const [baseline] = await connection.database
+      .select()
+      .from(recapBaselines)
+      .where(eq(recapBaselines.accountId, 'account-one'));
+    expect(baseline).toMatchObject({
+      accountId: 'account-one',
+      bossKillCounts: { Zulrah: 12 },
+      guildId: 'account-guild-one',
+      skillExperience: { Attack: 1234 },
+      skillLevels: { Attack: 10 },
+    });
+  });
+
+  it('serializes concurrent registrations so a member cannot exceed the account quota', async () => {
+    const repository = new PostgresAccountRegistrationRepository(connection.database);
+    const guildId = 'account-quota-guild';
+
+    for (let index = 0; index < 9; index += 1) {
+      await repository.register(
+        account({
+          id: `quota-existing-${index}`,
+          guildId,
+          displayUsername: `Quota Player ${index}`,
+          normalizedUsername: `quota player ${index}`,
+        }),
+        initialRecapBaseline(),
+      );
+    }
+
+    const results = await Promise.all([
+      repository.register(
+        account({
+          id: 'quota-race-one',
+          guildId,
+          displayUsername: 'Quota Race One',
+          normalizedUsername: 'quota race one',
+        }),
+        initialRecapBaseline(),
+      ),
+      repository.register(
+        account({
+          id: 'quota-race-two',
+          guildId,
+          displayUsername: 'Quota Race Two',
+          normalizedUsername: 'quota race two',
+        }),
+        initialRecapBaseline(),
+      ),
+    ]);
+
+    expect(results.filter((result) => result.kind === 'registered')).toHaveLength(1);
+    expect(results.filter((result) => result.kind === 'account_limit_reached')).toHaveLength(1);
+    const [countResult] = await connection.database
+      .select({ accountCount: sql<number>`count(*)` })
+      .from(trackedAccounts)
+      .where(eq(trackedAccounts.guildId, guildId));
+    expect(Number(countResult?.accountCount)).toBe(10);
+  });
+
+  it('serializes concurrent first linked registrations so exactly one becomes default', async () => {
+    const repository = new PostgresAccountRegistrationRepository(connection.database);
+    const guildId = 'account-default-race-guild';
+
+    const results = await Promise.all([
+      repository.register(
+        account({
+          id: 'default-race-one',
+          guildId,
+          displayUsername: 'Default Race One',
+          normalizedUsername: 'default race one',
+        }),
+        initialRecapBaseline(),
+      ),
+      repository.register(
+        account({
+          id: 'default-race-two',
+          guildId,
+          displayUsername: 'Default Race Two',
+          normalizedUsername: 'default race two',
+        }),
+        initialRecapBaseline(),
+      ),
+    ]);
+
+    expect(results.filter((result) => result.kind === 'registered')).toHaveLength(2);
+    const defaults = await connection.database
+      .select({ id: trackedAccounts.id })
+      .from(trackedAccounts)
+      .where(and(eq(trackedAccounts.guildId, guildId), eq(trackedAccounts.isDefault, true)));
+    expect(defaults).toHaveLength(1);
+  });
+
+  it('rolls back the account when initial recap-baseline insertion fails', async () => {
+    const repository = new PostgresAccountRegistrationRepository(connection.database);
+    const accountId = 'baseline-failure-account';
+    const constraintName = 'recap_baselines_forced_failure_check';
+
+    await connection.pool.query(
+      `ALTER TABLE recap_baselines ADD CONSTRAINT ${constraintName} CHECK (false) NOT VALID`,
+    );
+    try {
+      await expect(
+        repository.register(
+          account({
+            id: accountId,
+            guildId: 'baseline-failure-guild',
+            displayUsername: 'Baseline Failure',
+            normalizedUsername: 'baseline failure',
+          }),
+          initialRecapBaseline(),
+        ),
+      ).rejects.toThrow();
+    } finally {
+      await connection.pool.query(`ALTER TABLE recap_baselines DROP CONSTRAINT ${constraintName}`);
+    }
+
+    const [storedAccount] = await connection.database
+      .select({ id: trackedAccounts.id })
+      .from(trackedAccounts)
+      .where(eq(trackedAccounts.id, accountId));
+    const [storedBaseline] = await connection.database
+      .select({ accountId: recapBaselines.accountId })
+      .from(recapBaselines)
+      .where(eq(recapBaselines.accountId, accountId));
+    expect(storedAccount).toBeUndefined();
+    expect(storedBaseline).toBeUndefined();
+  });
 });
+
+function initialRecapBaseline() {
+  return {
+    bossKillCounts: { Zulrah: 12 },
+    capturedAt: new Date('2026-07-25T00:00:00.000Z'),
+    skillExperience: { Attack: 1234 },
+    skillLevels: { Attack: 10 },
+  };
+}
+
+function account(
+  overrides: Partial<{
+    displayUsername: string;
+    guildId: string;
+    id: string;
+    normalizedUsername: string;
+    registeredByDiscordUserId: string;
+  }>,
+) {
+  return {
+    accountMode: 'main' as const,
+    association: { type: 'linked' as const, discordUserId: 'member-one' },
+    displayUsername: 'Rune Scape',
+    guildId: 'account-guild-one',
+    id: 'account-default',
+    normalizedUsername: 'rune scape',
+    quotaOwnerDiscordUserId: 'member-one',
+    registeredByDiscordUserId: 'member-one',
+    ...overrides,
+  };
+}
 
 async function readCommittedMigrations(): Promise<{ created_at: string; hash: string }[]> {
   const journalFile = new URL('../../drizzle/meta/_journal.json', import.meta.url);

@@ -15,6 +15,13 @@
       "when": 1784915637231,
       "tag": "0001_guild-configuration-foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784964655152,
+      "tag": "0002_account-registration-foundation",
+      "breakpoints": true
     }
   ]
 }
