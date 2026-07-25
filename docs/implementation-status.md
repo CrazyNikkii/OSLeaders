@@ -21,7 +21,7 @@ merged.
 
 Stage 5 - Account registration and management.
 
-The current branch adds the first Stage 5 account-registration foundation: a
+The merged account-registration foundation provides a
 guild-scoped tracked-account schema and reviewed migration; stable account IDs;
 normalized username uniqueness per guild; linked and watchlist associations;
 quota attribution; and serialized PostgreSQL registration writes that preserve
@@ -33,10 +33,18 @@ first rolling recap baseline and inserted in the same database transaction as
 the account. Focused unit and PostgreSQL integration tests cover these rules,
 including concurrent quota and first-default races.
 
-This work is not yet merged, so Stage 5 is not complete. It intentionally does
-not add Discord command wiring, public announcements, administrative-channel
-delivery, account editing/removal/conversion, or the durable daily-recap
-run, scheduling, and delivery work owned by later slices.
+The current branch adds account retrieval and default-account selection/change
+operations. It keeps retrieval guild-scoped, supports default resolution for a
+linked member, and serializes a default change so a member retains one linked
+default account. Application-level authorization allows self-service selection
+or account-manager selection for another member, while watchlist and
+cross-guild accounts cannot become defaults. Focused unit and PostgreSQL
+integration tests cover those rules.
+
+Stage 5 is not complete. It intentionally does not add Discord command wiring,
+public announcements, administrative-channel delivery, account editing,
+removal, conversion, member-presence tracking, or the durable daily-recap run,
+scheduling, and delivery work owned by later slices.
 
 ## Later planned stages
 
@@ -60,18 +68,18 @@ and the requesting guild's configured manager-role IDs.
 
 ## Latest merged implementation work
 
-`4a8ec99` (2026-07-25) - Merge audit and local logging foundation.
+`f47f6d3` (2026-07-25) - Merge account registration foundation.
 
-This merged structured audit events, central sanitization, error-reference IDs,
-administrative-log policy selection, and failure-tolerant local structured
-logging, completing Stage 4.
+This merged the Stage 5 tracked-account and recap-baseline schema, validated
+registration service, quota/default serialization, and focused unit and
+PostgreSQL integration coverage.
 
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-After the current account-registration foundation is reviewed and merged, add
-account retrieval and default-account selection/change operations. Keep
-Discord command wiring, destructive removal confirmation, and active-
-competition restrictions out of that focused branch.
+After account retrieval and default selection/change are reviewed and merged,
+add account renaming with successful Hiscores validation. Keep Discord command
+wiring, destructive removal confirmation, conversion, and active-competition
+restrictions out of that focused branch.

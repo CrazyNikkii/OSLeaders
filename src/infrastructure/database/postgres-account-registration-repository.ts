@@ -1,5 +1,7 @@
-import { and, count, eq, sql } from 'drizzle-orm';
+import { and, asc, count, eq, sql } from 'drizzle-orm';
 
+import type { AccountRetrievalRepository } from '../../features/accounts/account-retrieval.js';
+import type { DefaultAccountSelectionRepository } from '../../features/accounts/select-default-account.js';
 import {
   MAX_TRACKED_ACCOUNTS_PER_MEMBER,
   type AccountRegistrationRepository,
@@ -9,7 +11,12 @@ import {
 import type { Database, Transaction } from './connection.js';
 import { guilds, recapBaselines, trackedAccounts } from './schema/index.js';
 
-export class PostgresAccountRegistrationRepository implements AccountRegistrationRepository {
+export class PostgresAccountRegistrationRepository
+  implements
+    AccountRegistrationRepository,
+    AccountRetrievalRepository,
+    DefaultAccountSelectionRepository
+{
   public constructor(private readonly database: Database) {}
 
   public register(
@@ -88,6 +95,97 @@ export class PostgresAccountRegistrationRepository implements AccountRegistratio
       });
 
       return { kind: 'registered', account: toTrackedAccount(stored) };
+    });
+  }
+
+  public async getById(guildId: string, accountId: string): Promise<TrackedAccount | undefined> {
+    const [account] = await this.database
+      .select()
+      .from(trackedAccounts)
+      .where(and(eq(trackedAccounts.guildId, guildId), eq(trackedAccounts.id, accountId)));
+    return account === undefined ? undefined : toTrackedAccount(account);
+  }
+
+  public async getDefaultForMember(
+    guildId: string,
+    discordUserId: string,
+  ): Promise<TrackedAccount | undefined> {
+    const [account] = await this.database
+      .select()
+      .from(trackedAccounts)
+      .where(
+        and(
+          eq(trackedAccounts.guildId, guildId),
+          eq(trackedAccounts.linkedDiscordUserId, discordUserId),
+          eq(trackedAccounts.isDefault, true),
+        ),
+      );
+    return account === undefined ? undefined : toTrackedAccount(account);
+  }
+
+  public async listForGuild(guildId: string): Promise<TrackedAccount[]> {
+    const accounts = await this.database
+      .select()
+      .from(trackedAccounts)
+      .where(eq(trackedAccounts.guildId, guildId))
+      .orderBy(asc(trackedAccounts.createdAt), asc(trackedAccounts.id));
+    return accounts.map(toTrackedAccount);
+  }
+
+  public async listLinkedForMember(
+    guildId: string,
+    discordUserId: string,
+  ): Promise<TrackedAccount[]> {
+    const accounts = await this.database
+      .select()
+      .from(trackedAccounts)
+      .where(
+        and(
+          eq(trackedAccounts.guildId, guildId),
+          eq(trackedAccounts.linkedDiscordUserId, discordUserId),
+        ),
+      )
+      .orderBy(asc(trackedAccounts.createdAt), asc(trackedAccounts.id));
+    return accounts.map(toTrackedAccount);
+  }
+
+  public selectDefault(
+    guildId: string,
+    discordUserId: string,
+    accountId: string,
+  ): Promise<TrackedAccount | undefined> {
+    return this.database.transaction(async (transaction) => {
+      await transaction.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${guildId}, 0))`);
+      const [candidate] = await transaction
+        .select({ id: trackedAccounts.id })
+        .from(trackedAccounts)
+        .where(
+          and(
+            eq(trackedAccounts.guildId, guildId),
+            eq(trackedAccounts.id, accountId),
+            eq(trackedAccounts.associationType, 'linked'),
+            eq(trackedAccounts.linkedDiscordUserId, discordUserId),
+          ),
+        );
+      if (candidate === undefined) {
+        return undefined;
+      }
+
+      await transaction
+        .update(trackedAccounts)
+        .set({ isDefault: false })
+        .where(
+          and(
+            eq(trackedAccounts.guildId, guildId),
+            eq(trackedAccounts.linkedDiscordUserId, discordUserId),
+          ),
+        );
+      const [selected] = await transaction
+        .update(trackedAccounts)
+        .set({ isDefault: true })
+        .where(and(eq(trackedAccounts.guildId, guildId), eq(trackedAccounts.id, accountId)))
+        .returning();
+      return selected === undefined ? undefined : toTrackedAccount(selected);
     });
   }
 
