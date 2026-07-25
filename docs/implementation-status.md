@@ -92,7 +92,7 @@ the existing foreign-key cascade removes the daily-recap baseline. Focused unit
 and PostgreSQL integration tests cover authorization, guild isolation, default
 replacement, and baseline deletion. Active-competition guards remain deferred.
 
-The unmerged `codex/discord-account-command-foundation` branch selects the
+The merged Discord account-command foundation selects the
 `/account` command group and adds its first Discord adapter slice:
 guild-only `/account remove` registration with account autocomplete,
 Discord Administrator and configured bot-manager permission inputs, and an
@@ -101,7 +101,7 @@ initiator-bound record with a five-minute expiry. The adapter delegates to the
 existing guild-scoped account services; focused tests cover command definition,
 guild isolation, authorization, confirmation binding and expiry, malformed
 confirmation IDs, bounded cleanup, and Discord interaction translation. This
-work is awaiting review and is not recorded as completed or merged.
+work is implemented and merged.
 
 Stage 5 is not complete. It does not yet add the guided account registration
 interaction, public announcements, administrative-channel delivery, or the
@@ -128,10 +128,11 @@ and rejoins to be recorded without unlinking or deleting accounts.
 
 ## Latest merged implementation work
 
-`0cddd5e` (2026-07-25) - Merge account-removal foundation.
+`9ebc57e` (2026-07-25) - Merge Discord account command foundation.
 
-This merged authorized, guild-scoped account removal with atomic default repair
-and recap-baseline deletion.
+This merged the guild-only `/account remove` command foundation, including
+account autocomplete, Discord permission inputs, expiring one-time removal
+confirmation, bounded in-memory cleanup, and focused adapter tests.
 
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
