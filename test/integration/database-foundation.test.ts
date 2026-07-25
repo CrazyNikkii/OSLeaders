@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadTestDatabaseConfiguration } from '../../src/infrastructure/config/database-environment.js';
 import { AccountRetrievalService } from '../../src/features/accounts/account-retrieval.js';
 import { AccountAssociationConversionService } from '../../src/features/accounts/convert-account-association.js';
+import { LinkedAccountReassignmentService } from '../../src/features/accounts/reassign-linked-account.js';
 import { DefaultAccountSelectionService } from '../../src/features/accounts/select-default-account.js';
 import {
   createDatabaseConnection,
@@ -654,6 +655,139 @@ describe('database foundation', () => {
     await expect(repository.getById(guildId, 'quota-watchlist')).resolves.toMatchObject({
       association: { type: 'watchlist' },
       quotaOwnerDiscordUserId: 'original-adder',
+    });
+  });
+
+  it('reassigns a linked account atomically while preserving its baseline and defaults', async () => {
+    const repository = new PostgresAccountRegistrationRepository(connection.database);
+    const reassignment = new LinkedAccountReassignmentService(repository);
+    const guildId = 'linked-account-reassignment-guild';
+
+    await repository.register(
+      account({
+        displayUsername: 'Source Default',
+        guildId,
+        id: 'reassignment-source-default',
+        normalizedUsername: 'source default',
+        quotaOwnerDiscordUserId: 'source-member',
+        registeredByDiscordUserId: 'source-member',
+        association: { type: 'linked', discordUserId: 'source-member' },
+      }),
+      initialRecapBaseline(),
+    );
+    await repository.register(
+      account({
+        displayUsername: 'Source Backup',
+        guildId,
+        id: 'reassignment-source-backup',
+        normalizedUsername: 'source backup',
+        quotaOwnerDiscordUserId: 'source-member',
+        registeredByDiscordUserId: 'source-member',
+        association: { type: 'linked', discordUserId: 'source-member' },
+      }),
+      initialRecapBaseline(),
+    );
+
+    await expect(
+      reassignment.reassign({
+        accountId: 'reassignment-source-default',
+        canManageAccounts: true,
+        guildId,
+        requesterDiscordUserId: 'manager-one',
+        targetDiscordUserId: 'destination-member',
+      }),
+    ).resolves.toMatchObject({
+      kind: 'reassigned',
+      account: {
+        association: { type: 'linked', discordUserId: 'destination-member' },
+        id: 'reassignment-source-default',
+        isDefault: true,
+        quotaOwnerDiscordUserId: 'destination-member',
+        registeredByDiscordUserId: 'source-member',
+      },
+    });
+    await expect(repository.getDefaultForMember(guildId, 'source-member')).resolves.toMatchObject({
+      id: 'reassignment-source-backup',
+      isDefault: true,
+    });
+    await expect(
+      connection.database
+        .select()
+        .from(recapBaselines)
+        .where(eq(recapBaselines.accountId, 'reassignment-source-default')),
+    ).resolves.toHaveLength(1);
+  });
+
+  it('preserves the destination default and serializes concurrent destination quota checks', async () => {
+    const repository = new PostgresAccountRegistrationRepository(connection.database);
+    const reassignment = new LinkedAccountReassignmentService(repository);
+    const guildId = 'linked-account-reassignment-quota-guild';
+
+    for (let index = 0; index < 9; index += 1) {
+      await repository.register(
+        account({
+          displayUsername: `Destination ${index}`,
+          guildId,
+          id: `reassignment-destination-${index}`,
+          normalizedUsername: `destination ${index}`,
+          quotaOwnerDiscordUserId: 'destination-member',
+          registeredByDiscordUserId: 'destination-member',
+          association: { type: 'linked', discordUserId: 'destination-member' },
+        }),
+        initialRecapBaseline(),
+      );
+    }
+    await repository.register(
+      account({
+        displayUsername: 'Source One',
+        guildId,
+        id: 'reassignment-source-one',
+        normalizedUsername: 'source one',
+        quotaOwnerDiscordUserId: 'source-member-one',
+        registeredByDiscordUserId: 'source-member-one',
+        association: { type: 'linked', discordUserId: 'source-member-one' },
+      }),
+      initialRecapBaseline(),
+    );
+    await repository.register(
+      account({
+        displayUsername: 'Source Two',
+        guildId,
+        id: 'reassignment-source-two',
+        normalizedUsername: 'source two',
+        quotaOwnerDiscordUserId: 'source-member-two',
+        registeredByDiscordUserId: 'source-member-two',
+        association: { type: 'linked', discordUserId: 'source-member-two' },
+      }),
+      initialRecapBaseline(),
+    );
+
+    const results = await Promise.all([
+      reassignment.reassign({
+        accountId: 'reassignment-source-one',
+        canManageAccounts: true,
+        guildId,
+        requesterDiscordUserId: 'manager-one',
+        targetDiscordUserId: 'destination-member',
+      }),
+      reassignment.reassign({
+        accountId: 'reassignment-source-two',
+        canManageAccounts: true,
+        guildId,
+        requesterDiscordUserId: 'manager-one',
+        targetDiscordUserId: 'destination-member',
+      }),
+    ]);
+
+    expect(results.filter((result) => result.kind === 'reassigned')).toHaveLength(1);
+    expect(results.filter((result) => result.kind === 'account_limit_reached')).toHaveLength(1);
+    await expect(
+      repository.listLinkedForMember(guildId, 'destination-member'),
+    ).resolves.toHaveLength(10);
+    await expect(
+      repository.getDefaultForMember(guildId, 'destination-member'),
+    ).resolves.toMatchObject({
+      id: 'reassignment-destination-0',
     });
   });
 

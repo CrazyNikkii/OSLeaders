@@ -10,6 +10,12 @@ import {
 import type { DefaultAccountSelectionRepository } from '../../features/accounts/select-default-account.js';
 import type { AccountRenameRepository } from '../../features/accounts/rename-account.js';
 import {
+  canReassignLinkedAccount,
+  type LinkedAccountReassignmentRepository,
+  type ReassignLinkedAccountRequest,
+  type ReassignLinkedAccountResult,
+} from '../../features/accounts/reassign-linked-account.js';
+import {
   MAX_TRACKED_ACCOUNTS_PER_MEMBER,
   type AccountRegistrationRepository,
   type InitialRecapBaseline,
@@ -26,7 +32,8 @@ export class PostgresAccountRegistrationRepository
     DefaultAccountSelectionRepository,
     AccountModeChangeRepository,
     AccountRenameRepository,
-    AccountAssociationConversionRepository
+    AccountAssociationConversionRepository,
+    LinkedAccountReassignmentRepository
 {
   public constructor(private readonly database: Database) {}
 
@@ -373,6 +380,100 @@ export class PostgresAccountRegistrationRepository
         }
       }
       return { kind: 'converted', account: toTrackedAccount(converted) };
+    });
+  }
+
+  public reassignLinkedAccount(
+    request: ReassignLinkedAccountRequest,
+  ): Promise<ReassignLinkedAccountResult> {
+    const { accountId, guildId, targetDiscordUserId } = request;
+    return this.database.transaction(async (transaction) => {
+      await transaction.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${guildId}, 0))`);
+      const [stored] = await transaction
+        .select()
+        .from(trackedAccounts)
+        .where(and(eq(trackedAccounts.guildId, guildId), eq(trackedAccounts.id, accountId)));
+      if (stored === undefined) {
+        return { kind: 'account_not_found' };
+      }
+
+      const account = toTrackedAccount(stored);
+      if (!request.canManageAccounts) {
+        return { kind: 'forbidden' };
+      }
+      if (account.association.type !== 'linked') {
+        return { kind: 'account_not_linked' };
+      }
+      if (!canReassignLinkedAccount(account, request)) {
+        return { kind: 'forbidden' };
+      }
+      if (account.association.discordUserId === targetDiscordUserId) {
+        return { kind: 'reassignment_unchanged' };
+      }
+
+      const [countResult] = await transaction
+        .select({ accountCount: count() })
+        .from(trackedAccounts)
+        .where(
+          and(
+            eq(trackedAccounts.guildId, guildId),
+            eq(trackedAccounts.quotaOwnerDiscordUserId, targetDiscordUserId),
+          ),
+        );
+      if (countResult === undefined) {
+        throw new Error('Account quota count was not returned.');
+      }
+      if (countResult.accountCount >= MAX_TRACKED_ACCOUNTS_PER_MEMBER) {
+        return { kind: 'account_limit_reached' };
+      }
+
+      const [destinationAccount] = await transaction
+        .select({ id: trackedAccounts.id })
+        .from(trackedAccounts)
+        .where(
+          and(
+            eq(trackedAccounts.guildId, guildId),
+            eq(trackedAccounts.linkedDiscordUserId, targetDiscordUserId),
+          ),
+        )
+        .limit(1);
+      const sourceDiscordUserId = account.association.discordUserId;
+      const [reassigned] = await transaction
+        .update(trackedAccounts)
+        .set({
+          isDefault: destinationAccount === undefined,
+          linkedDiscordUserId: targetDiscordUserId,
+          quotaOwnerDiscordUserId: targetDiscordUserId,
+        })
+        .where(and(eq(trackedAccounts.guildId, guildId), eq(trackedAccounts.id, accountId)))
+        .returning();
+      if (reassigned === undefined) {
+        throw new Error('Tracked account disappeared during reassignment.');
+      }
+
+      if (account.isDefault) {
+        const [replacement] = await transaction
+          .select({ id: trackedAccounts.id })
+          .from(trackedAccounts)
+          .where(
+            and(
+              eq(trackedAccounts.guildId, guildId),
+              eq(trackedAccounts.linkedDiscordUserId, sourceDiscordUserId),
+            ),
+          )
+          .orderBy(asc(trackedAccounts.createdAt), asc(trackedAccounts.id))
+          .limit(1);
+        if (replacement !== undefined) {
+          await transaction
+            .update(trackedAccounts)
+            .set({ isDefault: true })
+            .where(
+              and(eq(trackedAccounts.guildId, guildId), eq(trackedAccounts.id, replacement.id)),
+            );
+        }
+      }
+
+      return { kind: 'reassigned', account: toTrackedAccount(reassigned) };
     });
   }
 
