@@ -41,7 +41,7 @@ account-manager selection for another member, while watchlist and cross-guild
 accounts cannot become defaults. Focused unit and PostgreSQL integration tests
 cover those rules.
 
-The current unmerged branch adds account renaming with successful Hiscores
+The merged account-renaming work adds successful Hiscores
 validation using the stored account mode. It authorizes self-service renames
 for linked members and watchlist registrants, plus account-manager renames. A
 guild-scoped serialized update preserves the stable account ID, association,
@@ -50,9 +50,17 @@ normalized username uniqueness. Focused unit and PostgreSQL integration tests
 cover authorization, validation failures, conflicts, guild isolation, and
 preserved recap baselines.
 
+The current unmerged branch adds account-mode changes with successful Hiscores
+validation against the selected mode and the account's stored username. It
+authorizes linked-account owners and watchlist registrants, plus account
+managers. A guild-scoped serialized update preserves the stable account ID,
+association, default selection, quota attribution, and recap baseline. Focused
+unit and PostgreSQL integration tests cover authorization, validation failures,
+guild isolation, and preserved account data.
+
 Stage 5 is not complete. It intentionally does not add Discord command wiring,
-public announcements, administrative-channel delivery, account-mode changes,
-removal, conversion, member-presence tracking, or the durable daily-recap run,
+public announcements, administrative-channel delivery, removal, conversion,
+member-presence tracking, or the durable daily-recap run,
 scheduling, and delivery work owned by later slices.
 
 ## Later planned stages
@@ -69,26 +77,25 @@ scheduling, and delivery work owned by later slices.
 
 ## Previous merged implementation work
 
-`f47f6d3` (2026-07-25) - Merge account registration foundation.
-
-This merged the Stage 5 tracked-account and recap-baseline schema, validated
-registration service, quota/default serialization, and focused unit and
-PostgreSQL integration coverage.
-
-## Latest merged implementation work
-
 `5486bd6` (2026-07-25) - Merge account retrieval and default selection.
 
 This merged guild-scoped account retrieval and atomic default-account
 selection, including application-level authorization and focused unit and
 PostgreSQL integration coverage.
 
+## Latest merged implementation work
+
+`0ed4dbc` (2026-07-25) - Merge account renaming.
+
+This merged validated account renaming, preserving stable account identity and
+recap baselines with focused unit and PostgreSQL integration coverage.
+
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-After the current account-renaming branch is reviewed and merged, add
-account-mode changes with successful Hiscores validation. Keep Discord command
-wiring, destructive removal confirmation, conversion, and active-competition
-restrictions out of that focused branch.
+After the current account-mode-change branch is reviewed and merged, add
+account-association conversion. Keep Discord command wiring, destructive
+removal confirmation, and active-competition restrictions out of that focused
+branch.

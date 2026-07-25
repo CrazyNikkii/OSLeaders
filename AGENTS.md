@@ -11,9 +11,15 @@ For every implementation task:
 - Read `docs/implementation-status.md` before planning.
 - Verify its statements against the checked-out repository and current Git
   history before relying on or changing it.
+- At the start of a new implementation chat, reconcile the status document
+  with `master` and the recent merge history before selecting a task. Do not
+  treat a merged branch as unmerged, recommend work that is already merged, or
+  rely on a stale "latest merged" entry.
 - Update it in the same pull request to reflect completed work, the current
   stage, the latest merged work, and the next recommended branch-sized task.
 - Never mark work as completed unless it is implemented and merged.
+- If a pull request's pre-merge status update becomes stale when it is merged,
+  correct the merged record before starting the next implementation task.
 - After finishing, recommend the next smallest sensible task.
 - Ask the user when a real product decision is required; do not invent one.
 

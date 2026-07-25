@@ -1,6 +1,7 @@
 import { and, asc, count, eq, sql } from 'drizzle-orm';
 
 import type { AccountRetrievalRepository } from '../../features/accounts/account-retrieval.js';
+import type { AccountModeChangeRepository } from '../../features/accounts/change-account-mode.js';
 import type { DefaultAccountSelectionRepository } from '../../features/accounts/select-default-account.js';
 import type { AccountRenameRepository } from '../../features/accounts/rename-account.js';
 import {
@@ -9,6 +10,7 @@ import {
   type InitialRecapBaseline,
   type TrackedAccount,
 } from '../../features/accounts/register-account.js';
+import type { OsrsAccountMode } from '../hiscores/osrs-hiscore-catalog.js';
 import type { Database, Transaction } from './connection.js';
 import { guilds, recapBaselines, trackedAccounts } from './schema/index.js';
 
@@ -17,6 +19,7 @@ export class PostgresAccountRegistrationRepository
     AccountRegistrationRepository,
     AccountRetrievalRepository,
     DefaultAccountSelectionRepository,
+    AccountModeChangeRepository,
     AccountRenameRepository
 {
   public constructor(private readonly database: Database) {}
@@ -228,6 +231,24 @@ export class PostgresAccountRegistrationRepository
         throw new Error('Tracked account disappeared during rename.');
       }
       return { kind: 'renamed', account: toTrackedAccount(renamed) };
+    });
+  }
+
+  public changeMode(
+    guildId: string,
+    accountId: string,
+    accountMode: OsrsAccountMode,
+  ): Promise<{ kind: 'mode_changed'; account: TrackedAccount } | { kind: 'account_not_found' }> {
+    return this.database.transaction(async (transaction) => {
+      await transaction.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${guildId}, 0))`);
+      const [changed] = await transaction
+        .update(trackedAccounts)
+        .set({ accountMode })
+        .where(and(eq(trackedAccounts.guildId, guildId), eq(trackedAccounts.id, accountId)))
+        .returning();
+      return changed === undefined
+        ? { kind: 'account_not_found' }
+        : { kind: 'mode_changed', account: toTrackedAccount(changed) };
     });
   }
 
