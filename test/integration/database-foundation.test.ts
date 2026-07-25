@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadTestDatabaseConfiguration } from '../../src/infrastructure/config/database-environment.js';
 import { AccountRetrievalService } from '../../src/features/accounts/account-retrieval.js';
 import { AccountAssociationConversionService } from '../../src/features/accounts/convert-account-association.js';
+import { MemberPresenceService } from '../../src/features/accounts/member-presence.js';
 import { LinkedAccountReassignmentService } from '../../src/features/accounts/reassign-linked-account.js';
 import { DefaultAccountSelectionService } from '../../src/features/accounts/select-default-account.js';
 import {
@@ -18,6 +19,7 @@ import { PostgresGuildConfigurationRepository } from '../../src/infrastructure/d
 import { PostgresAccountRegistrationRepository } from '../../src/infrastructure/database/postgres-account-registration-repository.js';
 import {
   guildConfigurations,
+  guildMemberPresences,
   guilds,
   recapBaselines,
   trackedAccounts,
@@ -53,7 +55,7 @@ describe('database foundation', () => {
   it('applies the committed database migrations to an empty test database', async () => {
     const committedMigrations = await readCommittedMigrations();
     const applicationTables = await connection.pool.query<{ table_name: string }>(
-      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('guild_configurations', 'guilds', 'recap_baselines', 'tracked_accounts') ORDER BY table_name",
+      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('guild_configurations', 'guild_member_presences', 'guilds', 'recap_baselines', 'tracked_accounts') ORDER BY table_name",
     );
     const migrationTables = await connection.pool.query<{ table_name: string }>(
       "SELECT table_name FROM information_schema.tables WHERE table_schema = 'drizzle' AND table_name = '__drizzle_migrations'",
@@ -64,6 +66,7 @@ describe('database foundation', () => {
 
     expect(applicationTables.rows).toEqual([
       { table_name: 'guild_configurations' },
+      { table_name: 'guild_member_presences' },
       { table_name: 'guilds' },
       { table_name: 'recap_baselines' },
       { table_name: 'tracked_accounts' },
@@ -716,6 +719,53 @@ describe('database foundation', () => {
         .from(recapBaselines)
         .where(eq(recapBaselines.accountId, 'reassignment-source-default')),
     ).resolves.toHaveLength(1);
+  });
+
+  it('persists member departures and rejoins without changing linked accounts', async () => {
+    const repository = new PostgresAccountRegistrationRepository(connection.database);
+    const presence = new MemberPresenceService(repository);
+    const guildId = 'member-presence-guild';
+
+    await repository.register(
+      account({
+        displayUsername: 'Presence Player',
+        guildId,
+        id: 'member-presence-account',
+        normalizedUsername: 'presence player',
+      }),
+      initialRecapBaseline(),
+    );
+
+    await expect(presence.markAbsent(guildId, 'member-one')).resolves.toMatchObject({
+      discordUserId: 'member-one',
+      guildId,
+      isPresent: false,
+    });
+    await expect(presence.get('other-guild', 'member-one')).resolves.toBeUndefined();
+    await expect(repository.listLinkedForMember(guildId, 'member-one')).resolves.toMatchObject([
+      { id: 'member-presence-account', isDefault: true },
+    ]);
+    await expect(
+      connection.database
+        .select()
+        .from(recapBaselines)
+        .where(eq(recapBaselines.accountId, 'member-presence-account')),
+    ).resolves.toHaveLength(1);
+
+    await expect(presence.markPresent(guildId, 'member-one')).resolves.toMatchObject({
+      isPresent: true,
+    });
+    await expect(
+      connection.database
+        .select()
+        .from(guildMemberPresences)
+        .where(
+          and(
+            eq(guildMemberPresences.guildId, guildId),
+            eq(guildMemberPresences.discordUserId, 'member-one'),
+          ),
+        ),
+    ).resolves.toMatchObject([{ isPresent: true }]);
   });
 
   it('preserves the destination default and serializes concurrent destination quota checks', async () => {

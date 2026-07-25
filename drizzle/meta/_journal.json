@@ -22,6 +22,13 @@
       "when": 1784964655152,
       "tag": "0002_account-registration-foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1784997574862,
+      "tag": "0003_member-presence-persistence",
+      "breakpoints": true
     }
   ]
 }

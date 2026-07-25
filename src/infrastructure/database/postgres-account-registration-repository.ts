@@ -8,6 +8,10 @@ import {
   type ConvertAccountAssociationRequest,
 } from '../../features/accounts/convert-account-association.js';
 import type { DefaultAccountSelectionRepository } from '../../features/accounts/select-default-account.js';
+import type {
+  GuildMemberPresence,
+  MemberPresenceRepository,
+} from '../../features/accounts/member-presence.js';
 import type { AccountRenameRepository } from '../../features/accounts/rename-account.js';
 import {
   canReassignLinkedAccount,
@@ -23,7 +27,7 @@ import {
 } from '../../features/accounts/register-account.js';
 import type { OsrsAccountMode } from '../hiscores/osrs-hiscore-catalog.js';
 import type { Database, Transaction } from './connection.js';
-import { guilds, recapBaselines, trackedAccounts } from './schema/index.js';
+import { guildMemberPresences, guilds, recapBaselines, trackedAccounts } from './schema/index.js';
 
 export class PostgresAccountRegistrationRepository
   implements
@@ -33,7 +37,8 @@ export class PostgresAccountRegistrationRepository
     AccountModeChangeRepository,
     AccountRenameRepository,
     AccountAssociationConversionRepository,
-    LinkedAccountReassignmentRepository
+    LinkedAccountReassignmentRepository,
+    MemberPresenceRepository
 {
   public constructor(private readonly database: Database) {}
 
@@ -165,6 +170,30 @@ export class PostgresAccountRegistrationRepository
       )
       .orderBy(asc(trackedAccounts.createdAt), asc(trackedAccounts.id));
     return accounts.map(toTrackedAccount);
+  }
+
+  public async getMemberPresence(
+    guildId: string,
+    discordUserId: string,
+  ): Promise<GuildMemberPresence | undefined> {
+    const [presence] = await this.database
+      .select()
+      .from(guildMemberPresences)
+      .where(
+        and(
+          eq(guildMemberPresences.guildId, guildId),
+          eq(guildMemberPresences.discordUserId, discordUserId),
+        ),
+      );
+    return presence === undefined ? undefined : toGuildMemberPresence(presence);
+  }
+
+  public markMemberAbsent(guildId: string, discordUserId: string): Promise<GuildMemberPresence> {
+    return this.saveMemberPresence(guildId, discordUserId, false);
+  }
+
+  public markMemberPresent(guildId: string, discordUserId: string): Promise<GuildMemberPresence> {
+    return this.saveMemberPresence(guildId, discordUserId, true);
   }
 
   public selectDefault(
@@ -507,6 +536,28 @@ export class PostgresAccountRegistrationRepository
       .limit(1);
     return account !== undefined;
   }
+
+  private async saveMemberPresence(
+    guildId: string,
+    discordUserId: string,
+    isPresent: boolean,
+  ): Promise<GuildMemberPresence> {
+    return this.database.transaction(async (transaction) => {
+      await transaction.insert(guilds).values({ guildId }).onConflictDoNothing();
+      const [presence] = await transaction
+        .insert(guildMemberPresences)
+        .values({ discordUserId, guildId, isPresent })
+        .onConflictDoUpdate({
+          target: [guildMemberPresences.guildId, guildMemberPresences.discordUserId],
+          set: { isPresent, updatedAt: sql`now()` },
+        })
+        .returning();
+      if (presence === undefined) {
+        throw new Error('Guild member presence was not saved.');
+      }
+      return toGuildMemberPresence(presence);
+    });
+  }
 }
 
 function toTrackedAccount(account: typeof trackedAccounts.$inferSelect): TrackedAccount {
@@ -524,6 +575,17 @@ function toTrackedAccount(account: typeof trackedAccounts.$inferSelect): Tracked
     normalizedUsername: account.normalizedUsername,
     quotaOwnerDiscordUserId: account.quotaOwnerDiscordUserId,
     registeredByDiscordUserId: account.registeredByDiscordUserId,
+  };
+}
+
+function toGuildMemberPresence(
+  presence: typeof guildMemberPresences.$inferSelect,
+): GuildMemberPresence {
+  return {
+    discordUserId: presence.discordUserId,
+    guildId: presence.guildId,
+    isPresent: presence.isPresent,
+    updatedAt: presence.updatedAt,
   };
 }
 
