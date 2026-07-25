@@ -33,16 +33,25 @@ first rolling recap baseline and inserted in the same database transaction as
 the account. Focused unit and PostgreSQL integration tests cover these rules,
 including concurrent quota and first-default races.
 
-The current branch adds account retrieval and default-account selection/change
-operations. It keeps retrieval guild-scoped, supports default resolution for a
-linked member, and serializes a default change so a member retains one linked
-default account. Application-level authorization allows self-service selection
-or account-manager selection for another member, while watchlist and
-cross-guild accounts cannot become defaults. Focused unit and PostgreSQL
-integration tests cover those rules.
+The merged account retrieval and default-account selection/change work keeps
+retrieval guild-scoped, supports default resolution for a linked member, and
+serializes a default change so a member retains one linked default account.
+Application-level authorization allows self-service selection or
+account-manager selection for another member, while watchlist and cross-guild
+accounts cannot become defaults. Focused unit and PostgreSQL integration tests
+cover those rules.
+
+The current unmerged branch adds account renaming with successful Hiscores
+validation using the stored account mode. It authorizes self-service renames
+for linked members and watchlist registrants, plus account-manager renames. A
+guild-scoped serialized update preserves the stable account ID, association,
+default selection, quota attribution, and recap baseline while enforcing
+normalized username uniqueness. Focused unit and PostgreSQL integration tests
+cover authorization, validation failures, conflicts, guild isolation, and
+preserved recap baselines.
 
 Stage 5 is not complete. It intentionally does not add Discord command wiring,
-public announcements, administrative-channel delivery, account editing,
+public announcements, administrative-channel delivery, account-mode changes,
 removal, conversion, member-presence tracking, or the durable daily-recap run,
 scheduling, and delivery work owned by later slices.
 
@@ -60,18 +69,18 @@ scheduling, and delivery work owned by later slices.
 
 ## Previous merged implementation work
 
-`dafbf7b` (2026-07-24) - Merge permission-evaluation foundation.
-
-This merged Discord-independent application-level permission evaluation for
-account and competition management, based on Discord Administrator permission
-and the requesting guild's configured manager-role IDs.
-
-## Latest merged implementation work
-
 `f47f6d3` (2026-07-25) - Merge account registration foundation.
 
 This merged the Stage 5 tracked-account and recap-baseline schema, validated
 registration service, quota/default serialization, and focused unit and
+PostgreSQL integration coverage.
+
+## Latest merged implementation work
+
+`5486bd6` (2026-07-25) - Merge account retrieval and default selection.
+
+This merged guild-scoped account retrieval and atomic default-account
+selection, including application-level authorization and focused unit and
 PostgreSQL integration coverage.
 
 Documentation-only maintenance commits may be newer; Git history remains the
@@ -79,7 +88,7 @@ authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-After account retrieval and default selection/change are reviewed and merged,
-add account renaming with successful Hiscores validation. Keep Discord command
+After the current account-renaming branch is reviewed and merged, add
+account-mode changes with successful Hiscores validation. Keep Discord command
 wiring, destructive removal confirmation, conversion, and active-competition
 restrictions out of that focused branch.

@@ -2,6 +2,7 @@ import { and, asc, count, eq, sql } from 'drizzle-orm';
 
 import type { AccountRetrievalRepository } from '../../features/accounts/account-retrieval.js';
 import type { DefaultAccountSelectionRepository } from '../../features/accounts/select-default-account.js';
+import type { AccountRenameRepository } from '../../features/accounts/rename-account.js';
 import {
   MAX_TRACKED_ACCOUNTS_PER_MEMBER,
   type AccountRegistrationRepository,
@@ -15,7 +16,8 @@ export class PostgresAccountRegistrationRepository
   implements
     AccountRegistrationRepository,
     AccountRetrievalRepository,
-    DefaultAccountSelectionRepository
+    DefaultAccountSelectionRepository,
+    AccountRenameRepository
 {
   public constructor(private readonly database: Database) {}
 
@@ -186,6 +188,46 @@ export class PostgresAccountRegistrationRepository
         .where(and(eq(trackedAccounts.guildId, guildId), eq(trackedAccounts.id, accountId)))
         .returning();
       return selected === undefined ? undefined : toTrackedAccount(selected);
+    });
+  }
+
+  public rename(
+    guildId: string,
+    accountId: string,
+    username: { displayUsername: string; normalizedUsername: string },
+  ): Promise<
+    | { kind: 'renamed'; account: TrackedAccount }
+    | { kind: 'account_not_found' }
+    | { kind: 'username_taken' }
+  > {
+    return this.database.transaction(async (transaction) => {
+      await transaction.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${guildId}, 0))`);
+      const [account] = await transaction
+        .select({ id: trackedAccounts.id })
+        .from(trackedAccounts)
+        .where(and(eq(trackedAccounts.guildId, guildId), eq(trackedAccounts.id, accountId)));
+      if (account === undefined) {
+        return { kind: 'account_not_found' };
+      }
+
+      const existing = await this.findByNormalizedUsername(
+        transaction,
+        guildId,
+        username.normalizedUsername,
+      );
+      if (existing !== undefined && existing.id !== accountId) {
+        return { kind: 'username_taken' };
+      }
+
+      const [renamed] = await transaction
+        .update(trackedAccounts)
+        .set(username)
+        .where(and(eq(trackedAccounts.guildId, guildId), eq(trackedAccounts.id, accountId)))
+        .returning();
+      if (renamed === undefined) {
+        throw new Error('Tracked account disappeared during rename.');
+      }
+      return { kind: 'renamed', account: toTrackedAccount(renamed) };
     });
   }
 
