@@ -40,6 +40,7 @@
     "vitest": "4.1.10"
   },
   "dependencies": {
+    "discord.js": "14.23.2",
     "drizzle-orm": "0.45.2",
     "pg": "8.22.0"
   }

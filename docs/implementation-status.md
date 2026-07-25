@@ -90,12 +90,22 @@ within its guild. Its serialized PostgreSQL deletion repairs a removed linked
 member's default account by selecting the oldest remaining linked account, and
 the existing foreign-key cascade removes the daily-recap baseline. Focused unit
 and PostgreSQL integration tests cover authorization, guild isolation, default
-replacement, and baseline deletion. Discord confirmation and active-competition
-guards remain deferred.
+replacement, and baseline deletion. Active-competition guards remain deferred.
 
-Stage 5 is not complete. It intentionally does not add Discord command wiring,
-public announcements, administrative-channel delivery, or the durable
-daily-recap run, scheduling, and delivery work owned by later slices.
+The unmerged `codex/discord-account-command-foundation` branch selects the
+`/account` command group and adds its first Discord adapter slice:
+guild-only `/account remove` registration with account autocomplete,
+Discord Administrator and configured bot-manager permission inputs, and an
+explicit removal-confirmation button backed by a one-time, guild- and
+initiator-bound record with a five-minute expiry. The adapter delegates to the
+existing guild-scoped account services; focused tests cover command definition,
+guild isolation, authorization, confirmation binding and expiry, malformed
+confirmation IDs, bounded cleanup, and Discord interaction translation. This
+work is awaiting review and is not recorded as completed or merged.
+
+Stage 5 is not complete. It does not yet add the guided account registration
+interaction, public announcements, administrative-channel delivery, or the
+durable daily-recap run, scheduling, and delivery work owned by later slices.
 
 ## Later planned stages
 
@@ -128,8 +138,10 @@ authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-After the exact account command names and interaction layouts are selected,
-add the Discord account-command foundation
-(`codex/discord-account-command-foundation`). Start with command registration,
-interaction authorization inputs, and explicit account-removal confirmation;
-keep active-competition restrictions in the later competition stage.
+After the Discord account-command foundation is reviewed and merged, add the
+guided `/account register` interaction flow
+(`codex/discord-account-registration-flow`). It should collect the RSN,
+association, optional linked member for account managers, and selected game
+mode through Discord inputs before invoking the existing registration service;
+public announcements and administrative-channel delivery remain separate
+adapter work.
