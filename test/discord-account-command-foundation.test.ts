@@ -2,30 +2,36 @@ import { describe, expect, it } from 'vitest';
 
 import {
   AccountRemovalCommandHandler,
+  AccountRegistrationCommandHandler,
   DiscordAccountCommandAdapter,
+  InMemoryAccountRegistrationSessionStore,
   InMemoryDestructiveConfirmationStore,
   accountCommandDefinitions,
   type AccountCommandPermissionEvaluator,
+  type AccountRegistrationCommandServices,
   type AccountRemovalCommandServices,
   type GuildInteractionContext,
 } from '../src/infrastructure/discord/account-command-foundation.js';
-import type { TrackedAccount } from '../src/features/accounts/register-account.js';
+import type {
+  AccountRegistrationResult,
+  RegisterAccountRequest,
+  TrackedAccount,
+} from '../src/features/accounts/register-account.js';
 
 describe('Discord account command foundation', () => {
-  it('registers a guild-only account removal command with account autocomplete', () => {
-    expect(accountCommandDefinitions).toEqual([
-      expect.objectContaining({
+  it('registers guild-only account removal and guided registration commands', () => {
+    expect(accountCommandDefinitions).toMatchObject([
+      {
         description: 'Manage tracked OSRS accounts.',
         name: 'account',
         options: [
-          expect.objectContaining({
+          { name: 'register' },
+          {
             name: 'remove',
-            options: [
-              expect.objectContaining({ autocomplete: true, name: 'account', required: true }),
-            ],
-          }),
+            options: [{ autocomplete: true, name: 'account', required: true }],
+          },
         ],
-      }),
+      },
     ]);
   });
 
@@ -230,6 +236,223 @@ describe('Discord account command foundation', () => {
       expect.objectContaining({ components: [], content: 'Removed **Account One**.' }),
     ]);
   });
+
+  it('guides a normal member through watchlist registration and delegates only after mode selection', async () => {
+    const services = new RegistrationStubServices();
+    const handler = new AccountRegistrationCommandHandler(services);
+
+    const start = await handler.start(context());
+    if (start.kind !== 'username_required') {
+      throw new Error('Expected a username prompt.');
+    }
+    const username = handler.submitUsername(context(), start.customId, 'Rune Scape');
+    if (username.kind !== 'association_selection') {
+      throw new Error('Expected an association prompt.');
+    }
+    const association = await handler.selectAssociation(context(), username.customId, 'watchlist');
+    if (association.kind !== 'mode_selection') {
+      throw new Error('Expected a game-mode prompt.');
+    }
+
+    await expect(handler.selectMode(context(), association.customId, 'ironman')).resolves.toEqual({
+      kind: 'completed',
+      message: 'That OSRS username is already tracked in this server.',
+    });
+    expect(services.registrationRequests).toEqual([
+      expect.objectContaining({
+        accountMode: 'ironman',
+        association: { type: 'watchlist' },
+        guildId: 'guild-one',
+        requesterDiscordUserId: 'member-one',
+        username: 'Rune Scape',
+      }),
+    ]);
+  });
+
+  it('opens an ephemeral-bound username modal for /account register', async () => {
+    const registrationServices = new RegistrationStubServices();
+    const adapter = new DiscordAccountCommandAdapter(
+      new AccountRemovalCommandHandler(new StubServices([])),
+      new AccountRegistrationCommandHandler(registrationServices),
+    );
+    const modals: { toJSON(): { custom_id: string; title: string } }[] = [];
+    const command = {
+      commandName: 'account',
+      guildId: 'guild-one',
+      isAutocomplete: () => false,
+      isButton: () => false,
+      isChatInputCommand: () => true,
+      member: { roles: [] },
+      memberPermissions: { has: () => false },
+      options: { getSubcommand: () => 'register' },
+      showModal: (modal: { toJSON(): { custom_id: string; title: string } }) => {
+        modals.push(modal);
+        return Promise.resolve();
+      },
+      user: { id: 'member-one' },
+    };
+
+    await adapter.handle(command as never);
+
+    expect(modals).toHaveLength(1);
+    const [modal] = modals;
+    if (modal === undefined) {
+      throw new Error('Expected a registration modal.');
+    }
+    expect(modal.toJSON().custom_id).toMatch(/^osleaders:account-register:username:/);
+    expect(modal.toJSON().title).toBe('Register an OSRS account');
+  });
+
+  it('renders configured mode emojis and completes the Discord registration interaction chain', async () => {
+    const services = new RegistrationStubServices();
+    services.modeEmojis = { ironman: { id: 'emoji-one', name: 'ironman' } };
+    services.registrationResult = {
+      account: account({
+        accountMode: 'ironman',
+        association: { type: 'watchlist' },
+        displayUsername: 'Rune Scape',
+      }),
+      kind: 'registered',
+    };
+    const adapter = new DiscordAccountCommandAdapter(
+      new AccountRemovalCommandHandler(new StubServices([])),
+      new AccountRegistrationCommandHandler(services),
+    );
+    const modals: ModalResponse[] = [];
+    const replies: ComponentResponse[] = [];
+    const updates: ComponentResponse[] = [];
+    const edits: ComponentResponse[] = [];
+
+    await adapter.handle(
+      registrationCommand((modal) => {
+        modals.push(modal);
+        return Promise.resolve();
+      }) as never,
+    );
+    const [modal] = modals;
+    if (modal === undefined) {
+      throw new Error('Expected a registration modal.');
+    }
+
+    await adapter.handle({
+      customId: modal.toJSON().custom_id,
+      fields: { getTextInputValue: () => 'Rune Scape' },
+      guildId: 'guild-one',
+      isAutocomplete: () => false,
+      isButton: () => false,
+      isChatInputCommand: () => false,
+      isModalSubmit: () => true,
+      member: { roles: [] },
+      memberPermissions: { has: () => false },
+      reply: (response: ComponentResponse) => {
+        replies.push(response);
+        return Promise.resolve();
+      },
+      user: { id: 'member-one' },
+    } as never);
+    const associationCustomId = componentCustomId(replies[0]);
+
+    await adapter.handle(
+      registrationSelectInteraction(associationCustomId, 'watchlist', (response) => {
+        updates.push(response);
+        return Promise.resolve();
+      }) as never,
+    );
+    const modeResponse = updates[0];
+    const modeCustomId = componentCustomId(modeResponse);
+    const modeOptions = modeResponse?.components[0]?.toJSON().components[0]?.options;
+    expect(modeOptions).toContainEqual(
+      expect.objectContaining({
+        emoji: { id: 'emoji-one', name: 'ironman' },
+        label: 'Ironman',
+        value: 'ironman',
+      }),
+    );
+
+    await adapter.handle({
+      ...registrationSelectInteraction(modeCustomId, 'ironman', () => Promise.resolve()),
+      deferUpdate: () => Promise.resolve(),
+      editReply: (response: ComponentResponse) => {
+        edits.push(response);
+        return Promise.resolve();
+      },
+    } as never);
+
+    expect(edits).toEqual([
+      expect.objectContaining({
+        components: [],
+        content: 'Registered **Rune Scape** as an Ironman watchlist account.',
+      }),
+    ]);
+    expect(services.registrationRequests).toHaveLength(1);
+  });
+
+  it('requires an account manager to choose another member for a linked registration', async () => {
+    const services = new RegistrationStubServices();
+    services.canManageAccounts = true;
+    const handler = new AccountRegistrationCommandHandler(services);
+    const start = await handler.start(context({ requesterDiscordUserId: 'manager-one' }));
+    if (start.kind !== 'username_required') {
+      throw new Error('Expected a username prompt.');
+    }
+    const username = handler.submitUsername(
+      context({ requesterDiscordUserId: 'manager-one' }),
+      start.customId,
+      'Rune Scape',
+    );
+    if (username.kind !== 'association_selection') {
+      throw new Error('Expected an association prompt.');
+    }
+    const member = await handler.selectAssociation(
+      context({ requesterDiscordUserId: 'manager-one' }),
+      username.customId,
+      'linked',
+    );
+    if (member.kind !== 'member_selection') {
+      throw new Error('Expected a member picker.');
+    }
+    const mode = await handler.selectLinkedMember(
+      context({ requesterDiscordUserId: 'manager-one' }),
+      member.customId,
+      'member-two',
+    );
+    if (mode.kind !== 'mode_selection') {
+      throw new Error('Expected a game-mode prompt.');
+    }
+
+    await handler.selectMode(
+      context({ requesterDiscordUserId: 'manager-one' }),
+      mode.customId,
+      'main',
+    );
+    expect(services.registrationRequests[0]).toMatchObject({
+      association: { discordUserId: 'member-two', type: 'linked' },
+      canManageAccounts: true,
+    });
+  });
+
+  it('binds and expires registration sessions before they can register an account', async () => {
+    const services = new RegistrationStubServices();
+    const handler = new AccountRegistrationCommandHandler(services);
+    const start = await handler.start(context());
+    if (start.kind !== 'username_required') {
+      throw new Error('Expected a username prompt.');
+    }
+
+    expect(
+      handler.submitUsername(
+        context({ requesterDiscordUserId: 'member-two' }),
+        start.customId,
+        'Rune Scape',
+      ),
+    ).toMatchObject({ kind: 'forbidden' });
+
+    services.clock.advanceBy(5 * 60 * 1000);
+    expect(handler.submitUsername(context(), start.customId, 'Rune Scape')).toMatchObject({
+      kind: 'expired',
+    });
+    expect(services.registrationRequests).toEqual([]);
+  });
 });
 
 class StubServices implements AccountRemovalCommandServices, AccountCommandPermissionEvaluator {
@@ -271,6 +494,88 @@ class StubServices implements AccountRemovalCommandServices, AccountCommandPermi
       canManageCompetitions: false,
     });
   }
+}
+
+class RegistrationStubServices
+  implements AccountRegistrationCommandServices, AccountCommandPermissionEvaluator
+{
+  public canManageAccounts = false;
+  public readonly clock = new MutableClock();
+  public readonly modeEmojiConfiguration = {
+    getModeEmojis: () => Promise.resolve(this.modeEmojis),
+  };
+  public modeEmojis = {};
+  public readonly registrationRequests: RegisterAccountRequest[] = [];
+  public registrationResult: AccountRegistrationResult = { kind: 'username_taken' };
+  public readonly sessions = new InMemoryAccountRegistrationSessionStore(this.clock);
+  public readonly permissions = this;
+  public readonly accountRegistration = {
+    register: (request: RegisterAccountRequest) => {
+      this.registrationRequests.push(request);
+      return Promise.resolve(this.registrationResult);
+    },
+  };
+
+  public evaluate(): Promise<{ canManageAccounts: boolean; canManageCompetitions: boolean }> {
+    return Promise.resolve({
+      canManageAccounts: this.canManageAccounts,
+      canManageCompetitions: false,
+    });
+  }
+}
+
+interface ModalResponse {
+  toJSON(): { custom_id: string; title: string };
+}
+
+interface ComponentResponse {
+  components: { toJSON(): { components: { custom_id: string; options?: unknown[] }[] } }[];
+  content: string;
+  ephemeral?: boolean;
+}
+
+function registrationCommand(showModal: (modal: ModalResponse) => Promise<void>) {
+  return {
+    commandName: 'account',
+    guildId: 'guild-one',
+    isAutocomplete: () => false,
+    isButton: () => false,
+    isChatInputCommand: () => true,
+    member: { roles: [] },
+    memberPermissions: { has: () => false },
+    options: { getSubcommand: () => 'register' },
+    showModal,
+    user: { id: 'member-one' },
+  };
+}
+
+function registrationSelectInteraction(
+  customId: string,
+  value: string,
+  update: (response: ComponentResponse) => Promise<void>,
+) {
+  return {
+    customId,
+    guildId: 'guild-one',
+    isAutocomplete: () => false,
+    isButton: () => false,
+    isChatInputCommand: () => false,
+    isModalSubmit: () => false,
+    isStringSelectMenu: () => true,
+    member: { roles: [] },
+    memberPermissions: { has: () => false },
+    update,
+    user: { id: 'member-one' },
+    values: [value],
+  };
+}
+
+function componentCustomId(response: ComponentResponse | undefined): string {
+  const customId = response?.components[0]?.toJSON().components[0]?.custom_id;
+  if (customId === undefined) {
+    throw new Error('Expected a registration component custom ID.');
+  }
+  return customId;
 }
 
 class MutableClock {

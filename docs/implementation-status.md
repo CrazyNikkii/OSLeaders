@@ -103,9 +103,23 @@ guild isolation, authorization, confirmation binding and expiry, malformed
 confirmation IDs, bounded cleanup, and Discord interaction translation. This
 work is implemented and merged.
 
-Stage 5 is not complete. It does not yet add the guided account registration
-interaction, public announcements, administrative-channel delivery, or the
-durable daily-recap run, scheduling, and delivery work owned by later slices.
+The unmerged `codex/discord-account-registration-flow` branch adds the next
+Discord adapter slice: a guild- and initiator-bound guided `/account register`
+flow. It collects the username in a modal, association through a select menu,
+the linked member through a manager-only member picker when needed, and the
+game mode through text-labelled Discord select-menu choices. Guild configuration
+now persists optional per-mode Discord custom emojis through a reviewed
+migration, and the mode menu renders them decoratively while retaining text
+labels. The flow delegates validation, authorization, quota enforcement,
+default selection, and atomic baseline creation to the existing registration
+service. Focused unit tests cover the command definition, complete adapter
+interaction chain, configured emoji rendering, self-service watchlist flow,
+manager-linked flow, session binding, and expiry. This work is awaiting review
+and must not be treated as merged.
+
+Stage 5 is not complete. It does not yet add public announcements,
+administrative-channel delivery, or the durable daily-recap run, scheduling,
+and delivery work owned by later slices.
 
 ## Later planned stages
 
@@ -139,10 +153,7 @@ authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-After the Discord account-command foundation is reviewed and merged, add the
-guided `/account register` interaction flow
-(`codex/discord-account-registration-flow`). It should collect the RSN,
-association, optional linked member for account managers, and selected game
-mode through Discord inputs before invoking the existing registration service;
-public announcements and administrative-channel delivery remain separate
-adapter work.
+After `codex/discord-account-registration-flow` is reviewed and merged, add
+public registration-success announcements
+(`codex/discord-account-registration-announcements`). Administrative-channel
+delivery remains a separate adapter task.
