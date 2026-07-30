@@ -103,8 +103,8 @@ guild isolation, authorization, confirmation binding and expiry, malformed
 confirmation IDs, bounded cleanup, and Discord interaction translation. This
 work is implemented and merged.
 
-The unmerged `codex/discord-account-registration-flow` branch adds the next
-Discord adapter slice: a guild- and initiator-bound guided `/account register`
+The merged Discord account-registration flow adds the next Discord adapter
+slice: a guild- and initiator-bound guided `/account register`
 flow. It collects the username in a modal, association through a select menu,
 the linked member through a manager-only member picker when needed, and the
 game mode through text-labelled Discord select-menu choices. Guild configuration
@@ -114,8 +114,8 @@ labels. The flow delegates validation, authorization, quota enforcement,
 default selection, and atomic baseline creation to the existing registration
 service. Focused unit tests cover the command definition, complete adapter
 interaction chain, configured emoji rendering, self-service watchlist flow,
-manager-linked flow, session binding, and expiry. This work is awaiting review
-and must not be treated as merged.
+manager-linked flow, session binding, and expiry. This work is implemented and
+merged.
 
 Stage 5 is not complete. It does not yet add public announcements,
 administrative-channel delivery, or the durable daily-recap run, scheduling,
@@ -135,25 +135,25 @@ and delivery work owned by later slices.
 
 ## Previous merged implementation work
 
-`79317dd` (2026-07-25) - Merge member-presence persistence.
-
-This merged guild-scoped durable member presence state, allowing departures
-and rejoins to be recorded without unlinking or deleting accounts.
-
-## Latest merged implementation work
-
 `9ebc57e` (2026-07-25) - Merge Discord account command foundation.
 
 This merged the guild-only `/account remove` command foundation, including
 account autocomplete, Discord permission inputs, expiring one-time removal
 confirmation, bounded in-memory cleanup, and focused adapter tests.
 
+## Latest merged implementation work
+
+`e784616` (2026-07-30) - Merge Discord account registration flow.
+
+This merged the guided `/account register` Discord interaction flow and
+guild-scoped optional mode-emoji configuration, including the reviewed
+PostgreSQL migration and focused adapter, unit, and integration tests.
+
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-After `codex/discord-account-registration-flow` is reviewed and merged, add
-public registration-success announcements
+Add public registration-success announcements
 (`codex/discord-account-registration-announcements`). Administrative-channel
 delivery remains a separate adapter task.
