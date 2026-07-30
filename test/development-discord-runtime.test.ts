@@ -1,3 +1,4 @@
+import { Events, MessageFlags } from 'discord.js';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { RuntimeConfiguration } from '../src/infrastructure/config/runtime-environment.js';
@@ -79,6 +80,40 @@ describe('development Discord runtime', () => {
     expect(dependencies.closeDatabase).toHaveBeenCalledOnce();
   });
 
+  it('binds the skill lookup adapter to development-guild interactions', async () => {
+    const dependencies = new RuntimeDependencies();
+    const runtime = await startDevelopmentDiscordRuntime(
+      configuration(),
+      dependencies.asDependencies(),
+    );
+    const reply = vi.fn(() => Promise.resolve());
+
+    for (const handler of dependencies.interactionHandlers) {
+      handler({
+        commandName: 'skill',
+        guildId: 'development-guild-one',
+        isAutocomplete: () => false,
+        isButton: () => false,
+        isChatInputCommand: () => true,
+        isModalSubmit: () => false,
+        isStringSelectMenu: () => false,
+        isUserSelectMenu: () => false,
+        options: { getString: (name: string) => (name === 'skill' ? 'Strength' : null) },
+        reply,
+        user: { id: 'member-one' },
+      } as never);
+    }
+    await vi.waitFor(() => expect(reply).toHaveBeenCalledOnce());
+
+    expect(dependencies.interactionHandlers).toHaveLength(2);
+    expect(reply).toHaveBeenCalledWith({
+      content: 'You do not have a default linked account in this server.',
+      flags: MessageFlags.Ephemeral,
+    });
+    expect(dependencies.logger.entries).toEqual([]);
+    await runtime.close();
+  });
+
   it('records a sanitized diagnostic message and reference for interaction failures', () => {
     const dependencies = new RuntimeDependencies();
     const configurationValue = configuration({
@@ -108,16 +143,26 @@ describe('development Discord runtime', () => {
 
 class RuntimeDependencies {
   public readonly closeDatabase = vi.fn(() => Promise.resolve());
+  public readonly database = {
+    select: () => ({
+      from: () => ({ where: () => Promise.resolve([]) }),
+    }),
+  };
+  public readonly interactionHandlers: ((interaction: never) => void)[] = [];
   public readonly client = {
     destroy: vi.fn(),
     login: vi.fn(() => Promise.resolve('token-one')),
-    on: vi.fn(),
+    on: vi.fn((event: Events, listener: (interaction: never) => void) => {
+      if (event === Events.InteractionCreate) {
+        this.interactionHandlers.push(listener);
+      }
+    }),
     once: vi.fn(),
   };
   public readonly createClient = vi.fn(() => this.client as never);
   public readonly createDatabaseConnection = vi.fn(() => ({
     close: this.closeDatabase,
-    database: {} as never,
+    database: this.database,
     pool: this.pool,
   }));
   public readonly logger = new RecordingLogger();

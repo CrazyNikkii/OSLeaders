@@ -30,6 +30,17 @@ one-time accounts. Focused unit tests cover target isolation, direct Ironman
 endpoint fetching, Hiscores failures, and incomplete responses. This work is
 merged and does not make Stage 6 complete.
 
+The implemented Discord skill-lookup adapter adds guild-only `/skill` with a
+canonical Discord skill choice and optional guild-scoped tracked-account
+autocomplete. It delegates target resolution and selected-mode Hiscores
+fetching to the existing lookup service; without an account option it uses the
+caller's default. Successful results are public embeds showing the account,
+text mode label, level, experience, and rank, while expected failures are
+private. Focused adapter, runtime-binding, and development-command
+registration tests cover command definition, target isolation, presentation,
+failure translation, and development-guild interaction wiring. This work is
+implemented but not merged.
+
 The merged account-registration foundation provides a
 guild-scoped tracked-account schema and reviewed migration; stable account IDs;
 normalized username uniqueness per guild; linked and watchlist associations;
@@ -222,6 +233,7 @@ authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-Add a narrow Discord skill-lookup command adapter
-(`codex/discord-skill-lookup`) that delegates to the merged lookup foundation
-and presents a canonical skill result.
+Merge the implemented Discord skill-lookup command adapter
+(`codex/discord-skill-lookup`) after review. The next implementation task
+should add the guided one-time skill-lookup flow using the already merged
+transient lookup target.

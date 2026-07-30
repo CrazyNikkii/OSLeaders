@@ -2,6 +2,7 @@ import { REST, Routes } from 'discord.js';
 
 import type { RuntimeConfiguration } from '../config/runtime-environment.js';
 import { accountCommandDefinitions } from './account-command-foundation.js';
+import { skillLookupCommandDefinitions } from './skill-lookup-command.js';
 
 export interface DevelopmentCommandRegistrar {
   put(applicationId: string, guildId: string, commands: readonly object[]): Promise<void>;
@@ -37,6 +38,6 @@ export async function registerDevelopmentDiscordCommands(
   await registrar.put(
     configuration.discord.applicationId,
     configuration.discord.developmentGuildId,
-    accountCommandDefinitions,
+    [...accountCommandDefinitions, ...skillLookupCommandDefinitions],
   );
 }
