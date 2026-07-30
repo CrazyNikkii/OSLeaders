@@ -19,11 +19,19 @@ describe('guild configuration service', () => {
       service.update('guild-one', {
         administrativeLogMode: 'verbose',
         botManagerRoleId: 'bot-manager-role',
+        recapChannelId: 'recap-channel',
+        recapEnabled: true,
+        recapLocalTime: '18:00',
+        timezone: 'Europe/London',
       }),
     ).resolves.toEqual({
       ...defaultConfiguration('guild-one'),
       administrativeLogMode: 'verbose',
       botManagerRoleId: 'bot-manager-role',
+      recapChannelId: 'recap-channel',
+      recapEnabled: true,
+      recapLocalTime: '18:00',
+      timezone: 'Europe/London',
     });
     await expect(service.getOrCreate('guild-two')).resolves.toEqual(
       defaultConfiguration('guild-two'),
@@ -64,5 +72,9 @@ function defaultConfiguration(guildId: string): GuildConfiguration {
     competitionManagerRoleId: null,
     guildId,
     modeEmojis: {},
+    recapChannelId: null,
+    recapEnabled: false,
+    recapLocalTime: null,
+    timezone: 'Europe/Helsinki',
   };
 }

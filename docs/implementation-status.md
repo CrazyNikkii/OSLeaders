@@ -20,7 +20,10 @@ merged.
 ## Current implementation stage
 
 Stage 6 - Lookups and permanent leaderboards (complete for the approved
-slash-command-only v1 scope).
+slash-command-only v1 scope). Daily recaps have been intentionally
+reprioritized ahead of competitions so the bot can provide useful automatic
+activity posts to a private server while competition development continues
+afterward.
 
 The merged skill-lookup foundation begins the lookup module with a
 Discord-independent, guild-scoped skill lookup service. It resolves a
@@ -242,8 +245,8 @@ prevents the registered command from becoming unavailable at interaction time.
 Focused adapter tests cover command registration, selection, authorization,
 guild isolation, autocomplete, response translation, and factory construction.
 
-Stage 5 is not complete. The durable daily-recap run, scheduling, and delivery
-work remain owned by later slices.
+Stage 5 is not complete. The remaining deferred account-management Discord
+adapters remain post-launch priorities.
 
 The remaining Discord adapters for account-mode changes, account-association
 conversion, and linked-account reassignment are deliberately deferred until
@@ -280,10 +283,11 @@ audit context, audit delivery, and delivery failure.
 - Stage 5 - Remaining deferred account-management Discord adapters.
 - Post-v1 - Prefix-command convenience interface, including any prefix
   configuration, Message Content intent, aliases, and free-text parsing.
-- Stage 7 - Competition lifecycle, snapshots, claims, scheduling, roles, and
+- Stage 7 - Daily recap configuration, collection, preview, durable send, and
+  automatic scheduling. Active-competition summaries follow once competition
+  read models exist.
+- Stage 8 - Competition lifecycle, snapshots, claims, scheduling, roles, and
   history.
-- Stage 8 - Recap baselines, preview, durable send, automatic scheduling, and
-  active competition summaries.
 - Stage 9 - Full acceptance, failure-recovery, resource, and deployment
   testing.
 - Stage 10 - Deployment and backup specification based on the actual laptop.
@@ -316,9 +320,21 @@ documentation, and focused tests.
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
+## Current unmerged implementation work
+
+`codex/daily-recap-configuration-foundation` begins the reprioritized Stage 7
+work. It adds the guild-scoped recap configuration fields (channel, local time,
+IANA timezone, and enabled state), plus durable recap-run retry and failure
+metadata and one durable delivery record per run with guild-consistent ownership
+constraints and automatic-run schedule identity. This is not yet merged and
+must not be treated as completed
+implementation work.
+
 ## Next recommended branch-sized task
 
-Begin Stage 7 with a competition lifecycle and schema foundation. Keep the
-first branch limited to guild-scoped competition persistence, explicit
-lifecycle states, and focused tests; do not add Discord flows, scheduling,
-claims, or roles until the foundation is reviewed.
+After the recap configuration foundation is merged, add the Discord-independent
+recap collection and calculation service. Keep that branch limited to loading
+guild-scoped tracked accounts and baselines, collecting fresh complete
+Hiscores, calculating positive-only changes, and preserving failed-account
+baselines. Do not add Discord delivery, manual-send confirmation, or scheduling
+until the calculation result is reviewed.

@@ -1,0 +1,900 @@
+{
+  "id": "8c8a3bfe-22f2-4e7a-ab84-77941a9684ee",
+  "prevId": "f0d877f2-fdcf-46ad-8dde-8215ff34d2ef",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.daily_recap_deliveries": {
+      "name": "daily_recap_deliveries",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "guild_id": {
+          "name": "guild_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recap_run_id": {
+          "name": "recap_run_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "channel_id": {
+          "name": "channel_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content": {
+          "name": "content",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "daily_recap_delivery_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "attempt_count": {
+          "name": "attempt_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "next_attempt_at": {
+          "name": "next_attempt_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_failure_summary": {
+          "name": "last_failure_summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "discord_message_id": {
+          "name": "discord_message_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "delivered_at": {
+          "name": "delivered_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "daily_recap_deliveries_status_next_attempt_at_index": {
+          "name": "daily_recap_deliveries_status_next_attempt_at_index",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "next_attempt_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "daily_recap_deliveries_guild_id_guilds_guild_id_fk": {
+          "name": "daily_recap_deliveries_guild_id_guilds_guild_id_fk",
+          "tableFrom": "daily_recap_deliveries",
+          "tableTo": "guilds",
+          "columnsFrom": [
+            "guild_id"
+          ],
+          "columnsTo": [
+            "guild_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "daily_recap_deliveries_run_guild_daily_recap_runs_fk": {
+          "name": "daily_recap_deliveries_run_guild_daily_recap_runs_fk",
+          "tableFrom": "daily_recap_deliveries",
+          "tableTo": "daily_recap_runs",
+          "columnsFrom": [
+            "recap_run_id",
+            "guild_id"
+          ],
+          "columnsTo": [
+            "id",
+            "guild_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "daily_recap_deliveries_run_guild_unique": {
+          "name": "daily_recap_deliveries_run_guild_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "recap_run_id",
+            "guild_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "daily_recap_deliveries_attempt_count_check": {
+          "name": "daily_recap_deliveries_attempt_count_check",
+          "value": "\"daily_recap_deliveries\".\"attempt_count\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.daily_recap_runs": {
+      "name": "daily_recap_runs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "guild_id": {
+          "name": "guild_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "trigger": {
+          "name": "trigger",
+          "type": "daily_recap_run_trigger",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "daily_recap_run_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending_collection'"
+        },
+        "scheduled_for": {
+          "name": "scheduled_for",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "collection_attempt_count": {
+          "name": "collection_attempt_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "next_collection_attempt_at": {
+          "name": "next_collection_attempt_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_collection_failure_summary": {
+          "name": "last_collection_failure_summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "collection_started_at": {
+          "name": "collection_started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "collection_completed_at": {
+          "name": "collection_completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "comparison_started_at": {
+          "name": "comparison_started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "comparison_completed_at": {
+          "name": "comparison_completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "account_outcomes": {
+          "name": "account_outcomes",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "daily_recap_runs_automatic_schedule_unique": {
+          "name": "daily_recap_runs_automatic_schedule_unique",
+          "columns": [
+            {
+              "expression": "guild_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "scheduled_for",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"daily_recap_runs\".\"trigger\" = 'automatic'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "daily_recap_runs_guild_status_scheduled_for_index": {
+          "name": "daily_recap_runs_guild_status_scheduled_for_index",
+          "columns": [
+            {
+              "expression": "guild_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "scheduled_for",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "daily_recap_runs_status_next_collection_attempt_at_index": {
+          "name": "daily_recap_runs_status_next_collection_attempt_at_index",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "next_collection_attempt_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "daily_recap_runs_guild_id_guilds_guild_id_fk": {
+          "name": "daily_recap_runs_guild_id_guilds_guild_id_fk",
+          "tableFrom": "daily_recap_runs",
+          "tableTo": "guilds",
+          "columnsFrom": [
+            "guild_id"
+          ],
+          "columnsTo": [
+            "guild_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "daily_recap_runs_id_guild_unique": {
+          "name": "daily_recap_runs_id_guild_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "guild_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "daily_recap_runs_automatic_schedule_check": {
+          "name": "daily_recap_runs_automatic_schedule_check",
+          "value": "(\"daily_recap_runs\".\"trigger\" <> 'automatic' OR \"daily_recap_runs\".\"scheduled_for\" IS NOT NULL)"
+        },
+        "daily_recap_runs_collection_attempt_count_check": {
+          "name": "daily_recap_runs_collection_attempt_count_check",
+          "value": "\"daily_recap_runs\".\"collection_attempt_count\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.guild_configurations": {
+      "name": "guild_configurations",
+      "schema": "",
+      "columns": {
+        "guild_id": {
+          "name": "guild_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "bot_manager_role_id": {
+          "name": "bot_manager_role_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "competition_manager_role_id": {
+          "name": "competition_manager_role_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "administrative_log_channel_id": {
+          "name": "administrative_log_channel_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "administrative_log_mode": {
+          "name": "administrative_log_mode",
+          "type": "administrative_log_mode",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'standard'"
+        },
+        "mode_emojis": {
+          "name": "mode_emojis",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "recap_channel_id": {
+          "name": "recap_channel_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recap_enabled": {
+          "name": "recap_enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "recap_local_time": {
+          "name": "recap_local_time",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "timezone": {
+          "name": "timezone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'Europe/Helsinki'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "guild_configurations_guild_id_guilds_guild_id_fk": {
+          "name": "guild_configurations_guild_id_guilds_guild_id_fk",
+          "tableFrom": "guild_configurations",
+          "tableTo": "guilds",
+          "columnsFrom": [
+            "guild_id"
+          ],
+          "columnsTo": [
+            "guild_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.guild_member_presences": {
+      "name": "guild_member_presences",
+      "schema": "",
+      "columns": {
+        "guild_id": {
+          "name": "guild_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "discord_user_id": {
+          "name": "discord_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_present": {
+          "name": "is_present",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "guild_member_presences_guild_id_guilds_guild_id_fk": {
+          "name": "guild_member_presences_guild_id_guilds_guild_id_fk",
+          "tableFrom": "guild_member_presences",
+          "tableTo": "guilds",
+          "columnsFrom": [
+            "guild_id"
+          ],
+          "columnsTo": [
+            "guild_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "guild_member_presences_guild_id_discord_user_id_pk": {
+          "name": "guild_member_presences_guild_id_discord_user_id_pk",
+          "columns": [
+            "guild_id",
+            "discord_user_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.guilds": {
+      "name": "guilds",
+      "schema": "",
+      "columns": {
+        "guild_id": {
+          "name": "guild_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.recap_baselines": {
+      "name": "recap_baselines",
+      "schema": "",
+      "columns": {
+        "account_id": {
+          "name": "account_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "boss_kill_counts": {
+          "name": "boss_kill_counts",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "captured_at": {
+          "name": "captured_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "guild_id": {
+          "name": "guild_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "skill_experience": {
+          "name": "skill_experience",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "skill_levels": {
+          "name": "skill_levels",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "recap_baselines_guild_id_guilds_guild_id_fk": {
+          "name": "recap_baselines_guild_id_guilds_guild_id_fk",
+          "tableFrom": "recap_baselines",
+          "tableTo": "guilds",
+          "columnsFrom": [
+            "guild_id"
+          ],
+          "columnsTo": [
+            "guild_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "recap_baselines_account_guild_tracked_accounts_fk": {
+          "name": "recap_baselines_account_guild_tracked_accounts_fk",
+          "tableFrom": "recap_baselines",
+          "tableTo": "tracked_accounts",
+          "columnsFrom": [
+            "account_id",
+            "guild_id"
+          ],
+          "columnsTo": [
+            "id",
+            "guild_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.tracked_accounts": {
+      "name": "tracked_accounts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "guild_id": {
+          "name": "guild_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "display_username": {
+          "name": "display_username",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "normalized_username": {
+          "name": "normalized_username",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "account_mode": {
+          "name": "account_mode",
+          "type": "osrs_account_mode",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "association_type": {
+          "name": "association_type",
+          "type": "account_association_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "linked_discord_user_id": {
+          "name": "linked_discord_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "quota_owner_discord_user_id": {
+          "name": "quota_owner_discord_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "registered_by_discord_user_id": {
+          "name": "registered_by_discord_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_default": {
+          "name": "is_default",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "tracked_accounts_guild_normalized_username_unique": {
+          "name": "tracked_accounts_guild_normalized_username_unique",
+          "columns": [
+            {
+              "expression": "guild_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "normalized_username",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "tracked_accounts_guild_quota_owner_index": {
+          "name": "tracked_accounts_guild_quota_owner_index",
+          "columns": [
+            {
+              "expression": "guild_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "quota_owner_discord_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "tracked_accounts_guild_linked_default_unique": {
+          "name": "tracked_accounts_guild_linked_default_unique",
+          "columns": [
+            {
+              "expression": "guild_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "linked_discord_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"tracked_accounts\".\"is_default\"",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "tracked_accounts_guild_id_guilds_guild_id_fk": {
+          "name": "tracked_accounts_guild_id_guilds_guild_id_fk",
+          "tableFrom": "tracked_accounts",
+          "tableTo": "guilds",
+          "columnsFrom": [
+            "guild_id"
+          ],
+          "columnsTo": [
+            "guild_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "tracked_accounts_id_guild_unique": {
+          "name": "tracked_accounts_id_guild_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "guild_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "tracked_accounts_association_check": {
+          "name": "tracked_accounts_association_check",
+          "value": "(\n        (\"tracked_accounts\".\"association_type\" = 'linked' AND \"tracked_accounts\".\"linked_discord_user_id\" IS NOT NULL)\n        OR (\"tracked_accounts\".\"association_type\" = 'watchlist' AND \"tracked_accounts\".\"linked_discord_user_id\" IS NULL)\n      )"
+        },
+        "tracked_accounts_default_check": {
+          "name": "tracked_accounts_default_check",
+          "value": "(NOT \"tracked_accounts\".\"is_default\" OR \"tracked_accounts\".\"association_type\" = 'linked')"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.account_association_type": {
+      "name": "account_association_type",
+      "schema": "public",
+      "values": [
+        "linked",
+        "watchlist"
+      ]
+    },
+    "public.administrative_log_mode": {
+      "name": "administrative_log_mode",
+      "schema": "public",
+      "values": [
+        "standard",
+        "verbose"
+      ]
+    },
+    "public.daily_recap_delivery_status": {
+      "name": "daily_recap_delivery_status",
+      "schema": "public",
+      "values": [
+        "pending",
+        "delivering",
+        "delivered",
+        "failed"
+      ]
+    },
+    "public.daily_recap_run_status": {
+      "name": "daily_recap_run_status",
+      "schema": "public",
+      "values": [
+        "pending_collection",
+        "collecting",
+        "delivery_pending",
+        "delivered",
+        "failed"
+      ]
+    },
+    "public.daily_recap_run_trigger": {
+      "name": "daily_recap_run_trigger",
+      "schema": "public",
+      "values": [
+        "automatic",
+        "manual"
+      ]
+    },
+    "public.osrs_account_mode": {
+      "name": "osrs_account_mode",
+      "schema": "public",
+      "values": [
+        "main",
+        "ironman",
+        "hardcore_ironman",
+        "ultimate_ironman",
+        "group_ironman",
+        "hardcore_group_ironman"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

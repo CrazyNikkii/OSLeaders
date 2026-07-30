@@ -71,5 +71,9 @@ function toGuildConfiguration(
     competitionManagerRoleId: configuration.competitionManagerRoleId,
     guildId: configuration.guildId,
     modeEmojis: configuration.modeEmojis,
+    recapChannelId: configuration.recapChannelId,
+    recapEnabled: configuration.recapEnabled,
+    recapLocalTime: configuration.recapLocalTime,
+    timezone: configuration.timezone,
   };
 }

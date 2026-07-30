@@ -22,6 +22,8 @@ import {
   guildConfigurations,
   guildMemberPresences,
   guilds,
+  dailyRecapDeliveries,
+  dailyRecapRuns,
   recapBaselines,
   trackedAccounts,
 } from '../../src/infrastructure/database/schema/index.js';
@@ -56,7 +58,7 @@ describe('database foundation', () => {
   it('applies the committed database migrations to an empty test database', async () => {
     const committedMigrations = await readCommittedMigrations();
     const applicationTables = await connection.pool.query<{ table_name: string }>(
-      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('guild_configurations', 'guild_member_presences', 'guilds', 'recap_baselines', 'tracked_accounts') ORDER BY table_name",
+      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('daily_recap_deliveries', 'daily_recap_runs', 'guild_configurations', 'guild_member_presences', 'guilds', 'recap_baselines', 'tracked_accounts') ORDER BY table_name",
     );
     const migrationTables = await connection.pool.query<{ table_name: string }>(
       "SELECT table_name FROM information_schema.tables WHERE table_schema = 'drizzle' AND table_name = '__drizzle_migrations'",
@@ -66,6 +68,8 @@ describe('database foundation', () => {
     );
 
     expect(applicationTables.rows).toEqual([
+      { table_name: 'daily_recap_deliveries' },
+      { table_name: 'daily_recap_runs' },
       { table_name: 'guild_configurations' },
       { table_name: 'guild_member_presences' },
       { table_name: 'guilds' },
@@ -117,12 +121,20 @@ describe('database foundation', () => {
       competitionManagerRoleId: null,
       guildId: 'configuration-guild-one',
       modeEmojis: {},
+      recapChannelId: null,
+      recapEnabled: false,
+      recapLocalTime: null,
+      timezone: 'Europe/Helsinki',
     });
     await repository.update('configuration-guild-one', {
       administrativeLogChannelId: 'audit-channel-one',
       administrativeLogMode: 'verbose',
       botManagerRoleId: 'bot-manager-one',
       modeEmojis: { ironman: { id: 'emoji-one', name: 'ironman' } },
+      recapChannelId: 'recap-channel-one',
+      recapEnabled: true,
+      recapLocalTime: '18:00',
+      timezone: 'Europe/London',
     });
     await repository.update('configuration-guild-two', {
       competitionManagerRoleId: 'competition-manager-two',
@@ -147,6 +159,10 @@ describe('database foundation', () => {
       botManagerRoleId: null,
       competitionManagerRoleId: null,
       modeEmojis: { ironman: { id: 'emoji-one', name: 'ironman' } },
+      recapChannelId: 'recap-channel-one',
+      recapEnabled: true,
+      recapLocalTime: '18:00',
+      timezone: 'Europe/London',
     });
     await expect(repository.getOrCreate('configuration-guild-two')).resolves.toMatchObject({
       administrativeLogChannelId: null,
@@ -154,6 +170,10 @@ describe('database foundation', () => {
       botManagerRoleId: null,
       competitionManagerRoleId: 'competition-manager-two',
       modeEmojis: {},
+      recapChannelId: null,
+      recapEnabled: false,
+      recapLocalTime: null,
+      timezone: 'Europe/Helsinki',
     });
 
     const configurationRows = await connection.database.select().from(guildConfigurations);
@@ -164,6 +184,89 @@ describe('database foundation', () => {
     expect(clearedConfiguration?.updatedAt.getTime()).toBeGreaterThan(
       beforeClear.updatedAt.getTime(),
     );
+  });
+
+  it('keeps durable recap runs and deliveries in their owning guild', async () => {
+    await connection.database
+      .insert(guilds)
+      .values([{ guildId: 'recap-run-guild-one' }, { guildId: 'recap-run-guild-two' }]);
+    await connection.database.insert(dailyRecapRuns).values({
+      collectionAttemptCount: 2,
+      lastCollectionFailureSummary: 'Hiscores request timed out.',
+      nextCollectionAttemptAt: new Date('2026-07-31T15:05:00.000Z'),
+      guildId: 'recap-run-guild-one',
+      id: 'automatic-recap-run',
+      scheduledFor: new Date('2026-07-31T15:00:00.000Z'),
+      trigger: 'automatic',
+    });
+    await connection.database.insert(dailyRecapDeliveries).values({
+      channelId: 'recap-channel-one',
+      content: 'A durable daily recap.',
+      guildId: 'recap-run-guild-one',
+      id: 'recap-delivery-one',
+      recapRunId: 'automatic-recap-run',
+    });
+
+    await expect(
+      connection.database.insert(dailyRecapDeliveries).values({
+        channelId: 'recap-channel-two',
+        content: 'Cross-guild delivery must fail.',
+        guildId: 'recap-run-guild-two',
+        id: 'cross-guild-recap-delivery',
+        recapRunId: 'automatic-recap-run',
+      }),
+    ).rejects.toThrow();
+    await expect(
+      connection.database.insert(dailyRecapDeliveries).values({
+        channelId: 'recap-channel-one',
+        content: 'A duplicate durable recap.',
+        guildId: 'recap-run-guild-one',
+        id: 'duplicate-recap-delivery',
+        recapRunId: 'automatic-recap-run',
+      }),
+    ).rejects.toThrow();
+    await expect(
+      connection.database.insert(dailyRecapRuns).values({
+        guildId: 'recap-run-guild-two',
+        id: 'unscheduled-automatic-recap-run',
+        trigger: 'automatic',
+      }),
+    ).rejects.toThrow();
+    await expect(
+      connection.database.insert(dailyRecapRuns).values({
+        guildId: 'recap-run-guild-one',
+        id: 'duplicate-automatic-recap-run',
+        scheduledFor: new Date('2026-07-31T15:00:00.000Z'),
+        trigger: 'automatic',
+      }),
+    ).rejects.toThrow();
+    await expect(
+      connection.database.insert(dailyRecapRuns).values({
+        guildId: 'recap-run-guild-one',
+        id: 'manual-recap-run-at-same-time',
+        scheduledFor: new Date('2026-07-31T15:00:00.000Z'),
+        trigger: 'manual',
+      }),
+    ).resolves.toBeDefined();
+
+    await expect(
+      connection.database
+        .select()
+        .from(dailyRecapRuns)
+        .where(eq(dailyRecapRuns.id, 'automatic-recap-run')),
+    ).resolves.toMatchObject([
+      {
+        collectionAttemptCount: 2,
+        lastCollectionFailureSummary: 'Hiscores request timed out.',
+        nextCollectionAttemptAt: new Date('2026-07-31T15:05:00.000Z'),
+      },
+    ]);
+    await expect(
+      connection.database
+        .select()
+        .from(dailyRecapDeliveries)
+        .where(eq(dailyRecapDeliveries.guildId, 'recap-run-guild-two')),
+    ).resolves.toEqual([]);
   });
 
   it('keeps account names guild-scoped and selects the first linked account as default', async () => {

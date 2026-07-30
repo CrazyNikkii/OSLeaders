@@ -827,9 +827,10 @@ reviewable stages:
 4. Guild configuration, permissions, and audit foundations.
 5. Account registration and management as the first vertical feature slice.
 6. Lookups and permanent leaderboards.
-7. Competition lifecycle, snapshots, claims, scheduling, roles, and history.
-8. Recap baselines, preview, durable send, automatic scheduling, and active
-   competition summaries.
+7. Daily recap configuration, collection, preview, durable send, and automatic
+   scheduling. Active-competition summaries follow once competition read models
+   exist.
+8. Competition lifecycle, snapshots, claims, scheduling, roles, and history.
 9. Full acceptance, failure-recovery, resource, and deployment testing.
 10. Deployment and backup specification based on the actual laptop.
 
