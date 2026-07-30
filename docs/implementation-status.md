@@ -19,7 +19,8 @@ merged.
 
 ## Current implementation stage
 
-Stage 6 - Lookups and permanent leaderboards (in progress).
+Stage 6 - Lookups and permanent leaderboards (complete for the approved
+slash-command-only v1 scope).
 
 The merged skill-lookup foundation begins the lookup module with a
 Discord-independent, guild-scoped skill lookup service. It resolves a
@@ -28,7 +29,7 @@ one-time account, then fetches the selected account mode's Hiscores endpoint
 through the centralized client's ordinary cache policy. It does not persist
 one-time accounts. Focused unit tests cover target isolation, direct Ironman
 endpoint fetching, Hiscores failures, and incomplete responses. This work is
-merged and does not make Stage 6 complete.
+merged as part of Stage 6.
 
 The merged Discord skill-lookup adapter adds guild-only `/skill` with a
 canonical Discord skill choice and optional guild-scoped tracked-account
@@ -112,6 +113,10 @@ quota, or recap baseline is persisted. The guided flow stays private, while a
 successful result is published in the invoking guild channel and the private
 controls are removed. Focused session, interaction, public-delivery, and
 development-runtime wiring tests cover the flow.
+
+Prefix-command convenience work, including `!` commands and Message Content
+intent, is explicitly deferred until after v1. With that scope decision, the
+merged slash-command lookup and leaderboard slices complete Stage 6.
 
 The merged account-registration foundation provides a
 guild-scoped tracked-account schema and reviewed migration; stable account IDs;
@@ -273,6 +278,8 @@ audit context, audit delivery, and delivery failure.
 ## Deferred and later planned stages
 
 - Stage 5 - Remaining deferred account-management Discord adapters.
+- Post-v1 - Prefix-command convenience interface, including any prefix
+  configuration, Message Content intent, aliases, and free-text parsing.
 - Stage 7 - Competition lifecycle, snapshots, claims, scheduling, roles, and
   history.
 - Stage 8 - Recap baselines, preview, durable send, automatic scheduling, and
@@ -311,7 +318,7 @@ authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-After `codex/one-time-boss-lookup` is merged, add the Stage 6 prefix-command
-foundation for a read-only `!lvl` shortcut. It should parse normalized skill
-aliases and multi-word account targets before delegating to the existing skill
-lookup service, without duplicating lookup business rules.
+Begin Stage 7 with a competition lifecycle and schema foundation. Keep the
+first branch limited to guild-scoped competition persistence, explicit
+lifecycle states, and focused tests; do not add Discord flows, scheduling,
+claims, or roles until the foundation is reviewed.

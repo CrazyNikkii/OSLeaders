@@ -135,16 +135,17 @@ strong internal module boundaries.
 
 A normal request flows through these layers:
 
-1. A Discord adapter parses an interaction or prefix message.
+1. A Discord adapter parses an interaction.
 2. An application service authorizes and coordinates the use case.
 3. Domain code applies product rules and state transitions.
 4. Repository and integration interfaces perform database or network work.
 5. A Discord presenter converts the result into messages, embeds, or
    components.
 
-Discord handlers remain thin. Slash and prefix commands call the same
-application services and presenters wherever they offer equivalent behaviour.
-They must not contain separate copies of business rules.
+Discord handlers remain thin. Slash commands call application services and
+presenters without duplicating business rules. Any future prefix commands must
+reuse those same services and presenters wherever they offer equivalent
+behaviour.
 
 No dependency-injection framework is required. The process entry point creates
 the concrete adapters and passes them to services through small constructor or
@@ -185,7 +186,7 @@ compact active-competition section.
 
 ### 7.6 Guild configuration
 
-Owns per-guild timezone, prefix settings, mode emojis, bot-manager and
+Owns per-guild timezone, mode emojis, bot-manager and
 competition-manager role IDs, recap configuration, and administrative log
 configuration.
 
@@ -273,9 +274,8 @@ registrations from exceeding the limit.
 ## 10. Permissions and authorization
 
 Authorization is checked inside application services, not only in Discord
-handlers. This ensures slash commands, component callbacks, prefix commands,
-scheduled actions, and future adapters cannot accidentally apply different
-rules.
+handlers. This ensures slash commands, component callbacks, scheduled actions,
+and future adapters cannot accidentally apply different rules.
 
 The approved permission model is:
 
@@ -563,19 +563,19 @@ Long-running interactions are acknowledged before Discord's response window
 expires. Confirmation tokens bind the requesting user, guild, intended action,
 and a short expiry so another user cannot reuse a destructive confirmation.
 
-### 18.2 Prefix commands
+### 18.2 Post-v1 prefix commands (deferred)
 
-Prefix commands provide approved convenience read operations. They require the
-Discord Message Content intent. Their parser:
+Prefix commands are outside v1 and must not require the Discord Message
+Content intent in the v1 runtime. If introduced after v1, their parser must:
 
-- Treats command and alias text case-insensitively.
-- Uses centralized skill and boss alias resolution.
-- Resolves the longest valid boss prefix.
-- Treats remaining text as an unquoted multi-word RSN.
-- Suggests rather than guesses when resolution is ambiguous.
+- Treat command and alias text case-insensitively.
+- Use centralized skill and boss alias resolution.
+- Resolve the longest valid boss prefix.
+- Treat remaining text as an unquoted multi-word RSN.
+- Suggest rather than guess when resolution is ambiguous.
 
-Prefix and slash adapters produce the same application request models and use
-the same feature services and result presenters.
+Future prefix and slash adapters must produce the same application request
+models and use the same feature services and result presenters.
 
 ### 18.3 Output limits
 

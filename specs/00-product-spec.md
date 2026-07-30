@@ -256,7 +256,8 @@ OSLeaders does not claim that linked accounts are ownership-verified. Authorized
 
 ## 13. Command interfaces
 
-OSLeaders supports two command interfaces.
+For v1, OSLeaders supports Discord slash commands as its complete official
+interface. Prefix commands are explicitly deferred until after v1.
 
 ### 13.1 Slash commands
 
@@ -281,9 +282,9 @@ Slash commands should use:
 - Autocomplete.
 - Ephemeral responses where appropriate.
 
-### 13.2 Prefix commands
+### 13.2 Post-v1 prefix commands
 
-Prefix commands are fast convenience shortcuts.
+After v1, prefix commands may be introduced as fast convenience shortcuts.
 
 They are intended primarily for:
 
@@ -293,15 +294,18 @@ They are intended primarily for:
 - Competition standings.
 - Other frequently used read-only commands.
 
-Administrative configuration does not need a full prefix-command duplicate.
+Administrative configuration would not need a full prefix-command duplicate.
 
-Both interfaces must use the same underlying business behaviour and produce equivalent results.
+Any future prefix interface must use the same underlying business behaviour
+and produce equivalent results as the slash interface.
 
 ## 14. Text input behaviour
 
-Textual command input is case-insensitive.
+Slash-command option matching is case-insensitive where users supply text,
+including OSRS usernames. Future prefix-command input must also be
+case-insensitive.
 
-These must behave equivalently:
+The following are post-v1 prefix-command examples:
 
 - `!lvl str`
 - `!LVL STR`
@@ -309,7 +313,8 @@ These must behave equivalently:
 
 OSRS usernames are matched case-insensitively but displayed using their stored form.
 
-Common aliases are supported through centralized alias resolution.
+Future prefix commands will support common aliases through centralized alias
+resolution.
 
 Examples include:
 
@@ -320,17 +325,20 @@ Examples include:
 - `sire` → Abyssal Sire
 - `cg` → Corrupted Gauntlet
 
-Obvious unambiguous spelling mistakes may be corrected automatically.
+Future prefix commands may correct obvious unambiguous spelling mistakes
+automatically.
 
 Example:
 
 - `strenght` → Strength
 
-The bot must not silently guess when several valid interpretations are possible. It should instead show likely suggestions.
+The bot must not silently guess when several valid interpretations are
+possible. Future prefix commands should instead show likely suggestions.
 
-## 15. Multi-word usernames and bosses
+## 15. Future prefix-command multi-word usernames and bosses
 
-Multi-word OSRS usernames do not require quotation marks.
+When prefix commands are introduced after v1, multi-word OSRS usernames will
+not require quotation marks.
 
 Example:
 
@@ -341,7 +349,8 @@ means:
 - Skill: Strength
 - Account: `enjoyer btw`
 
-For boss commands, the bot resolves the longest valid boss name or alias from the beginning of the input.
+For future prefix boss commands, the bot resolves the longest valid boss name
+or alias from the beginning of the input.
 
 Example:
 
@@ -429,8 +438,6 @@ Boss leaderboards:
 - Mark watchlist entries clearly.
 
 Slash commands show the top 10 by default and allow users to request more or all entries.
-
-Prefix commands may show all entries when the result fits comfortably in Discord’s message limits.
 
 If some tracked accounts cannot be fetched, the leaderboard still displays all successfully fetched accounts and reports the failed accounts separately. A failed account must not cause the entire leaderboard request to fail.
 
