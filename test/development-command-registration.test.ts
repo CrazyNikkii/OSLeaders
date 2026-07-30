@@ -22,6 +22,7 @@ describe('development Discord command registration', () => {
       expect.objectContaining({ name: 'account' }),
       expect.objectContaining({ name: 'skill' }),
       expect.objectContaining({ name: 'one-time-skill' }),
+      expect.objectContaining({ name: 'one-time-boss' }),
       expect.objectContaining({ name: 'skill-leaderboard' }),
       expect.objectContaining({ name: 'boss-leaderboard' }),
       expect.objectContaining({ name: 'boss' }),

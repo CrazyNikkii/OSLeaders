@@ -4,6 +4,7 @@ import type { RuntimeConfiguration } from '../config/runtime-environment.js';
 import { accountCommandDefinitions } from './account-command-foundation.js';
 import { skillLookupCommandDefinitions } from './skill-lookup-command.js';
 import { oneTimeSkillLookupCommandDefinitions } from './one-time-skill-lookup-command.js';
+import { oneTimeBossLookupCommandDefinitions } from './one-time-boss-lookup-command.js';
 import { skillLeaderboardCommandDefinitions } from './skill-leaderboard-command.js';
 import { bossLeaderboardCommandDefinitions } from './boss-leaderboard-command.js';
 import { bossLookupCommandDefinitions } from './boss-lookup-command.js';
@@ -46,6 +47,7 @@ export async function registerDevelopmentDiscordCommands(
       ...accountCommandDefinitions,
       ...skillLookupCommandDefinitions,
       ...oneTimeSkillLookupCommandDefinitions,
+      ...oneTimeBossLookupCommandDefinitions,
       ...skillLeaderboardCommandDefinitions,
       ...bossLeaderboardCommandDefinitions,
       ...bossLookupCommandDefinitions,

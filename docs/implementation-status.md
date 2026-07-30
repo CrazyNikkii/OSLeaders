@@ -102,6 +102,15 @@ reports the delivery failure. It delegates target isolation and Hiscores
 handling to the merged boss-lookup service. Focused adapter, slow-lookup, and
 delivery-failure tests cover these behaviours.
 
+The unmerged `codex/one-time-boss-lookup` branch adds the separate guild-only
+`/one-time-boss` guided flow. It collects a username in a modal, then game mode
+and canonical boss choices through an initiator- and guild-bound five-minute
+session. It uses only the existing transient boss-lookup target, so no tracked
+account, quota, or recap baseline is persisted; the guided flow stays private
+and successful results are published in the invoking guild channel. The branch also registers and binds the command in the development
+runtime and adds focused session, interaction, and wiring tests. This is not a
+completed implementation record until the branch is merged.
+
 The merged account-registration foundation provides a
 guild-scoped tracked-account schema and reviewed migration; stable account IDs;
 normalized username uniqueness per guild; linked and watchlist associations;
@@ -300,5 +309,7 @@ authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-After this branch is merged, add the separate one-time boss-lookup flow as the
-next Stage 6 branch-sized task.
+After `codex/one-time-boss-lookup` is merged, add the Stage 6 prefix-command
+foundation for a read-only `!lvl` shortcut. It should parse normalized skill
+aliases and multi-word account targets before delegating to the existing skill
+lookup service, without duplicating lookup business rules.

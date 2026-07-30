@@ -42,6 +42,10 @@ Use a separate development Discord application, bot token, guild, and local
    tracked accounts are ranked by KC. Confirm zero-KC accounts are omitted when
    another account has KC, and `All` includes more than the default top ten
    when enough accounts are registered.
+9. Run `/one-time-boss`, enter an unregistered OSRS username, select its mode
+   and a boss, then confirm the public result has the expected kill count,
+   rank, and text mode label. Restart the bot and confirm no tracked account
+   was created.
 
 Administrative-log configuration does not yet have a Discord configuration
 command, so that optional delivery path remains covered by adapter tests until
