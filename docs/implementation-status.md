@@ -58,6 +58,14 @@ linked and watchlist accounts as individual entries. Focused unit tests cover
 guild isolation, endpoint selection, deterministic ordering, partial failure,
 incomplete results, and empty guilds.
 
+The Discord skill-leaderboard adapter is in review on
+`codex/discord-skill-leaderboard`. It adds guild-only `/skill-leaderboard`
+with canonical skill choices and top-10 or all-results selection. It renders
+public ranked level/XP entries with text mode labels, linked-owner or watchlist
+markers, and a distinct unavailable-accounts section; long valid output is
+split into numbered embeds and message batches. It delegates all fetching,
+guild isolation, sorting, and partial-result handling to the merged service.
+
 The merged account-registration foundation provides a
 guild-scoped tracked-account schema and reviewed migration; stable account IDs;
 normalized username uniqueness per guild; linked and watchlist associations;
@@ -249,5 +257,6 @@ authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-Add the Discord skill-leaderboard adapter with top-10/default and all-results
-presentation (`codex/discord-skill-leaderboard`).
+Review and merge the Discord skill-leaderboard adapter
+(`codex/discord-skill-leaderboard`). After merge, add the boss-leaderboard
+foundation as the next Stage 6 branch-sized task.

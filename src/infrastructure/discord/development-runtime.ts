@@ -3,6 +3,7 @@ import { Client, Events, GatewayIntentBits } from 'discord.js';
 import { AccountModeValidator } from '../../features/accounts/validate-account-mode.js';
 import { AuditService } from '../../features/audit/audit-service.js';
 import { SkillLookupService } from '../../features/lookups/skill-lookup.js';
+import { SkillLeaderboardService } from '../../features/leaderboards/skill-leaderboard.js';
 import { createErrorReferenceId } from '../../features/audit/error-reference.js';
 import { GuildConfigurationService } from '../../features/guild-configuration/guild-configuration-service.js';
 import { GuildPermissionService } from '../../features/guild-configuration/guild-permission-service.js';
@@ -28,6 +29,11 @@ import {
   createSkillLookupCommandHandler,
   DiscordSkillLookupCommandAdapter,
 } from './skill-lookup-command.js';
+import {
+  bindDiscordSkillLeaderboardCommandAdapter,
+  DiscordSkillLeaderboardCommandAdapter,
+  SkillLeaderboardCommandHandler,
+} from './skill-leaderboard-command.js';
 import {
   bindDiscordOneTimeSkillLookupCommandAdapter,
   DiscordOneTimeSkillLookupCommandAdapter,
@@ -102,6 +108,11 @@ export async function startDevelopmentDiscordRuntime(
     const oneTimeSkillLookupAdapter = new DiscordOneTimeSkillLookupCommandAdapter(
       new OneTimeSkillLookupCommandHandler(new SkillLookupService(accountRepository, hiscores)),
     );
+    const skillLeaderboardAdapter = new DiscordSkillLeaderboardCommandAdapter(
+      new SkillLeaderboardCommandHandler({
+        skillLeaderboard: new SkillLeaderboardService(accountRepository, hiscores),
+      }),
+    );
 
     bindDiscordAccountCommandAdapter(
       client,
@@ -118,6 +129,12 @@ export async function startDevelopmentDiscordRuntime(
     bindDiscordOneTimeSkillLookupCommandAdapter(
       client,
       oneTimeSkillLookupAdapter,
+      (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
+      (interaction) => interaction.guildId === configuration.discord.developmentGuildId,
+    );
+    bindDiscordSkillLeaderboardCommandAdapter(
+      client,
+      skillLeaderboardAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.developmentGuildId,
     );
