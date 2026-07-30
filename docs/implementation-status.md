@@ -58,13 +58,21 @@ linked and watchlist accounts as individual entries. Focused unit tests cover
 guild isolation, endpoint selection, deterministic ordering, partial failure,
 incomplete results, and empty guilds.
 
-The Discord skill-leaderboard adapter is in review on
-`codex/discord-skill-leaderboard`. It adds guild-only `/skill-leaderboard`
+The merged Discord skill-leaderboard adapter adds guild-only `/skill-leaderboard`
 with canonical skill choices and top-10 or all-results selection. It renders
 public ranked level/XP entries with text mode labels, linked-owner or watchlist
 markers, and a distinct unavailable-accounts section; long valid output is
 split into numbered embeds and message batches. It delegates all fetching,
 guild isolation, sorting, and partial-result handling to the merged service.
+
+The boss-leaderboard foundation is in review on
+`codex/boss-leaderboard-foundation`. It adds a Discord-independent,
+guild-scoped service that fetches every tracked account through its stored
+mode's Hiscores endpoint, ranks successful entries by boss kill count, omits
+zero-KC entries when another successful entry has KC, and retains per-account
+Hiscores or incomplete-response failures separately. Focused unit tests cover
+guild isolation, endpoint selection, deterministic ordering, zero-KC handling,
+partial failure, incomplete results, and empty guilds.
 
 The merged account-registration foundation provides a
 guild-scoped tracked-account schema and reviewed migration; stable account IDs;
@@ -243,8 +251,6 @@ username modal, canonical game-mode and skill choices, five-minute
 guild-and-initiator-bound sessions, transient Hiscores lookup, private results,
 development command/runtime wiring, documentation, and focused tests.
 
-## Latest merged implementation work
-
 `e3a9722` (2026-07-30) - Merge skill leaderboard foundation.
 
 This merged the Discord-independent guild skill-leaderboard service. It fetches
@@ -252,11 +258,19 @@ each tracked account through its stored-mode Hiscores endpoint, sorts successful
 entries by XP with deterministic tie-breakers, and retains per-account failures
 without discarding successful results.
 
+## Latest merged implementation work
+
+`d383487` (2026-07-30) - Merge Discord skill leaderboard command.
+
+This merged the guild-only `/skill-leaderboard` adapter, including top-10 and
+all-results presentation, partial-result reporting, development command
+registration and runtime wiring, and focused adapter tests.
+
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-Review and merge the Discord skill-leaderboard adapter
-(`codex/discord-skill-leaderboard`). After merge, add the boss-leaderboard
-foundation as the next Stage 6 branch-sized task.
+Review and merge the boss-leaderboard foundation
+(`codex/boss-leaderboard-foundation`). After merge, add the Discord
+boss-leaderboard adapter as the next Stage 6 branch-sized task.
