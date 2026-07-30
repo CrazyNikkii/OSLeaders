@@ -65,14 +65,22 @@ markers, and a distinct unavailable-accounts section; long valid output is
 split into numbered embeds and message batches. It delegates all fetching,
 guild isolation, sorting, and partial-result handling to the merged service.
 
-The boss-leaderboard foundation is in review on
-`codex/boss-leaderboard-foundation`. It adds a Discord-independent,
+The merged boss-leaderboard foundation adds a Discord-independent,
 guild-scoped service that fetches every tracked account through its stored
 mode's Hiscores endpoint, ranks successful entries by boss kill count, omits
 zero-KC entries when another successful entry has KC, and retains per-account
 Hiscores or incomplete-response failures separately. Focused unit tests cover
 guild isolation, endpoint selection, deterministic ordering, zero-KC handling,
 partial failure, incomplete results, and empty guilds.
+
+The Discord boss-leaderboard adapter is in review on
+`codex/discord-boss-leaderboard`. It adds guild-only `/boss-leaderboard` with
+canonical boss autocomplete and top-10 or all-results selection. It renders
+public ranked KC entries with text mode labels, linked-owner or watchlist
+markers, and a distinct unavailable-accounts section; long valid output is
+split into numbered embeds and message batches. It delegates all fetching,
+guild isolation, ranking, zero-KC handling, and partial-result handling to the
+merged service.
 
 The merged account-registration foundation provides a
 guild-scoped tracked-account schema and reviewed migration; stable account IDs;
@@ -260,17 +268,19 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
-`d383487` (2026-07-30) - Merge Discord skill leaderboard command.
+`46d197e` (2026-07-30) - Merge boss leaderboard foundation.
 
-This merged the guild-only `/skill-leaderboard` adapter, including top-10 and
-all-results presentation, partial-result reporting, development command
-registration and runtime wiring, and focused adapter tests.
+This merged the Discord-independent boss-leaderboard service. It fetches each
+tracked account through its stored-mode Hiscores endpoint, ranks successful
+entries by boss kill count with deterministic tie-breakers, omits zero-KC
+entries when another successful account has KC, and retains per-account
+failures separately.
 
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-Review and merge the boss-leaderboard foundation
-(`codex/boss-leaderboard-foundation`). After merge, add the Discord
-boss-leaderboard adapter as the next Stage 6 branch-sized task.
+Review and merge the Discord boss-leaderboard adapter
+(`codex/discord-boss-leaderboard`). After merge, add the boss-lookup foundation
+as the next Stage 6 branch-sized task.
