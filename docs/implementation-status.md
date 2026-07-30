@@ -148,20 +148,18 @@ guild isolation, autocomplete, response translation, and factory construction.
 Stage 5 is not complete. The durable daily-recap run, scheduling, and delivery
 work remain owned by later slices.
 
-Current branch implementation (not merged): the development Discord runtime
-foundation adds explicit development-guild command registration and a runnable
-local bot composition for the merged `/account register`, `/account remove`,
-and `/account default` adapter slices. It validates development-only runtime
-configuration, checks PostgreSQL connectivity before logging into Discord,
-wires the concrete PostgreSQL, Hiscores, permission, configuration, and
-account-adapter dependencies, and closes Discord and PostgreSQL on shutdown.
-It ignores interactions outside the configured development guild. Focused tests
-cover development-guild registration, startup guards, PostgreSQL and Discord
-login failure cleanup, interaction filtering, idempotent shutdown, and
-sanitized interaction-failure diagnostics. A manual Discord checklist documents
-the current real-world vertical-slice tests.
-This work is implemented on the current branch but is not completed until
-merged.
+The merged development Discord runtime foundation adds explicit development-guild
+command registration and a runnable local bot composition for the merged
+`/account register`, `/account remove`, and `/account default` adapter slices.
+It validates development-only runtime configuration, checks PostgreSQL
+connectivity before logging into Discord, wires the concrete PostgreSQL,
+Hiscores, permission, configuration, and account-adapter dependencies, and
+closes Discord and PostgreSQL on shutdown. It ignores interactions outside the
+configured development guild. Focused tests cover development-guild
+registration, startup guards, PostgreSQL and Discord login failure cleanup,
+interaction filtering, idempotent shutdown, and sanitized interaction-failure
+diagnostics. A manual Discord checklist documents the current real-world
+vertical-slice tests.
 
 ## Later planned stages
 
@@ -177,24 +175,25 @@ merged.
 
 ## Previous merged implementation work
 
-`9ebc57e` (2026-07-25) - Merge Discord account command foundation.
-
-This merged the guild-only `/account remove` command foundation, including
-account autocomplete, Discord permission inputs, expiring one-time removal
-confirmation, bounded in-memory cleanup, and focused adapter tests.
-
-## Latest merged implementation work
-
 `e6b8024` (2026-07-30) - Merge Discord default account selection.
 
 This merged the guild-only `/account default` command, including service-backed
 authorization and selection, scoped linked-account autocomplete, required
 adapter wiring, and focused tests.
 
+## Latest merged implementation work
+
+`233e4b9` (2026-07-30) - Merge development Discord runtime.
+
+This merged a runnable development-only Discord bot composition, explicit
+development-guild command registration, development-guild interaction
+filtering, PostgreSQL startup validation, graceful shutdown, and a manual
+Discord test checklist for the merged account command slices.
+
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-After this branch is merged, add the Discord `/account` account-renaming flow
+Add the Discord `/account` account-renaming flow
 (`codex/discord-account-renaming`).
