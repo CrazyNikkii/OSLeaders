@@ -73,9 +73,9 @@ Hiscores or incomplete-response failures separately. Focused unit tests cover
 guild isolation, endpoint selection, deterministic ordering, zero-KC handling,
 partial failure, incomplete results, and empty guilds.
 
-The Discord boss-leaderboard adapter is in review on
-`codex/discord-boss-leaderboard`. It adds guild-only `/boss-leaderboard` with
-canonical boss autocomplete and top-10 or all-results selection. It renders
+The merged Discord boss-leaderboard adapter adds guild-only
+`/boss-leaderboard` with canonical boss autocomplete and top-10 or all-results
+selection. It renders
 public ranked KC entries with text mode labels, linked-owner or watchlist
 markers, and a distinct unavailable-accounts section; long valid output is
 split into numbered embeds and message batches. It delegates all fetching,
@@ -268,19 +268,16 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
-`46d197e` (2026-07-30) - Merge boss leaderboard foundation.
+`dbab043` (2026-07-30) - Merge Discord boss leaderboard command.
 
-This merged the Discord-independent boss-leaderboard service. It fetches each
-tracked account through its stored-mode Hiscores endpoint, ranks successful
-entries by boss kill count with deterministic tie-breakers, omits zero-KC
-entries when another successful account has KC, and retains per-account
-failures separately.
+This merged the guild-only `/boss-leaderboard` adapter, including canonical
+boss autocomplete, top-10 and all-results presentation, partial-result
+reporting, development command registration and runtime wiring, and focused
+adapter tests.
 
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-Review and merge the Discord boss-leaderboard adapter
-(`codex/discord-boss-leaderboard`). After merge, add the boss-lookup foundation
-as the next Stage 6 branch-sized task.
+Add the boss-lookup foundation as the next Stage 6 branch-sized task.
