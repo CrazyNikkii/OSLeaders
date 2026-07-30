@@ -136,6 +136,15 @@ or its public announcement. Focused adapter tests cover configured and
 unconfigured delivery, guild-scoped channel resolution, required wiring, and
 the completed registration flow.
 
+The merged Discord default-account selection work adds guild-only
+`/account default` with linked-account autocomplete. It delegates selection and
+authorization to the existing Discord-independent default-account service,
+limits normal users to their own linked accounts, and permits account managers
+to select a linked account for another member. The required handler wiring
+prevents the registered command from becoming unavailable at interaction time.
+Focused adapter tests cover command registration, selection, authorization,
+guild isolation, autocomplete, response translation, and factory construction.
+
 Stage 5 is not complete. The durable daily-recap run, scheduling, and delivery
 work remain owned by later slices.
 
@@ -161,15 +170,16 @@ confirmation, bounded in-memory cleanup, and focused adapter tests.
 
 ## Latest merged implementation work
 
-`dd579ab` (2026-07-30) - Merge registration administrative log delivery.
+`e6b8024` (2026-07-30) - Merge Discord default account selection.
 
-This merged guild-scoped administrative-log delivery for successful account
-registrations, including required publisher wiring and focused adapter tests.
+This merged the guild-only `/account default` command, including service-backed
+authorization and selection, scoped linked-account autocomplete, required
+adapter wiring, and focused tests.
 
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-Add the Discord `/account` default-account selection command
-(`codex/discord-account-default-selection`).
+Add the Discord `/account` account-renaming flow
+(`codex/discord-account-renaming`).
