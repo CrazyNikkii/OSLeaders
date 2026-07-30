@@ -82,6 +82,15 @@ split into numbered embeds and message batches. It delegates all fetching,
 guild isolation, ranking, zero-KC handling, and partial-result handling to the
 merged service.
 
+The merged boss-lookup foundation adds a Discord-independent, guild-scoped
+service for a selected boss activity. It resolves a caller's default tracked
+account, an explicit tracked account, or a transient one-time account, then
+fetches the selected account mode's Hiscores endpoint through the centralized
+client. It preserves resolved targets for Hiscores failures and incomplete
+responses, and it never persists one-time accounts. Focused unit tests cover
+default, guild-scoped explicit, and one-time targets; stored-mode endpoint
+selection; failures; and incomplete responses.
+
 The merged account-registration foundation provides a
 guild-scoped tracked-account schema and reviewed migration; stable account IDs;
 normalized username uniqueness per guild; linked and watchlist associations;
@@ -268,16 +277,16 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
-`dbab043` (2026-07-30) - Merge Discord boss leaderboard command.
+`f4037aa` (2026-07-30) - Add boss lookup foundation.
 
-This merged the guild-only `/boss-leaderboard` adapter, including canonical
-boss autocomplete, top-10 and all-results presentation, partial-result
-reporting, development command registration and runtime wiring, and focused
-adapter tests.
+This merged the Discord-independent boss lookup service. It supports default,
+guild-scoped tracked, and transient one-time targets; uses the stored or
+selected mode's Hiscores endpoint; and returns resolved targets alongside
+Hiscores failures or incomplete boss responses.
 
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-Add the boss-lookup foundation as the next Stage 6 branch-sized task.
+Add the Discord boss-lookup adapter as the next Stage 6 branch-sized task.
