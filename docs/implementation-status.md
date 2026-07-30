@@ -40,7 +40,7 @@ private. Focused adapter, runtime-binding, and development-command
 registration tests cover command definition, target isolation, presentation,
 failure translation, and development-guild interaction wiring.
 
-The implemented but unmerged Discord one-time skill-lookup adapter adds the
+The merged Discord one-time skill-lookup adapter adds the
 separate guild-only `/one-time-skill` guided flow. It collects a username in a
 modal, then mode and canonical skill choices through an initiator- and
 guild-bound five-minute session. It delegates only to the existing transient
@@ -48,8 +48,7 @@ lookup target, so no tracked account, quota, or recap baseline is persisted.
 The flow and result remain private, while its found-result embed and failure
 translation reuse the established skill-lookup presenter. Focused tests cover
 the command, complete interaction chain, selected mode, session binding and
-expiry, development command registration, and runtime wiring. This work is
-implemented on `codex/discord-one-time-skill-lookup` but is not merged.
+expiry, development command registration, and runtime wiring.
 
 The merged account-registration foundation provides a
 guild-scoped tracked-account schema and reviewed migration; stable account IDs;
@@ -221,16 +220,6 @@ audit context, audit delivery, and delivery failure.
 
 ## Previous merged implementation work
 
-`b7d20c7` (2026-07-30) - Merge skill lookup foundation.
-
-This merged the Discord-independent, guild-scoped skill lookup foundation,
-including caller-default, tracked-account, and transient one-time targets;
-direct selected-mode Hiscores fetching through the ordinary cache path; and
-focused tests for guild isolation, Ironman endpoint selection, Hiscores
-failures, and incomplete responses.
-
-## Latest merged implementation work
-
 `fd149c2` (2026-07-30) - Merge Discord skill lookup command.
 
 This merged guild-only `/skill`, canonical skill choices, guild-scoped tracked
@@ -238,12 +227,19 @@ account autocomplete, default-account targeting, public skill-result embeds,
 private expected failures, development command/runtime wiring, and focused
 adapter and runtime-binding tests.
 
+## Latest merged implementation work
+
+`f004213` (2026-07-30) - Merge Discord one-time skill lookup command.
+
+This merged the separate guild-only `/one-time-skill` flow, including a
+username modal, canonical game-mode and skill choices, five-minute
+guild-and-initiator-bound sessions, transient Hiscores lookup, private results,
+development command/runtime wiring, documentation, and focused tests.
+
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-Review and merge the implemented one-time skill-lookup flow
-(`codex/discord-one-time-skill-lookup`). After it is merged, add the
-Discord-independent skill-leaderboard foundation
+Add the Discord-independent skill-leaderboard foundation
 (`codex/skill-leaderboard-foundation`).
