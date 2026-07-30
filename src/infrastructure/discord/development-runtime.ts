@@ -51,6 +51,11 @@ import {
   DiscordOneTimeSkillLookupCommandAdapter,
   OneTimeSkillLookupCommandHandler,
 } from './one-time-skill-lookup-command.js';
+import {
+  bindDiscordOneTimeBossLookupCommandAdapter,
+  DiscordOneTimeBossLookupCommandAdapter,
+  OneTimeBossLookupCommandHandler,
+} from './one-time-boss-lookup-command.js';
 
 export interface DevelopmentDiscordRuntime {
   close(): Promise<void>;
@@ -120,6 +125,9 @@ export async function startDevelopmentDiscordRuntime(
     const oneTimeSkillLookupAdapter = new DiscordOneTimeSkillLookupCommandAdapter(
       new OneTimeSkillLookupCommandHandler(new SkillLookupService(accountRepository, hiscores)),
     );
+    const oneTimeBossLookupAdapter = new DiscordOneTimeBossLookupCommandAdapter(
+      new OneTimeBossLookupCommandHandler(new BossLookupService(accountRepository, hiscores)),
+    );
     const skillLeaderboardAdapter = new DiscordSkillLeaderboardCommandAdapter(
       new SkillLeaderboardCommandHandler({
         skillLeaderboard: new SkillLeaderboardService(accountRepository, hiscores),
@@ -152,6 +160,12 @@ export async function startDevelopmentDiscordRuntime(
     bindDiscordOneTimeSkillLookupCommandAdapter(
       client,
       oneTimeSkillLookupAdapter,
+      (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
+      (interaction) => interaction.guildId === configuration.discord.developmentGuildId,
+    );
+    bindDiscordOneTimeBossLookupCommandAdapter(
+      client,
+      oneTimeBossLookupAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.developmentGuildId,
     );
