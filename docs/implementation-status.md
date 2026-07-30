@@ -310,34 +310,30 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
-`abbb314` (2026-07-30) - Add daily recap configuration foundation.
+`199904a` (2026-07-31) - Add daily recap collection calculation.
 
-This merged the first reprioritized Stage 7 foundation. It adds guild-scoped
-recap configuration fields (channel, local time, IANA timezone, and enabled
-state), durable recap-run retry and failure metadata, and one durable delivery
-record per run with guild-consistent ownership constraints and automatic-run
-schedule identity. The migration and Drizzle metadata are reviewed, with
-focused configuration and PostgreSQL integration tests.
+This merged the second reprioritized Stage 7 foundation. It loads tracked
+accounts and rolling baselines with guild-consistent ownership, bypasses the
+ordinary Hiscores cache, calculates positive-only skill XP, level, and boss KC
+changes, and returns candidate replacement baselines only for complete
+successful results. Failed, incomplete, or baseline-invalid account outcomes do
+not create candidate replacements. Focused unit and PostgreSQL integration
+tests cover guild isolation, fresh fetching, incomplete results, and Jagex's
+unranked boss-score sentinel.
 
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
 ## Current unmerged implementation work
 
-`codex/daily-recap-collection-calculation` continues the reprioritized Stage 7
-work. It adds a Discord-independent recap collection and calculation service
-that loads guild-scoped accounts and rolling baselines, bypasses the ordinary
-Hiscores cache, calculates positive-only changes, and returns candidate
-replacement baselines only for complete successful results. Failed or
-incomplete account fetches retain their previous baselines. This is not yet
-merged and must not be treated as completed implementation work.
+None.
 
 ## Next recommended branch-sized task
 
-After the recap collection and calculation work is merged, add a
-Discord-independent recap presentation and preview service. Keep that branch
-limited to grouping positive changes by linked Discord user and separate
-watchlist accounts, rendering no-activity and failure summaries, and producing
-a preview without advancing baselines or posting to Discord. Do not add manual
-send confirmation, baseline advancement, delivery, or scheduling until the
-preview result is reviewed.
+Start `codex/daily-recap-presentation-preview` with a Discord-independent
+recap presentation and preview service. Keep that branch limited to grouping
+positive changes by linked Discord user and separate watchlist accounts,
+rendering no-activity and failure summaries, and producing a preview without
+advancing baselines or posting to Discord. Do not add manual-send confirmation,
+baseline advancement, delivery, or scheduling until the preview result is
+reviewed.
