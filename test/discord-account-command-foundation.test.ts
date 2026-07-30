@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   AccountRemovalCommandHandler,
   AccountRegistrationCommandHandler,
+  DiscordRegistrationAnnouncementPublisher,
   DiscordAccountCommandAdapter,
   InMemoryAccountRegistrationSessionStore,
   InMemoryDestructiveConfirmationStore,
@@ -11,6 +12,7 @@ import {
   type AccountRegistrationCommandServices,
   type AccountRemovalCommandServices,
   type GuildInteractionContext,
+  type RegistrationAnnouncementPublisher,
 } from '../src/infrastructure/discord/account-command-foundation.js';
 import type {
   AccountRegistrationResult,
@@ -19,6 +21,31 @@ import type {
 } from '../src/features/accounts/register-account.js';
 
 describe('Discord account command foundation', () => {
+  it('publishes registration announcements through a sendable interaction channel', async () => {
+    const publisher = new DiscordRegistrationAnnouncementPublisher();
+    const messages: unknown[] = [];
+
+    await publisher.publish(
+      {
+        channel: {
+          isSendable: () => true,
+          send: (message: unknown) => {
+            messages.push(message);
+            return Promise.resolve();
+          },
+        },
+      } as never,
+      '**Rune Scape** has been registered as a Main linked account.',
+    );
+
+    expect(messages).toEqual([
+      { content: '**Rune Scape** has been registered as a Main linked account.' },
+    ]);
+    await expect(
+      publisher.publish({ channel: null } as never, 'registration announcement'),
+    ).rejects.toThrow('not available for public announcements');
+  });
+
   it('registers guild-only account removal and guided registration commands', () => {
     expect(accountCommandDefinitions).toMatchObject([
       {
@@ -314,9 +341,11 @@ describe('Discord account command foundation', () => {
       }),
       kind: 'registered',
     };
+    const announcements = new RecordingRegistrationAnnouncementPublisher();
     const adapter = new DiscordAccountCommandAdapter(
       new AccountRemovalCommandHandler(new StubServices([])),
       new AccountRegistrationCommandHandler(services),
+      announcements,
     );
     const modals: ModalResponse[] = [];
     const replies: ComponentResponse[] = [];
@@ -385,6 +414,92 @@ describe('Discord account command foundation', () => {
       }),
     ]);
     expect(services.registrationRequests).toHaveLength(1);
+    expect(announcements.messages).toEqual([
+      '**Rune Scape** has been registered as an Ironman watchlist account.',
+    ]);
+  });
+
+  it('does not announce unsuccessful registrations and reports announcement delivery failures privately', async () => {
+    const services = new RegistrationStubServices();
+    const handler = new AccountRegistrationCommandHandler(services);
+    const start = await handler.start(context());
+    if (start.kind !== 'username_required') {
+      throw new Error('Expected a username prompt.');
+    }
+    const username = handler.submitUsername(context(), start.customId, 'Rune Scape');
+    if (username.kind !== 'association_selection') {
+      throw new Error('Expected an association prompt.');
+    }
+    const mode = await handler.selectAssociation(context(), username.customId, 'watchlist');
+    if (mode.kind !== 'mode_selection') {
+      throw new Error('Expected a game-mode prompt.');
+    }
+
+    const failedAnnouncements = new RecordingRegistrationAnnouncementPublisher();
+    const adapter = new DiscordAccountCommandAdapter(
+      new AccountRemovalCommandHandler(new StubServices([])),
+      handler,
+      failedAnnouncements,
+    );
+    const unsuccessfulEdits: ComponentResponse[] = [];
+    await adapter.handle({
+      ...registrationSelectInteraction(mode.customId, 'main', () => Promise.resolve()),
+      deferUpdate: () => Promise.resolve(),
+      editReply: (response: ComponentResponse) => {
+        unsuccessfulEdits.push(response);
+        return Promise.resolve();
+      },
+    } as never);
+    expect(failedAnnouncements.messages).toEqual([]);
+    expect(unsuccessfulEdits).toEqual([
+      expect.objectContaining({ content: 'That OSRS username is already tracked in this server.' }),
+    ]);
+
+    services.registrationResult = { account: account(), kind: 'registered' };
+    const deliveryFailureHandler = new AccountRegistrationCommandHandler(services);
+    const deliveryFailureStart = await deliveryFailureHandler.start(context());
+    if (deliveryFailureStart.kind !== 'username_required') {
+      throw new Error('Expected a username prompt.');
+    }
+    const deliveryFailureUsername = deliveryFailureHandler.submitUsername(
+      context(),
+      deliveryFailureStart.customId,
+      'Rune Scape',
+    );
+    if (deliveryFailureUsername.kind !== 'association_selection') {
+      throw new Error('Expected an association prompt.');
+    }
+    const deliveryFailureMode = await deliveryFailureHandler.selectAssociation(
+      context(),
+      deliveryFailureUsername.customId,
+      'watchlist',
+    );
+    if (deliveryFailureMode.kind !== 'mode_selection') {
+      throw new Error('Expected a game-mode prompt.');
+    }
+    const deliveryFailureEdits: ComponentResponse[] = [];
+    const failingAdapter = new DiscordAccountCommandAdapter(
+      new AccountRemovalCommandHandler(new StubServices([])),
+      deliveryFailureHandler,
+      new FailingRegistrationAnnouncementPublisher(),
+    );
+    await failingAdapter.handle({
+      ...registrationSelectInteraction(deliveryFailureMode.customId, 'main', () =>
+        Promise.resolve(),
+      ),
+      deferUpdate: () => Promise.resolve(),
+      editReply: (response: ComponentResponse) => {
+        deliveryFailureEdits.push(response);
+        return Promise.resolve();
+      },
+    } as never);
+    expect(deliveryFailureEdits).toEqual([
+      expect.objectContaining({ content: 'Registered **Account One** as a Main linked account.' }),
+      expect.objectContaining({
+        content:
+          'Registered **Account One** as a Main linked account. The public registration announcement could not be posted.',
+      }),
+    ]);
   });
 
   it('requires an account manager to choose another member for a linked registration', async () => {
@@ -521,6 +636,21 @@ class RegistrationStubServices
       canManageAccounts: this.canManageAccounts,
       canManageCompetitions: false,
     });
+  }
+}
+
+class RecordingRegistrationAnnouncementPublisher implements RegistrationAnnouncementPublisher {
+  public readonly messages: string[] = [];
+
+  public publish(_interaction: unknown, message: string): Promise<void> {
+    this.messages.push(message);
+    return Promise.resolve();
+  }
+}
+
+class FailingRegistrationAnnouncementPublisher implements RegistrationAnnouncementPublisher {
+  public publish(): Promise<void> {
+    return Promise.reject(new Error('Discord channel unavailable'));
   }
 }
 

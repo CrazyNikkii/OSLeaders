@@ -117,9 +117,19 @@ interaction chain, configured emoji rendering, self-service watchlist flow,
 manager-linked flow, session binding, and expiry. This work is implemented and
 merged.
 
-Stage 5 is not complete. It does not yet add public announcements,
-administrative-channel delivery, or the durable daily-recap run, scheduling,
-and delivery work owned by later slices.
+The current unmerged branch,
+`codex/discord-account-registration-announcements`, adds a public
+registration-success announcement to the invoking guild channel after the
+account registration service reports success. The guided interaction and
+unsuccessful registration results remain ephemeral. If Discord cannot publish
+the announcement, the completed registration remains valid and the initiator
+receives a private delivery-failure notice. Focused adapter tests cover success,
+unsuccessful registrations, delivery failures, and the concrete channel
+publisher. This work is not yet merged, so Stage 5 remains incomplete.
+
+Stage 5 is not complete. It does not yet add administrative-channel delivery,
+or the durable daily-recap run, scheduling, and delivery work owned by later
+slices.
 
 ## Later planned stages
 
@@ -154,6 +164,6 @@ authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-Add public registration-success announcements
-(`codex/discord-account-registration-announcements`). Administrative-channel
-delivery remains a separate adapter task.
+After the current announcement branch is merged, add registration delivery to
+the configured administrative log channel
+(`codex/discord-account-registration-administrative-log`).

@@ -470,7 +470,7 @@ export type AccountRegistrationCommandResult =
   | { kind: 'association_selection'; customId: string; message: string }
   | { kind: 'member_selection'; customId: string; message: string }
   | { kind: 'mode_selection'; customId: string; message: string; modeEmojis: GuildModeEmojis }
-  | { kind: 'completed'; message: string }
+  | { kind: 'completed'; message: string; announcement?: string }
   | { kind: 'expired'; message: string }
   | { kind: 'forbidden'; message: string }
   | { kind: 'not_in_guild'; message: string };
@@ -640,10 +640,25 @@ export interface GuildModeEmojiProvider {
   getModeEmojis(guildId: string): Promise<GuildModeEmojis>;
 }
 
+export interface RegistrationAnnouncementPublisher {
+  publish(interaction: StringSelectMenuInteraction, message: string): Promise<void>;
+}
+
+export class DiscordRegistrationAnnouncementPublisher implements RegistrationAnnouncementPublisher {
+  public async publish(interaction: StringSelectMenuInteraction, message: string): Promise<void> {
+    const channel = interaction.channel;
+    if (!channel?.isSendable()) {
+      throw new Error('The registration channel is not available for public announcements.');
+    }
+    await channel.send({ content: message });
+  }
+}
+
 export class DiscordAccountCommandAdapter {
   public constructor(
     private readonly removalHandler: AccountRemovalCommandHandler,
     private readonly registrationHandler?: AccountRegistrationCommandHandler,
+    private readonly registrationAnnouncementPublisher: RegistrationAnnouncementPublisher = new DiscordRegistrationAnnouncementPublisher(),
   ) {}
 
   public async handle(
@@ -790,14 +805,22 @@ export class DiscordAccountCommandAdapter {
     }
     if (decodeRegistrationInteraction(interaction.customId, 'mode') !== undefined) {
       await interaction.deferUpdate();
-      await editRegistrationResult(
-        interaction,
-        await this.registrationHandler.selectMode(
-          toGuildInteractionContext(interaction),
-          interaction.customId,
-          value,
-        ),
+      const result = await this.registrationHandler.selectMode(
+        toGuildInteractionContext(interaction),
+        interaction.customId,
+        value,
       );
+      await editRegistrationResult(interaction, result);
+      if (result.kind === 'completed' && result.announcement !== undefined) {
+        try {
+          await this.registrationAnnouncementPublisher.publish(interaction, result.announcement);
+        } catch {
+          await interaction.editReply({
+            components: [],
+            content: `${result.message} The public registration announcement could not be posted.`,
+          });
+        }
+      }
     }
   }
 
@@ -1072,6 +1095,7 @@ function registrationResult(result: AccountRegistrationResult): AccountRegistrat
   switch (result.kind) {
     case 'registered':
       return {
+        announcement: `**${result.account.displayUsername}** has been registered as ${indefiniteArticle(result.account.accountMode)} ${accountModeLabel(result.account.accountMode)} ${result.account.association.type} account.`,
         kind: 'completed',
         message: `Registered **${result.account.displayUsername}** as ${indefiniteArticle(result.account.accountMode)} ${accountModeLabel(result.account.accountMode)} ${result.account.association.type} account.`,
       };
