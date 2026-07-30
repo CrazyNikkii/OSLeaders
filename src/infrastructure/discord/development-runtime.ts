@@ -1,6 +1,7 @@
 import { Client, Events, GatewayIntentBits } from 'discord.js';
 
 import { AccountModeValidator } from '../../features/accounts/validate-account-mode.js';
+import { AuditService } from '../../features/audit/audit-service.js';
 import { createErrorReferenceId } from '../../features/audit/error-reference.js';
 import { GuildConfigurationService } from '../../features/guild-configuration/guild-configuration-service.js';
 import { GuildPermissionService } from '../../features/guild-configuration/guild-permission-service.js';
@@ -16,6 +17,7 @@ import type { StructuredLocalLogger } from '../../shared/structured-logging.js';
 import {
   bindDiscordAccountCommandAdapter,
   createAccountDefaultSelectionCommandHandler,
+  createAccountRenameCommandHandler,
   createAccountRegistrationCommandHandler,
   createAccountRemovalCommandHandler,
   createDiscordAccountCommandAdapter,
@@ -50,6 +52,7 @@ export async function startDevelopmentDiscordRuntime(
 
   const logger = dependencies.createLogger();
   const auditContextSanitizer = createRuntimeAuditContextSanitizer(configuration);
+  const audit = new AuditService(logger, auditContextSanitizer);
   const connection = dependencies.createDatabaseConnection(configuration.database);
   const client = dependencies.createClient();
 
@@ -71,6 +74,12 @@ export async function startDevelopmentDiscordRuntime(
         accountRepository,
         accountModeValidator,
         configurationService,
+        permissions,
+      ),
+      createAccountRenameCommandHandler(
+        accountRepository,
+        accountModeValidator,
+        audit,
         permissions,
       ),
       configurationService,

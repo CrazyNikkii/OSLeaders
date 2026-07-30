@@ -32,6 +32,7 @@ describe('account rename service', () => {
         id: 'account-one',
         normalizedUsername: 'renamed account',
       },
+      previousDisplayUsername: 'Rune Scape',
     });
     expect(validator.requests).toEqual([{ accountMode: 'ironman', username: 'submitted name' }]);
   });

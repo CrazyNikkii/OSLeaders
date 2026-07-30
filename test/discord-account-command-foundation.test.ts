@@ -3,30 +3,38 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   AccountDefaultSelectionCommandHandler,
+  AccountRenameCommandHandler,
   AccountRemovalCommandHandler,
   AccountRegistrationCommandHandler,
   DiscordRegistrationAnnouncementPublisher,
   DiscordRegistrationAdministrativeLogPublisher,
+  DiscordRenameAdministrativeLogPublisher,
   DiscordAccountCommandAdapter,
   InMemoryAccountRegistrationSessionStore,
   InMemoryDestructiveConfirmationStore,
   accountCommandDefinitions,
   bindDiscordAccountCommandAdapter,
   createAccountDefaultSelectionCommandHandler,
+  createAccountRenameCommandHandler,
   createDiscordAccountCommandAdapter,
   type AccountCommandPermissionEvaluator,
   type AccountDefaultSelectionCommandServices,
+  type AccountRenameCommandServices,
   type AccountRegistrationCommandServices,
   type AccountRemovalCommandServices,
   type GuildInteractionContext,
   type RegistrationAnnouncementPublisher,
   type RegistrationAdministrativeLogPublisher,
+  type RenameAdministrativeLogPublisher,
 } from '../src/infrastructure/discord/account-command-foundation.js';
 import type {
   AccountRegistrationResult,
   RegisterAccountRequest,
   TrackedAccount,
 } from '../src/features/accounts/register-account.js';
+import type { RenameAccountResult } from '../src/features/accounts/rename-account.js';
+import type { AuditService } from '../src/features/audit/audit-service.js';
+import type { StructuredLogEntry } from '../src/shared/structured-logging.js';
 
 describe('Discord account command foundation', () => {
   it('does not dispatch interactions rejected by the binding predicate', async () => {
@@ -145,6 +153,10 @@ describe('Discord account command foundation', () => {
             name: 'default',
             options: [{ autocomplete: true, name: 'account', required: true }],
           },
+          {
+            name: 'rename',
+            options: [{ autocomplete: true, name: 'account', required: true }],
+          },
         ],
       },
     ]);
@@ -169,6 +181,7 @@ describe('Discord account command foundation', () => {
         removalHandler,
         defaultSelectionHandler(),
         registrationHandler,
+        new AccountRenameCommandHandler(new RenameStubServices([])),
         new AdministrativeLogConfigurationStub({
           administrativeLogChannelId: null,
           administrativeLogMode: 'standard',
@@ -291,6 +304,183 @@ describe('Discord account command foundation', () => {
         content: '**Account One** is now the default account.',
         flags: MessageFlags.Ephemeral,
       },
+    ]);
+  });
+
+  it('renames only eligible guild accounts and presents the result ephemerally', async () => {
+    const services = new RenameStubServices([
+      account(),
+      account({ association: { discordUserId: 'member-two', type: 'linked' }, id: 'other' }),
+      account({ guildId: 'guild-two', id: 'elsewhere' }),
+    ]);
+    const handler = new AccountRenameCommandHandler(services);
+
+    await expect(handler.autocomplete(context(), '')).resolves.toEqual([
+      { name: 'Account One (main)', value: 'account-one' },
+    ]);
+    await expect(handler.rename(context(), 'account-one', 'Renamed One')).resolves.toMatchObject({
+      kind: 'renamed',
+      message: 'Renamed the tracked account to **Renamed One**.',
+    });
+    expect(services.renameRequests).toEqual([
+      {
+        accountId: 'account-one',
+        canManageAccounts: false,
+        guildId: 'guild-one',
+        requesterDiscordUserId: 'member-one',
+        username: 'Renamed One',
+      },
+    ]);
+    const [auditEvent] = services.auditEvents;
+    expect(auditEvent?.context).toEqual({
+      accountId: 'account-one',
+      accountMode: 'main',
+      actorDiscordUserId: 'member-one',
+      associationType: 'linked',
+      newDisplayUsername: 'Renamed One',
+      previousDisplayUsername: 'Account One',
+    });
+    expect(auditEvent?.guildId).toBe('guild-one');
+    expect(auditEvent?.operation).toBe('account.rename');
+    expect(auditEvent?.type).toBe('account-edit-or-deletion');
+    await expect(
+      handler.rename(context({ guildId: null }), 'account-one', 'Ignored'),
+    ).resolves.toMatchObject({
+      kind: 'not_in_guild',
+    });
+  });
+
+  it('creates the rename handler from shared account repositories', () => {
+    const validator = { validate: () => Promise.resolve({ kind: 'not_found' as const }) };
+    const services = new RenameStubServices([]);
+    expect(
+      createAccountRenameCommandHandler(
+        new DefaultSelectionRepositoryStub([]) as never,
+        validator,
+        services.audit,
+        services,
+      ),
+    ).toBeInstanceOf(AccountRenameCommandHandler);
+  });
+
+  it('opens a rename modal, delegates its submission, and logs successful edits', async () => {
+    const services = new RenameStubServices([account()]);
+    const renameLogs = new RecordingRenameAdministrativeLogPublisher();
+    const adapter = new DiscordAccountCommandAdapter(
+      new AccountRemovalCommandHandler(new StubServices([])),
+      defaultSelectionHandler(),
+      undefined,
+      undefined,
+      undefined,
+      new AccountRenameCommandHandler(services),
+      renameLogs,
+    );
+    const modals: ModalResponse[] = [];
+    await adapter.handle({
+      commandName: 'account',
+      guildId: 'guild-one',
+      isAutocomplete: () => false,
+      isButton: () => false,
+      isChatInputCommand: () => true,
+      member: { roles: [] },
+      memberPermissions: { has: () => false },
+      options: { getString: () => 'account-one', getSubcommand: () => 'rename' },
+      showModal: (modal: ModalResponse) => {
+        modals.push(modal);
+        return Promise.resolve();
+      },
+      user: { id: 'member-one' },
+    } as never);
+
+    expect(modals).toHaveLength(1);
+    const customId = modals[0]?.toJSON().custom_id;
+    if (customId === undefined) {
+      throw new Error('Expected a rename modal.');
+    }
+    const replies: unknown[] = [];
+    await adapter.handle({
+      customId,
+      fields: { getTextInputValue: () => 'Renamed One' },
+      guildId: 'guild-one',
+      isAutocomplete: () => false,
+      isButton: () => false,
+      isChatInputCommand: () => false,
+      isModalSubmit: () => true,
+      member: { roles: [] },
+      memberPermissions: { has: () => false },
+      reply: (response: unknown) => {
+        replies.push(response);
+        return Promise.resolve();
+      },
+      user: { id: 'member-one' },
+    } as never);
+
+    expect(replies).toEqual([
+      { content: 'Renamed the tracked account to **Renamed One**.', flags: MessageFlags.Ephemeral },
+    ]);
+    expect(renameLogs.messages).toEqual(['recorded']);
+  });
+
+  it('does not let an administrative-log failure undo a successful rename', async () => {
+    const adapter = new DiscordAccountCommandAdapter(
+      new AccountRemovalCommandHandler(new StubServices([])),
+      defaultSelectionHandler(),
+      undefined,
+      undefined,
+      undefined,
+      new AccountRenameCommandHandler(new RenameStubServices([account()])),
+      new FailingRenameAdministrativeLogPublisher(),
+    );
+    const replies: unknown[] = [];
+    await adapter.handle({
+      customId: 'osleaders:account-rename:account-one',
+      fields: { getTextInputValue: () => 'Renamed One' },
+      guildId: 'guild-one',
+      isAutocomplete: () => false,
+      isButton: () => false,
+      isChatInputCommand: () => false,
+      isModalSubmit: () => true,
+      member: { roles: [] },
+      memberPermissions: { has: () => false },
+      reply: (response: unknown) => {
+        replies.push(response);
+        return Promise.resolve();
+      },
+      user: { id: 'member-one' },
+    } as never);
+    expect(replies).toEqual([
+      { content: 'Renamed the tracked account to **Renamed One**.', flags: MessageFlags.Ephemeral },
+    ]);
+  });
+
+  it('delivers rename logs only to the configured guild channel', async () => {
+    const configuration = new AdministrativeLogConfigurationStub({
+      administrativeLogChannelId: 'administrative-channel',
+      administrativeLogMode: 'standard',
+    });
+    const publisher = new DiscordRenameAdministrativeLogPublisher(configuration);
+    const messages: unknown[] = [];
+    await publisher.publish(
+      {
+        guildId: 'guild-one',
+        guild: {
+          channels: {
+            fetch: () =>
+              Promise.resolve({
+                isSendable: () => true,
+                send: (message: unknown) => {
+                  messages.push(message);
+                  return Promise.resolve();
+                },
+              }),
+          },
+        },
+      } as never,
+      auditEntry(),
+    );
+    expect(configuration.guildIds).toEqual(['guild-one']);
+    expect(messages).toEqual([
+      { content: 'Renamed tracked account **Account One** to **Renamed One** by <@member-one>.' },
     ]);
   });
 
@@ -896,6 +1086,51 @@ class DefaultSelectionStubServices
   }
 }
 
+class RenameStubServices
+  implements AccountRenameCommandServices, AccountCommandPermissionEvaluator
+{
+  public readonly auditEvents: Parameters<AuditService['record']>[0][] = [];
+  public canManageAccounts = false;
+  public readonly permissions = this;
+  public readonly renameRequests: object[] = [];
+  public renameResult: RenameAccountResult = {
+    account: account({ displayUsername: 'Renamed One' }),
+    kind: 'renamed',
+    previousDisplayUsername: 'Account One',
+  };
+  public readonly audit = {
+    record: (event: Parameters<AuditService['record']>[0]): StructuredLogEntry => {
+      this.auditEvents.push(event);
+      return {
+        ...(event.context === undefined ? {} : { context: event.context }),
+        ...(event.guildId === undefined ? {} : { guildId: event.guildId }),
+        operation: event.operation,
+        severity: event.severity,
+        timestamp: event.occurredAt.toISOString(),
+      };
+    },
+  };
+  public readonly accountRetrieval = {
+    listForGuild: (guildId: string) =>
+      Promise.resolve(this.accounts.filter((account) => account.guildId === guildId)),
+  };
+  public readonly accountRename = {
+    rename: (request: object) => {
+      this.renameRequests.push(request);
+      return Promise.resolve(this.renameResult);
+    },
+  };
+
+  public constructor(private readonly accounts: TrackedAccount[]) {}
+
+  public evaluate(): Promise<{ canManageAccounts: boolean; canManageCompetitions: boolean }> {
+    return Promise.resolve({
+      canManageAccounts: this.canManageAccounts,
+      canManageCompetitions: false,
+    });
+  }
+}
+
 class DefaultSelectionRepositoryStub extends DefaultSelectionStubServices {
   public getById(guildId: string, accountId: string) {
     return Promise.resolve(
@@ -967,6 +1202,21 @@ class RecordingRegistrationAdministrativeLogPublisher implements RegistrationAdm
 }
 
 class FailingRegistrationAdministrativeLogPublisher implements RegistrationAdministrativeLogPublisher {
+  public publish(): Promise<void> {
+    return Promise.reject(new Error('Discord administrative channel unavailable'));
+  }
+}
+
+class RecordingRenameAdministrativeLogPublisher implements RenameAdministrativeLogPublisher {
+  public readonly messages: string[] = [];
+
+  public publish(_interaction: unknown, auditEntry: StructuredLogEntry): Promise<void> {
+    this.messages.push(auditEntry.operation === 'account.rename' ? 'recorded' : 'unexpected');
+    return Promise.resolve();
+  }
+}
+
+class FailingRenameAdministrativeLogPublisher implements RenameAdministrativeLogPublisher {
   public publish(): Promise<void> {
     return Promise.reject(new Error('Discord administrative channel unavailable'));
   }
@@ -1085,6 +1335,21 @@ function account(overrides: Partial<TrackedAccount> = {}): TrackedAccount {
     normalizedUsername: 'account one',
     quotaOwnerDiscordUserId: 'member-one',
     registeredByDiscordUserId: 'member-one',
+    ...overrides,
+  };
+}
+
+function auditEntry(overrides: Partial<StructuredLogEntry> = {}): StructuredLogEntry {
+  return {
+    context: {
+      actorDiscordUserId: 'member-one',
+      newDisplayUsername: 'Renamed One',
+      previousDisplayUsername: 'Account One',
+    },
+    guildId: 'guild-one',
+    operation: 'account.rename',
+    severity: 'info',
+    timestamp: '2026-07-30T12:00:00.000Z',
     ...overrides,
   };
 }

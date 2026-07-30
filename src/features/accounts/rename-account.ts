@@ -15,7 +15,7 @@ export interface RenameAccountRequest {
 }
 
 export type RenameAccountResult =
-  | { kind: 'renamed'; account: TrackedAccount }
+  | { kind: 'renamed'; account: TrackedAccount; previousDisplayUsername: string }
   | { kind: 'forbidden' }
   | { kind: 'account_not_found' }
   | { kind: 'invalid_username' }
@@ -49,6 +49,7 @@ export class AccountRenameService {
     if (!canRename(account, request)) {
       return { kind: 'forbidden' };
     }
+    const previousDisplayUsername = account.displayUsername;
 
     const validation = await this.accountModeValidator.validate({
       accountMode: account.accountMode,
@@ -64,14 +65,15 @@ export class AccountRenameService {
       return { kind: 'invalid_username' };
     }
 
-    return this.repository.rename(request.guildId, account.id, {
+    const result = await this.repository.rename(request.guildId, account.id, {
       displayUsername,
       normalizedUsername,
     });
+    return result.kind === 'renamed' ? { ...result, previousDisplayUsername } : result;
   }
 }
 
-function canRename(account: TrackedAccount, request: RenameAccountRequest): boolean {
+export function canRename(account: TrackedAccount, request: RenameAccountRequest): boolean {
   if (request.canManageAccounts) {
     return true;
   }
