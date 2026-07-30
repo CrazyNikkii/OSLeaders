@@ -116,11 +116,13 @@ describe('database foundation', () => {
       botManagerRoleId: null,
       competitionManagerRoleId: null,
       guildId: 'configuration-guild-one',
+      modeEmojis: {},
     });
     await repository.update('configuration-guild-one', {
       administrativeLogChannelId: 'audit-channel-one',
       administrativeLogMode: 'verbose',
       botManagerRoleId: 'bot-manager-one',
+      modeEmojis: { ironman: { id: 'emoji-one', name: 'ironman' } },
     });
     await repository.update('configuration-guild-two', {
       competitionManagerRoleId: 'competition-manager-two',
@@ -144,12 +146,14 @@ describe('database foundation', () => {
       administrativeLogMode: 'verbose',
       botManagerRoleId: null,
       competitionManagerRoleId: null,
+      modeEmojis: { ironman: { id: 'emoji-one', name: 'ironman' } },
     });
     await expect(repository.getOrCreate('configuration-guild-two')).resolves.toMatchObject({
       administrativeLogChannelId: null,
       administrativeLogMode: 'standard',
       botManagerRoleId: null,
       competitionManagerRoleId: 'competition-manager-two',
+      modeEmojis: {},
     });
 
     const configurationRows = await connection.database.select().from(guildConfigurations);

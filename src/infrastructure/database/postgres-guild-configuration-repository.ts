@@ -70,5 +70,6 @@ function toGuildConfiguration(
     botManagerRoleId: configuration.botManagerRoleId,
     competitionManagerRoleId: configuration.competitionManagerRoleId,
     guildId: configuration.guildId,
+    modeEmojis: configuration.modeEmojis,
   };
 }

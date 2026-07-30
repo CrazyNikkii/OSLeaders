@@ -1,0 +1,1 @@
+ALTER TABLE "guild_configurations" ADD COLUMN "mode_emojis" jsonb DEFAULT '{}'::jsonb NOT NULL;

@@ -1,6 +1,16 @@
+import type { OsrsAccountMode } from '../../infrastructure/hiscores/osrs-hiscore-catalog.js';
+
 export const ADMINISTRATIVE_LOG_MODES = ['standard', 'verbose'] as const;
 
 export type AdministrativeLogMode = (typeof ADMINISTRATIVE_LOG_MODES)[number];
+
+export interface GuildModeEmoji {
+  animated?: boolean;
+  id: string;
+  name: string;
+}
+
+export type GuildModeEmojis = Partial<Record<OsrsAccountMode, GuildModeEmoji>>;
 
 export interface GuildConfiguration {
   administrativeLogChannelId: string | null;
@@ -8,6 +18,7 @@ export interface GuildConfiguration {
   botManagerRoleId: string | null;
   competitionManagerRoleId: string | null;
   guildId: string;
+  modeEmojis: GuildModeEmojis;
 }
 
 export interface GuildConfigurationUpdate {
@@ -15,6 +26,7 @@ export interface GuildConfigurationUpdate {
   administrativeLogMode?: AdministrativeLogMode;
   botManagerRoleId?: string | null;
   competitionManagerRoleId?: string | null;
+  modeEmojis?: GuildModeEmojis;
 }
 
 export interface GuildConfigurationRepository {

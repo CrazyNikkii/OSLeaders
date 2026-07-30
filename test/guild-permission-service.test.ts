@@ -139,5 +139,6 @@ function defaultConfiguration(guildId: string): GuildConfiguration {
     botManagerRoleId: null,
     competitionManagerRoleId: null,
     guildId,
+    modeEmojis: {},
   };
 }
