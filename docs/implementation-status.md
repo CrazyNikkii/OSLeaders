@@ -161,6 +161,17 @@ interaction filtering, idempotent shutdown, and sanitized interaction-failure
 diagnostics. A manual Discord checklist documents the current real-world
 vertical-slice tests.
 
+The merged Discord account-renaming flow adds guild-only `/account rename`
+with permission-scoped autocomplete and a username modal. It delegates to the
+existing account-renaming service for authorization and stored-mode Hiscores
+validation, keeps successful responses ephemeral, and wires the handler into
+the development runtime. Successful renames create structured, sanitized
+`account.rename` audit events with account-change and actor context for local
+logging, then deliver rendered summaries to the configured administrative log
+channel without undoing a valid rename if delivery fails. Focused unit tests
+cover the command definition, authorization, guild isolation, modal handling,
+audit context, audit delivery, and delivery failure.
+
 ## Later planned stages
 
 - Stage 5 - Account registration and management.
@@ -175,14 +186,6 @@ vertical-slice tests.
 
 ## Previous merged implementation work
 
-`e6b8024` (2026-07-30) - Merge Discord default account selection.
-
-This merged the guild-only `/account default` command, including service-backed
-authorization and selection, scoped linked-account autocomplete, required
-adapter wiring, and focused tests.
-
-## Latest merged implementation work
-
 `233e4b9` (2026-07-30) - Merge development Discord runtime.
 
 This merged a runnable development-only Discord bot composition, explicit
@@ -190,19 +193,19 @@ development-guild command registration, development-guild interaction
 filtering, PostgreSQL startup validation, graceful shutdown, and a manual
 Discord test checklist for the merged account command slices.
 
+## Latest merged implementation work
+
+`bbe45a0` (2026-07-30) - Merge Discord account renaming.
+
+This merged the guild-only `/account rename` flow, including scoped
+autocomplete, a username modal, existing-service authorization and validation,
+structured sanitized audit events, administrative-log delivery, development
+runtime wiring, and focused tests.
+
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
-## Current unmerged implementation work
-
-The current `codex/discord-account-renaming` branch adds the guild-only
-`/account rename` Discord flow. It uses the existing rename service for
-authorization and Hiscores validation, adds permission-scoped autocomplete and
-a username modal, wires the handler into the development runtime, and delivers
-successful account-edit summaries to the configured administrative log channel.
-This work is not complete until it is merged.
-
 ## Next recommended branch-sized task
 
-After the current branch is merged, add the Discord `/account` account-mode
-change flow (`codex/discord-account-mode-change`).
+Add the Discord `/account` account-mode change flow
+(`codex/discord-account-mode-change`).
