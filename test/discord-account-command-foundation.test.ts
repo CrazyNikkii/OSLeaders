@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  AccountDefaultSelectionCommandHandler,
   AccountRemovalCommandHandler,
   AccountRegistrationCommandHandler,
   DiscordRegistrationAnnouncementPublisher,
@@ -9,8 +10,10 @@ import {
   InMemoryAccountRegistrationSessionStore,
   InMemoryDestructiveConfirmationStore,
   accountCommandDefinitions,
+  createAccountDefaultSelectionCommandHandler,
   createDiscordAccountCommandAdapter,
   type AccountCommandPermissionEvaluator,
+  type AccountDefaultSelectionCommandServices,
   type AccountRegistrationCommandServices,
   type AccountRemovalCommandServices,
   type GuildInteractionContext,
@@ -108,6 +111,10 @@ describe('Discord account command foundation', () => {
             name: 'remove',
             options: [{ autocomplete: true, name: 'account', required: true }],
           },
+          {
+            name: 'default',
+            options: [{ autocomplete: true, name: 'account', required: true }],
+          },
         ],
       },
     ]);
@@ -119,12 +126,18 @@ describe('Discord account command foundation', () => {
       new RegistrationStubServices(),
     );
 
-    expect(() => new DiscordAccountCommandAdapter(removalHandler, registrationHandler)).toThrow(
-      'Registration support requires an administrative log publisher.',
-    );
+    expect(
+      () =>
+        new DiscordAccountCommandAdapter(
+          removalHandler,
+          defaultSelectionHandler(),
+          registrationHandler,
+        ),
+    ).toThrow('Registration support requires an administrative log publisher.');
     expect(
       createDiscordAccountCommandAdapter(
         removalHandler,
+        defaultSelectionHandler(),
         registrationHandler,
         new AdministrativeLogConfigurationStub({
           administrativeLogChannelId: null,
@@ -174,6 +187,88 @@ describe('Discord account command foundation', () => {
     await expect(handler.autocomplete(context(), '')).resolves.toEqual([
       { name: 'Mine (main)', value: 'mine' },
     ]);
+  });
+
+  it('selects default accounts through the existing service and only autocompletes eligible linked accounts', async () => {
+    const services = new DefaultSelectionStubServices([
+      account({ displayUsername: 'Mine', id: 'mine', isDefault: false }),
+      account({ association: { discordUserId: 'member-two', type: 'linked' }, id: 'other' }),
+      account({ association: { type: 'watchlist' }, id: 'watchlist' }),
+    ]);
+    const handler = new AccountDefaultSelectionCommandHandler(services);
+
+    await expect(handler.autocomplete(context(), '')).resolves.toEqual([
+      { name: 'Mine (main)', value: 'mine' },
+    ]);
+    await expect(handler.select(context(), 'mine')).resolves.toEqual({
+      kind: 'selected',
+      message: '**Mine** is now the default account.',
+    });
+    expect(services.selectionRequests).toEqual([
+      {
+        accountId: 'mine',
+        canManageAccounts: false,
+        guildId: 'guild-one',
+        requesterDiscordUserId: 'member-one',
+      },
+    ]);
+    await expect(handler.select(context(), 'other')).resolves.toMatchObject({ kind: 'forbidden' });
+    await expect(handler.select(context(), 'watchlist')).resolves.toMatchObject({
+      kind: 'account_not_found',
+    });
+    await expect(handler.select(context({ guildId: null }), 'mine')).resolves.toMatchObject({
+      kind: 'not_in_guild',
+    });
+
+    services.canManageAccounts = true;
+    await expect(
+      handler.autocomplete(context({ requesterDiscordUserId: 'manager-one' }), ''),
+    ).resolves.toEqual([
+      { name: 'Mine (main)', value: 'mine' },
+      { name: 'Account One (main)', value: 'other' },
+    ]);
+  });
+
+  it('maps default-account selection through an ephemeral Discord response', async () => {
+    const services = new DefaultSelectionStubServices([account({ isDefault: false })]);
+    const adapter = new DiscordAccountCommandAdapter(
+      new AccountRemovalCommandHandler(new StubServices([])),
+      new AccountDefaultSelectionCommandHandler(services),
+    );
+    const replies: unknown[] = [];
+
+    await adapter.handle({
+      commandName: 'account',
+      guildId: 'guild-one',
+      isAutocomplete: () => false,
+      isButton: () => false,
+      isChatInputCommand: () => true,
+      member: { roles: [] },
+      memberPermissions: { has: () => false },
+      options: {
+        getString: () => 'account-one',
+        getSubcommand: () => 'default',
+      },
+      reply: (response: unknown) => {
+        replies.push(response);
+        return Promise.resolve();
+      },
+      user: { id: 'member-one' },
+    } as never);
+
+    expect(replies).toEqual([
+      {
+        content: '**Account One** is now the default account.',
+        ephemeral: true,
+      },
+    ]);
+  });
+
+  it('creates the default-selection handler from shared account repositories', () => {
+    const repository = new DefaultSelectionRepositoryStub([account({ isDefault: false })]);
+    expect(createAccountDefaultSelectionCommandHandler(repository, repository)).toBeInstanceOf(
+      AccountDefaultSelectionCommandHandler,
+    );
   });
 
   it('allows a configured account manager to confirm removal for another member', async () => {
@@ -266,7 +361,10 @@ describe('Discord account command foundation', () => {
       account({ association: { discordUserId: 'member-two', type: 'linked' } }),
     ]);
     services.canManageAccounts = true;
-    const adapter = new DiscordAccountCommandAdapter(new AccountRemovalCommandHandler(services));
+    const adapter = new DiscordAccountCommandAdapter(
+      new AccountRemovalCommandHandler(services),
+      defaultSelectionHandler(),
+    );
     const replies: unknown[] = [];
     const command = {
       commandName: 'account',
@@ -372,6 +470,7 @@ describe('Discord account command foundation', () => {
     const registrationServices = new RegistrationStubServices();
     const adapter = new DiscordAccountCommandAdapter(
       new AccountRemovalCommandHandler(new StubServices([])),
+      defaultSelectionHandler(),
       new AccountRegistrationCommandHandler(registrationServices),
       undefined,
       new RecordingRegistrationAdministrativeLogPublisher(),
@@ -419,6 +518,7 @@ describe('Discord account command foundation', () => {
     const administrativeLogs = new RecordingRegistrationAdministrativeLogPublisher();
     const adapter = new DiscordAccountCommandAdapter(
       new AccountRemovalCommandHandler(new StubServices([])),
+      defaultSelectionHandler(),
       new AccountRegistrationCommandHandler(services),
       announcements,
       administrativeLogs,
@@ -517,6 +617,7 @@ describe('Discord account command foundation', () => {
     const failedAnnouncements = new RecordingRegistrationAnnouncementPublisher();
     const adapter = new DiscordAccountCommandAdapter(
       new AccountRemovalCommandHandler(new StubServices([])),
+      defaultSelectionHandler(),
       handler,
       failedAnnouncements,
       new RecordingRegistrationAdministrativeLogPublisher(),
@@ -560,6 +661,7 @@ describe('Discord account command foundation', () => {
     const deliveryFailureEdits: ComponentResponse[] = [];
     const failingAdapter = new DiscordAccountCommandAdapter(
       new AccountRemovalCommandHandler(new StubServices([])),
+      defaultSelectionHandler(),
       deliveryFailureHandler,
       new FailingRegistrationAnnouncementPublisher(),
       new FailingRegistrationAdministrativeLogPublisher(),
@@ -720,6 +822,96 @@ class RegistrationStubServices
   }
 }
 
+class DefaultSelectionStubServices
+  implements AccountDefaultSelectionCommandServices, AccountCommandPermissionEvaluator
+{
+  public canManageAccounts = false;
+  public readonly selectionRequests: object[] = [];
+  public readonly permissions = this;
+  public readonly accountRetrieval = {
+    listForGuild: (guildId: string) =>
+      Promise.resolve(this.accounts.filter((account) => account.guildId === guildId)),
+  };
+  public readonly defaultAccountSelection = {
+    select: (request: {
+      accountId: string;
+      canManageAccounts: boolean;
+      guildId: string;
+      requesterDiscordUserId: string;
+    }) => {
+      this.selectionRequests.push(request);
+      const selected = this.accounts.find(
+        (account) => account.guildId === request.guildId && account.id === request.accountId,
+      );
+      if (selected?.association.type !== 'linked') {
+        return Promise.resolve({ kind: 'account_not_found' as const });
+      }
+      if (
+        selected.association.discordUserId !== request.requesterDiscordUserId &&
+        !request.canManageAccounts
+      ) {
+        return Promise.resolve({ kind: 'forbidden' as const });
+      }
+      return Promise.resolve({ account: selected, kind: 'selected' as const });
+    },
+  };
+
+  public constructor(protected readonly accounts: TrackedAccount[]) {}
+
+  public evaluate(): Promise<{ canManageAccounts: boolean; canManageCompetitions: boolean }> {
+    return Promise.resolve({
+      canManageAccounts: this.canManageAccounts,
+      canManageCompetitions: false,
+    });
+  }
+}
+
+class DefaultSelectionRepositoryStub extends DefaultSelectionStubServices {
+  public getById(guildId: string, accountId: string) {
+    return Promise.resolve(
+      this.accounts.find((account) => account.guildId === guildId && account.id === accountId),
+    );
+  }
+
+  public selectDefault(guildId: string, discordUserId: string, accountId: string) {
+    return this.defaultAccountSelection
+      .select({
+        accountId,
+        canManageAccounts: true,
+        guildId,
+        requesterDiscordUserId: discordUserId,
+      })
+      .then((result) => (result.kind === 'selected' ? result.account : undefined));
+  }
+
+  public getDefaultForMember(guildId: string, discordUserId: string) {
+    return Promise.resolve(
+      this.accounts.find(
+        (account) =>
+          account.guildId === guildId &&
+          account.isDefault &&
+          account.association.type === 'linked' &&
+          account.association.discordUserId === discordUserId,
+      ),
+    );
+  }
+
+  public listForGuild(guildId: string) {
+    return Promise.resolve(this.accounts.filter((account) => account.guildId === guildId));
+  }
+
+  public listLinkedForMember(guildId: string, discordUserId: string) {
+    return Promise.resolve(
+      this.accounts.filter(
+        (account) =>
+          account.guildId === guildId &&
+          account.association.type === 'linked' &&
+          account.association.discordUserId === discordUserId,
+      ),
+    );
+  }
+}
+
 class RecordingRegistrationAnnouncementPublisher implements RegistrationAnnouncementPublisher {
   public readonly messages: string[] = [];
 
@@ -846,6 +1038,10 @@ function context(overrides: Partial<GuildInteractionContext> = {}): GuildInterac
     requesterDiscordUserId: 'member-one',
     ...overrides,
   };
+}
+
+function defaultSelectionHandler(): AccountDefaultSelectionCommandHandler {
+  return new AccountDefaultSelectionCommandHandler(new DefaultSelectionStubServices([]));
 }
 
 function account(overrides: Partial<TrackedAccount> = {}): TrackedAccount {

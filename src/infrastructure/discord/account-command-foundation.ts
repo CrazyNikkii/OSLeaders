@@ -40,6 +40,10 @@ import {
   type RemoveAccountResult,
 } from '../../features/accounts/remove-account.js';
 import {
+  DefaultAccountSelectionService,
+  type DefaultAccountSelectionRepository,
+} from '../../features/accounts/select-default-account.js';
+import {
   GuildPermissionService,
   type GuildPermissionRequest,
   type GuildPermissions,
@@ -57,6 +61,7 @@ import {
 const ACCOUNT_COMMAND_NAME = 'account';
 const REGISTER_SUBCOMMAND_NAME = 'register';
 const REMOVE_SUBCOMMAND_NAME = 'remove';
+const DEFAULT_SUBCOMMAND_NAME = 'default';
 const ACCOUNT_OPTION_NAME = 'account';
 const REMOVAL_CONFIRMATION_PREFIX = 'osleaders:account-remove';
 const MAX_AUTOCOMPLETE_CHOICES = 25;
@@ -84,6 +89,18 @@ export const accountCommandDefinitions = [
           option
             .setName(ACCOUNT_OPTION_NAME)
             .setDescription('The account to remove.')
+            .setRequired(true)
+            .setAutocomplete(true),
+        ),
+    )
+    .addSubcommand((subcommand) =>
+      subcommand
+        .setName(DEFAULT_SUBCOMMAND_NAME)
+        .setDescription('Choose a linked account as the default account.')
+        .addStringOption((option) =>
+          option
+            .setName(ACCOUNT_OPTION_NAME)
+            .setDescription('The linked account to make default.')
             .setRequired(true)
             .setAutocomplete(true),
         ),
@@ -305,6 +322,106 @@ export class AccountRemovalCommandHandler {
     const accounts = await this.services.accountRetrieval.listForGuild(authorization.guildId);
     return accounts
       .filter((account) => canRemoveAccount(account, { ...authorization, accountId: account.id }))
+      .filter((account) =>
+        account.displayUsername.toLocaleLowerCase('en-US').includes(normalizedQuery),
+      )
+      .slice(0, MAX_AUTOCOMPLETE_CHOICES)
+      .map((account) => ({
+        name: `${account.displayUsername} (${account.accountMode})`,
+        value: account.id,
+      }));
+  }
+
+  private async authorize(
+    context: GuildInteractionContext,
+  ): Promise<
+    | (GuildPermissionRequest & { canManageAccounts: boolean; requesterDiscordUserId: string })
+    | undefined
+  > {
+    if (context.guildId === null) {
+      return undefined;
+    }
+
+    const permissions = await this.services.permissions.evaluate({
+      guildId: context.guildId,
+      hasAdministratorPermission: context.hasAdministratorPermission,
+      memberRoleIds: context.memberRoleIds,
+    });
+    return {
+      ...context,
+      canManageAccounts: permissions.canManageAccounts,
+      guildId: context.guildId,
+    };
+  }
+}
+
+export interface AccountDefaultSelectionCommandServices {
+  accountRetrieval: Pick<AccountRetrievalService, 'listForGuild'>;
+  defaultAccountSelection: Pick<DefaultAccountSelectionService, 'select'>;
+  permissions: AccountCommandPermissionEvaluator;
+}
+
+export type AccountDefaultSelectionCommandResult =
+  | { kind: 'selected'; message: string }
+  | { kind: 'forbidden'; message: string }
+  | { kind: 'account_not_found'; message: string }
+  | { kind: 'not_in_guild'; message: string };
+
+export class AccountDefaultSelectionCommandHandler {
+  public constructor(private readonly services: AccountDefaultSelectionCommandServices) {}
+
+  public async select(
+    context: GuildInteractionContext,
+    accountId: string,
+  ): Promise<AccountDefaultSelectionCommandResult> {
+    const authorization = await this.authorize(context);
+    if (authorization === undefined) {
+      return notInGuildDefaultSelection();
+    }
+
+    const result = await this.services.defaultAccountSelection.select({
+      accountId,
+      canManageAccounts: authorization.canManageAccounts,
+      guildId: authorization.guildId,
+      requesterDiscordUserId: authorization.requesterDiscordUserId,
+    });
+    switch (result.kind) {
+      case 'selected':
+        return {
+          kind: 'selected',
+          message: `**${result.account.displayUsername}** is now the default account.`,
+        };
+      case 'forbidden':
+        return {
+          kind: 'forbidden',
+          message: 'You are not allowed to select that account as the default.',
+        };
+      case 'account_not_found':
+        return {
+          kind: 'account_not_found',
+          message: 'That linked account is no longer available.',
+        };
+    }
+  }
+
+  public async autocomplete(
+    context: GuildInteractionContext,
+    query: string,
+  ): Promise<{ name: string; value: string }[]> {
+    const authorization = await this.authorize(context);
+    if (authorization === undefined) {
+      return [];
+    }
+
+    const normalizedQuery = query.trim().toLocaleLowerCase('en-US');
+    const accounts = await this.services.accountRetrieval.listForGuild(authorization.guildId);
+    return accounts
+      .filter(
+        (account) =>
+          account.association.type === 'linked' &&
+          (authorization.canManageAccounts ||
+            account.association.discordUserId === authorization.requesterDiscordUserId),
+      )
       .filter((account) =>
         account.displayUsername.toLocaleLowerCase('en-US').includes(normalizedQuery),
       )
@@ -707,6 +824,7 @@ export class DiscordAccountCommandAdapter {
 
   public constructor(
     private readonly removalHandler: AccountRemovalCommandHandler,
+    private readonly defaultSelectionHandler: AccountDefaultSelectionCommandHandler,
     private readonly registrationHandler?: AccountRegistrationCommandHandler,
     private readonly registrationAnnouncementPublisher: RegistrationAnnouncementPublisher = new DiscordRegistrationAnnouncementPublisher(),
     registrationAdministrativeLogPublisher?: RegistrationAdministrativeLogPublisher,
@@ -755,9 +873,22 @@ export class DiscordAccountCommandAdapter {
   private async handleAutocomplete(interaction: AutocompleteInteraction): Promise<void> {
     if (
       interaction.commandName !== ACCOUNT_COMMAND_NAME ||
-      interaction.options.getSubcommand() !== REMOVE_SUBCOMMAND_NAME ||
       interaction.options.getFocused(true).name !== ACCOUNT_OPTION_NAME
     ) {
+      return;
+    }
+
+    const subcommand = interaction.options.getSubcommand();
+    if (subcommand === DEFAULT_SUBCOMMAND_NAME) {
+      await interaction.respond(
+        await this.defaultSelectionHandler.autocomplete(
+          toGuildInteractionContext(interaction),
+          interaction.options.getFocused(),
+        ),
+      );
+      return;
+    }
+    if (subcommand !== REMOVE_SUBCOMMAND_NAME) {
       return;
     }
 
@@ -775,6 +906,10 @@ export class DiscordAccountCommandAdapter {
     }
     if (interaction.options.getSubcommand() === REGISTER_SUBCOMMAND_NAME) {
       await this.handleRegistrationStart(interaction);
+      return;
+    }
+    if (interaction.options.getSubcommand() === DEFAULT_SUBCOMMAND_NAME) {
+      await this.handleDefaultSelection(interaction);
       return;
     }
     if (interaction.options.getSubcommand() !== REMOVE_SUBCOMMAND_NAME) {
@@ -801,6 +936,14 @@ export class DiscordAccountCommandAdapter {
       return;
     }
 
+    await interaction.reply({ content: result.message, ephemeral: true });
+  }
+
+  private async handleDefaultSelection(interaction: ChatInputCommandInteraction): Promise<void> {
+    const result = await this.defaultSelectionHandler.select(
+      toGuildInteractionContext(interaction),
+      interaction.options.getString(ACCOUNT_OPTION_NAME, true),
+    );
     await interaction.reply({ content: result.message, ephemeral: true });
   }
 
@@ -956,13 +1099,29 @@ export function createAccountRegistrationCommandHandler(
   });
 }
 
+export function createAccountDefaultSelectionCommandHandler(
+  accountRepository: AccountRetrievalRepository & DefaultAccountSelectionRepository,
+  permissions: AccountCommandPermissionEvaluator,
+): AccountDefaultSelectionCommandHandler {
+  return new AccountDefaultSelectionCommandHandler({
+    accountRetrieval: new AccountRetrievalService(accountRepository),
+    defaultAccountSelection: new DefaultAccountSelectionService(
+      accountRepository,
+      accountRepository,
+    ),
+    permissions,
+  });
+}
+
 export function createDiscordAccountCommandAdapter(
   removalHandler: AccountRemovalCommandHandler,
+  defaultSelectionHandler: AccountDefaultSelectionCommandHandler,
   registrationHandler: AccountRegistrationCommandHandler,
   configuration: Pick<GuildConfigurationService, 'getOrCreate'>,
 ): DiscordAccountCommandAdapter {
   return new DiscordAccountCommandAdapter(
     removalHandler,
+    defaultSelectionHandler,
     registrationHandler,
     new DiscordRegistrationAnnouncementPublisher(),
     new DiscordRegistrationAdministrativeLogPublisher(configuration),
@@ -1054,6 +1213,10 @@ function confirmationExpired(): AccountRemovalCommandResult {
 }
 
 function notInGuild(): AccountRemovalCommandResult {
+  return { kind: 'not_in_guild', message: 'This command can only be used in a Discord server.' };
+}
+
+function notInGuildDefaultSelection(): AccountDefaultSelectionCommandResult {
   return { kind: 'not_in_guild', message: 'This command can only be used in a Discord server.' };
 }
 
