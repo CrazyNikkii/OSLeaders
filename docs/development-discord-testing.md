@@ -35,6 +35,13 @@ Use a separate development Discord application, bot token, guild, and local
    and a skill, and confirm the private result has the expected level,
    experience, rank, and text mode label. Restart the bot and confirm no
    tracked account was created.
+7. Run `/skill-leaderboard`, select a skill, and confirm tracked linked and
+   watchlist accounts are ranked by XP. Confirm `All` includes more than the
+   default top ten when enough accounts are registered.
+8. Run `/boss-leaderboard`, use boss autocomplete to select a boss, and confirm
+   tracked accounts are ranked by KC. Confirm zero-KC accounts are omitted when
+   another account has KC, and `All` includes more than the default top ten
+   when enough accounts are registered.
 
 Administrative-log configuration does not yet have a Discord configuration
 command, so that optional delivery path remains covered by adapter tests until

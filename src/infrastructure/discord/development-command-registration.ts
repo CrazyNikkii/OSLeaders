@@ -5,6 +5,7 @@ import { accountCommandDefinitions } from './account-command-foundation.js';
 import { skillLookupCommandDefinitions } from './skill-lookup-command.js';
 import { oneTimeSkillLookupCommandDefinitions } from './one-time-skill-lookup-command.js';
 import { skillLeaderboardCommandDefinitions } from './skill-leaderboard-command.js';
+import { bossLeaderboardCommandDefinitions } from './boss-leaderboard-command.js';
 
 export interface DevelopmentCommandRegistrar {
   put(applicationId: string, guildId: string, commands: readonly object[]): Promise<void>;
@@ -45,6 +46,7 @@ export async function registerDevelopmentDiscordCommands(
       ...skillLookupCommandDefinitions,
       ...oneTimeSkillLookupCommandDefinitions,
       ...skillLeaderboardCommandDefinitions,
+      ...bossLeaderboardCommandDefinitions,
     ],
   );
 }

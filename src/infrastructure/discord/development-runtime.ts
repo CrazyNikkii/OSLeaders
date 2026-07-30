@@ -4,6 +4,7 @@ import { AccountModeValidator } from '../../features/accounts/validate-account-m
 import { AuditService } from '../../features/audit/audit-service.js';
 import { SkillLookupService } from '../../features/lookups/skill-lookup.js';
 import { SkillLeaderboardService } from '../../features/leaderboards/skill-leaderboard.js';
+import { BossLeaderboardService } from '../../features/leaderboards/boss-leaderboard.js';
 import { createErrorReferenceId } from '../../features/audit/error-reference.js';
 import { GuildConfigurationService } from '../../features/guild-configuration/guild-configuration-service.js';
 import { GuildPermissionService } from '../../features/guild-configuration/guild-permission-service.js';
@@ -34,6 +35,11 @@ import {
   DiscordSkillLeaderboardCommandAdapter,
   SkillLeaderboardCommandHandler,
 } from './skill-leaderboard-command.js';
+import {
+  bindDiscordBossLeaderboardCommandAdapter,
+  BossLeaderboardCommandHandler,
+  DiscordBossLeaderboardCommandAdapter,
+} from './boss-leaderboard-command.js';
 import {
   bindDiscordOneTimeSkillLookupCommandAdapter,
   DiscordOneTimeSkillLookupCommandAdapter,
@@ -113,6 +119,11 @@ export async function startDevelopmentDiscordRuntime(
         skillLeaderboard: new SkillLeaderboardService(accountRepository, hiscores),
       }),
     );
+    const bossLeaderboardAdapter = new DiscordBossLeaderboardCommandAdapter(
+      new BossLeaderboardCommandHandler({
+        bossLeaderboard: new BossLeaderboardService(accountRepository, hiscores),
+      }),
+    );
 
     bindDiscordAccountCommandAdapter(
       client,
@@ -135,6 +146,12 @@ export async function startDevelopmentDiscordRuntime(
     bindDiscordSkillLeaderboardCommandAdapter(
       client,
       skillLeaderboardAdapter,
+      (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
+      (interaction) => interaction.guildId === configuration.discord.developmentGuildId,
+    );
+    bindDiscordBossLeaderboardCommandAdapter(
+      client,
+      bossLeaderboardAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.developmentGuildId,
     );

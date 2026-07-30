@@ -105,7 +105,7 @@ describe('development Discord runtime', () => {
     }
     await vi.waitFor(() => expect(reply).toHaveBeenCalledOnce());
 
-    expect(dependencies.interactionHandlers).toHaveLength(4);
+    expect(dependencies.interactionHandlers).toHaveLength(5);
     expect(reply).toHaveBeenCalledWith({
       content: 'You do not have a default linked account in this server.',
       flags: MessageFlags.Ephemeral,
