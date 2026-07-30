@@ -21,14 +21,14 @@ merged.
 
 Stage 6 - Lookups and permanent leaderboards (in progress).
 
-The unmerged `codex/skill-lookup-foundation` branch begins the lookup module
-with a Discord-independent, guild-scoped skill lookup service. It resolves a
+The merged skill-lookup foundation begins the lookup module with a
+Discord-independent, guild-scoped skill lookup service. It resolves a
 caller's default tracked account, an explicit tracked account, or a transient
 one-time account, then fetches the selected account mode's Hiscores endpoint
 through the centralized client's ordinary cache policy. It does not persist
 one-time accounts. Focused unit tests cover target isolation, direct Ironman
 endpoint fetching, Hiscores failures, and incomplete responses. This work is
-not yet merged and does not make Stage 6 complete.
+merged and does not make Stage 6 complete.
 
 The merged account-registration foundation provides a
 guild-scoped tracked-account schema and reviewed migration; stable account IDs;
@@ -200,15 +200,6 @@ audit context, audit delivery, and delivery failure.
 
 ## Previous merged implementation work
 
-`233e4b9` (2026-07-30) - Merge development Discord runtime.
-
-This merged a runnable development-only Discord bot composition, explicit
-development-guild command registration, development-guild interaction
-filtering, PostgreSQL startup validation, graceful shutdown, and a manual
-Discord test checklist for the merged account command slices.
-
-## Latest merged implementation work
-
 `bbe45a0` (2026-07-30) - Merge Discord account renaming.
 
 This merged the guild-only `/account rename` flow, including scoped
@@ -216,10 +207,20 @@ autocomplete, a username modal, existing-service authorization and validation,
 structured sanitized audit events, administrative-log delivery, development
 runtime wiring, and focused tests.
 
+## Latest merged implementation work
+
+`b7d20c7` (2026-07-30) - Merge skill lookup foundation.
+
+This merged the Discord-independent, guild-scoped skill lookup foundation,
+including caller-default, tracked-account, and transient one-time targets;
+direct selected-mode Hiscores fetching through the ordinary cache path; and
+focused tests for guild isolation, Ironman endpoint selection, Hiscores
+failures, and incomplete responses.
+
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
-## Next recommended branch-sized task after the current branch is merged
+## Next recommended branch-sized task
 
 Add a narrow Discord skill-lookup command adapter
 (`codex/discord-skill-lookup`) that delegates to the merged lookup foundation
