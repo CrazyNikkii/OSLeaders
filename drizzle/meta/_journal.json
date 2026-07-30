@@ -36,6 +36,13 @@
       "when": 1785391127670,
       "tag": "0004_guild-mode-emojis",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1785445951463,
+      "tag": "0005_daily-recap-configuration-foundation",
+      "breakpoints": true
     }
   ]
 }

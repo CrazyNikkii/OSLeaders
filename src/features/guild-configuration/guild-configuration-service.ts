@@ -19,6 +19,10 @@ export interface GuildConfiguration {
   competitionManagerRoleId: string | null;
   guildId: string;
   modeEmojis: GuildModeEmojis;
+  recapChannelId: string | null;
+  recapEnabled: boolean;
+  recapLocalTime: string | null;
+  timezone: string;
 }
 
 export interface GuildConfigurationUpdate {
@@ -27,6 +31,10 @@ export interface GuildConfigurationUpdate {
   botManagerRoleId?: string | null;
   competitionManagerRoleId?: string | null;
   modeEmojis?: GuildModeEmojis;
+  recapChannelId?: string | null;
+  recapEnabled?: boolean;
+  recapLocalTime?: string | null;
+  timezone?: string;
 }
 
 export interface GuildConfigurationRepository {

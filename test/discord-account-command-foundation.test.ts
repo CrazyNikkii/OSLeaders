@@ -1240,6 +1240,10 @@ class AdministrativeLogConfigurationStub {
       competitionManagerRoleId: null,
       guildId,
       modeEmojis: {},
+      recapChannelId: null,
+      recapEnabled: false,
+      recapLocalTime: null,
+      timezone: 'Europe/Helsinki',
     });
   }
 }

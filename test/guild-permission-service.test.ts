@@ -140,5 +140,9 @@ function defaultConfiguration(guildId: string): GuildConfiguration {
     competitionManagerRoleId: null,
     guildId,
     modeEmojis: {},
+    recapChannelId: null,
+    recapEnabled: false,
+    recapLocalTime: null,
+    timezone: 'Europe/Helsinki',
   };
 }
