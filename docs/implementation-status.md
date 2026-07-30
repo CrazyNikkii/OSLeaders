@@ -50,15 +50,13 @@ translation reuse the established skill-lookup presenter. Focused tests cover
 the command, complete interaction chain, selected mode, session binding and
 expiry, development command registration, and runtime wiring.
 
-The unmerged skill-leaderboard foundation on
-`codex/skill-leaderboard-foundation` adds a Discord-independent, guild-scoped
+The merged skill-leaderboard foundation adds a Discord-independent, guild-scoped
 service that fetches every tracked account through its stored mode's Hiscores
 endpoint, returns successful level/XP entries sorted by experience, and keeps
 per-account Hiscores or incomplete-response failures separate. It preserves
 linked and watchlist accounts as individual entries. Focused unit tests cover
 guild isolation, endpoint selection, deterministic ordering, partial failure,
-incomplete results, and empty guilds. This work is awaiting review and is not
-yet merged.
+incomplete results, and empty guilds.
 
 The merged account-registration foundation provides a
 guild-scoped tracked-account schema and reviewed migration; stable account IDs;
@@ -230,15 +228,6 @@ audit context, audit delivery, and delivery failure.
 
 ## Previous merged implementation work
 
-`fd149c2` (2026-07-30) - Merge Discord skill lookup command.
-
-This merged guild-only `/skill`, canonical skill choices, guild-scoped tracked
-account autocomplete, default-account targeting, public skill-result embeds,
-private expected failures, development command/runtime wiring, and focused
-adapter and runtime-binding tests.
-
-## Latest merged implementation work
-
 `f004213` (2026-07-30) - Merge Discord one-time skill lookup command.
 
 This merged the separate guild-only `/one-time-skill` flow, including a
@@ -246,11 +235,19 @@ username modal, canonical game-mode and skill choices, five-minute
 guild-and-initiator-bound sessions, transient Hiscores lookup, private results,
 development command/runtime wiring, documentation, and focused tests.
 
+## Latest merged implementation work
+
+`e3a9722` (2026-07-30) - Merge skill leaderboard foundation.
+
+This merged the Discord-independent guild skill-leaderboard service. It fetches
+each tracked account through its stored-mode Hiscores endpoint, sorts successful
+entries by XP with deterministic tie-breakers, and retains per-account failures
+without discarding successful results.
+
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-Review and merge the unmerged Discord-independent skill-leaderboard foundation
-(`codex/skill-leaderboard-foundation`). After it is merged, add the Discord
-skill-leaderboard adapter with top-10/default and all-results presentation.
+Add the Discord skill-leaderboard adapter with top-10/default and all-results
+presentation (`codex/discord-skill-leaderboard`).
