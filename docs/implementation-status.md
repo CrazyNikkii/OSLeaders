@@ -91,6 +91,14 @@ responses, and it never persists one-time accounts. Focused unit tests cover
 default, guild-scoped explicit, and one-time targets; stored-mode endpoint
 selection; failures; and incomplete responses.
 
+The pending Discord boss-lookup adapter adds guild-only `/boss` with canonical
+boss autocomplete and optional guild-scoped tracked-account autocomplete. It
+uses the caller's default account when no account is selected, presents found
+KC, rank, and text mode-label results publicly, and keeps expected failures
+private. It delegates target isolation and Hiscores handling to the merged
+boss-lookup service. This work is implemented on the current branch but is not
+merged.
+
 The merged account-registration foundation provides a
 guild-scoped tracked-account schema and reviewed migration; stable account IDs;
 normalized username uniqueness per guild; linked and watchlist associations;
@@ -289,4 +297,5 @@ authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-Add the Discord boss-lookup adapter as the next Stage 6 branch-sized task.
+After this branch is merged, add the separate one-time boss-lookup flow as the
+next Stage 6 branch-sized task.
