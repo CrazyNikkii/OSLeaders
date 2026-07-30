@@ -176,7 +176,9 @@ export function skillLookupEmbed(
     );
 }
 
-function skillLookupFailureMessage(result: Exclude<SkillLookupResult, { kind: 'found' }>): string {
+export function skillLookupFailureMessage(
+  result: Exclude<SkillLookupResult, { kind: 'found' }>,
+): string {
   switch (result.kind) {
     case 'default_account_not_found':
       return 'You do not have a default linked account in this server.';
