@@ -4,15 +4,18 @@ import {
   AccountRemovalCommandHandler,
   AccountRegistrationCommandHandler,
   DiscordRegistrationAnnouncementPublisher,
+  DiscordRegistrationAdministrativeLogPublisher,
   DiscordAccountCommandAdapter,
   InMemoryAccountRegistrationSessionStore,
   InMemoryDestructiveConfirmationStore,
   accountCommandDefinitions,
+  createDiscordAccountCommandAdapter,
   type AccountCommandPermissionEvaluator,
   type AccountRegistrationCommandServices,
   type AccountRemovalCommandServices,
   type GuildInteractionContext,
   type RegistrationAnnouncementPublisher,
+  type RegistrationAdministrativeLogPublisher,
 } from '../src/infrastructure/discord/account-command-foundation.js';
 import type {
   AccountRegistrationResult,
@@ -46,6 +49,54 @@ describe('Discord account command foundation', () => {
     ).rejects.toThrow('not available for public announcements');
   });
 
+  it('delivers registration logs only to the configured channel in the same guild', async () => {
+    const configuration = new AdministrativeLogConfigurationStub({
+      administrativeLogChannelId: 'administrative-channel',
+      administrativeLogMode: 'standard',
+    });
+    const publisher = new DiscordRegistrationAdministrativeLogPublisher(configuration);
+    const messages: unknown[] = [];
+
+    await publisher.publish(
+      {
+        guildId: 'guild-one',
+        guild: {
+          channels: {
+            fetch: (channelId: string) => {
+              expect(channelId).toBe('administrative-channel');
+              return Promise.resolve({
+                isSendable: () => true,
+                send: (message: unknown) => {
+                  messages.push(message);
+                  return Promise.resolve();
+                },
+              });
+            },
+          },
+        },
+      } as never,
+      'Registered **Rune Scape** as an Ironman watchlist account.',
+    );
+
+    expect(configuration.guildIds).toEqual(['guild-one']);
+    expect(messages).toEqual([
+      { content: 'Registered **Rune Scape** as an Ironman watchlist account.' },
+    ]);
+  });
+
+  it('skips registration logs when no administrative channel is configured', async () => {
+    const configuration = new AdministrativeLogConfigurationStub({
+      administrativeLogChannelId: null,
+      administrativeLogMode: 'standard',
+    });
+    const publisher = new DiscordRegistrationAdministrativeLogPublisher(configuration);
+
+    await expect(
+      publisher.publish({ guildId: 'guild-one', guild: null } as never, 'registration log'),
+    ).resolves.toBeUndefined();
+    expect(configuration.guildIds).toEqual(['guild-one']);
+  });
+
   it('registers guild-only account removal and guided registration commands', () => {
     expect(accountCommandDefinitions).toMatchObject([
       {
@@ -60,6 +111,27 @@ describe('Discord account command foundation', () => {
         ],
       },
     ]);
+  });
+
+  it('requires administrative-log delivery whenever registration support is enabled', () => {
+    const removalHandler = new AccountRemovalCommandHandler(new StubServices([]));
+    const registrationHandler = new AccountRegistrationCommandHandler(
+      new RegistrationStubServices(),
+    );
+
+    expect(() => new DiscordAccountCommandAdapter(removalHandler, registrationHandler)).toThrow(
+      'Registration support requires an administrative log publisher.',
+    );
+    expect(
+      createDiscordAccountCommandAdapter(
+        removalHandler,
+        registrationHandler,
+        new AdministrativeLogConfigurationStub({
+          administrativeLogChannelId: null,
+          administrativeLogMode: 'standard',
+        }),
+      ),
+    ).toBeInstanceOf(DiscordAccountCommandAdapter);
   });
 
   it('binds confirmation to the initiating user and does not remove before confirmation', async () => {
@@ -301,6 +373,8 @@ describe('Discord account command foundation', () => {
     const adapter = new DiscordAccountCommandAdapter(
       new AccountRemovalCommandHandler(new StubServices([])),
       new AccountRegistrationCommandHandler(registrationServices),
+      undefined,
+      new RecordingRegistrationAdministrativeLogPublisher(),
     );
     const modals: { toJSON(): { custom_id: string; title: string } }[] = [];
     const command = {
@@ -342,10 +416,12 @@ describe('Discord account command foundation', () => {
       kind: 'registered',
     };
     const announcements = new RecordingRegistrationAnnouncementPublisher();
+    const administrativeLogs = new RecordingRegistrationAdministrativeLogPublisher();
     const adapter = new DiscordAccountCommandAdapter(
       new AccountRemovalCommandHandler(new StubServices([])),
       new AccountRegistrationCommandHandler(services),
       announcements,
+      administrativeLogs,
     );
     const modals: ModalResponse[] = [];
     const replies: ComponentResponse[] = [];
@@ -417,6 +493,9 @@ describe('Discord account command foundation', () => {
     expect(announcements.messages).toEqual([
       '**Rune Scape** has been registered as an Ironman watchlist account.',
     ]);
+    expect(administrativeLogs.messages).toEqual([
+      '**Rune Scape** has been registered as an Ironman watchlist account.',
+    ]);
   });
 
   it('does not announce unsuccessful registrations and reports announcement delivery failures privately', async () => {
@@ -440,6 +519,7 @@ describe('Discord account command foundation', () => {
       new AccountRemovalCommandHandler(new StubServices([])),
       handler,
       failedAnnouncements,
+      new RecordingRegistrationAdministrativeLogPublisher(),
     );
     const unsuccessfulEdits: ComponentResponse[] = [];
     await adapter.handle({
@@ -482,6 +562,7 @@ describe('Discord account command foundation', () => {
       new AccountRemovalCommandHandler(new StubServices([])),
       deliveryFailureHandler,
       new FailingRegistrationAnnouncementPublisher(),
+      new FailingRegistrationAdministrativeLogPublisher(),
     );
     await failingAdapter.handle({
       ...registrationSelectInteraction(deliveryFailureMode.customId, 'main', () =>
@@ -651,6 +732,43 @@ class RecordingRegistrationAnnouncementPublisher implements RegistrationAnnounce
 class FailingRegistrationAnnouncementPublisher implements RegistrationAnnouncementPublisher {
   public publish(): Promise<void> {
     return Promise.reject(new Error('Discord channel unavailable'));
+  }
+}
+
+class RecordingRegistrationAdministrativeLogPublisher implements RegistrationAdministrativeLogPublisher {
+  public readonly messages: string[] = [];
+
+  public publish(_interaction: unknown, message: string): Promise<void> {
+    this.messages.push(message);
+    return Promise.resolve();
+  }
+}
+
+class FailingRegistrationAdministrativeLogPublisher implements RegistrationAdministrativeLogPublisher {
+  public publish(): Promise<void> {
+    return Promise.reject(new Error('Discord administrative channel unavailable'));
+  }
+}
+
+class AdministrativeLogConfigurationStub {
+  public readonly guildIds: string[] = [];
+
+  public constructor(
+    private readonly configuration: {
+      administrativeLogChannelId: string | null;
+      administrativeLogMode: 'standard' | 'verbose';
+    },
+  ) {}
+
+  public getOrCreate(guildId: string) {
+    this.guildIds.push(guildId);
+    return Promise.resolve({
+      ...this.configuration,
+      botManagerRoleId: null,
+      competitionManagerRoleId: null,
+      guildId,
+      modeEmojis: {},
+    });
   }
 }
 
