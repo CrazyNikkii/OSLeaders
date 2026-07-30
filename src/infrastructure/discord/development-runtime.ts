@@ -2,6 +2,7 @@ import { Client, Events, GatewayIntentBits } from 'discord.js';
 
 import { AccountModeValidator } from '../../features/accounts/validate-account-mode.js';
 import { AuditService } from '../../features/audit/audit-service.js';
+import { SkillLookupService } from '../../features/lookups/skill-lookup.js';
 import { createErrorReferenceId } from '../../features/audit/error-reference.js';
 import { GuildConfigurationService } from '../../features/guild-configuration/guild-configuration-service.js';
 import { GuildPermissionService } from '../../features/guild-configuration/guild-permission-service.js';
@@ -22,6 +23,11 @@ import {
   createAccountRemovalCommandHandler,
   createDiscordAccountCommandAdapter,
 } from './account-command-foundation.js';
+import {
+  bindDiscordSkillLookupCommandAdapter,
+  createSkillLookupCommandHandler,
+  DiscordSkillLookupCommandAdapter,
+} from './skill-lookup-command.js';
 
 export interface DevelopmentDiscordRuntime {
   close(): Promise<void>;
@@ -63,10 +69,8 @@ export async function startDevelopmentDiscordRuntime(
     const configurationRepository = new PostgresGuildConfigurationRepository(connection.database);
     const configurationService = new GuildConfigurationService(configurationRepository);
     const permissions = new GuildPermissionService(configurationRepository);
-    const accountModeValidator = new AccountModeValidator(
-      new OsrsHiscoreHttpClient(),
-      OSRS_MODE_FETCH_STRATEGIES,
-    );
+    const hiscores = new OsrsHiscoreHttpClient();
+    const accountModeValidator = new AccountModeValidator(hiscores, OSRS_MODE_FETCH_STRATEGIES);
     const adapter = createDiscordAccountCommandAdapter(
       createAccountRemovalCommandHandler(accountRepository, permissions),
       createAccountDefaultSelectionCommandHandler(accountRepository, permissions),
@@ -84,10 +88,22 @@ export async function startDevelopmentDiscordRuntime(
       ),
       configurationService,
     );
+    const skillLookupAdapter = new DiscordSkillLookupCommandAdapter(
+      createSkillLookupCommandHandler(
+        accountRepository,
+        new SkillLookupService(accountRepository, hiscores),
+      ),
+    );
 
     bindDiscordAccountCommandAdapter(
       client,
       adapter,
+      (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
+      (interaction) => interaction.guildId === configuration.discord.developmentGuildId,
+    );
+    bindDiscordSkillLookupCommandAdapter(
+      client,
+      skillLookupAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.developmentGuildId,
     );
