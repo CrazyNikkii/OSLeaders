@@ -19,7 +19,16 @@ merged.
 
 ## Current implementation stage
 
-Stage 5 - Account registration and management.
+Stage 6 - Lookups and permanent leaderboards (in progress).
+
+The unmerged `codex/skill-lookup-foundation` branch begins the lookup module
+with a Discord-independent, guild-scoped skill lookup service. It resolves a
+caller's default tracked account, an explicit tracked account, or a transient
+one-time account, then fetches the selected account mode's Hiscores endpoint
+through the centralized client's ordinary cache policy. It does not persist
+one-time accounts. Focused unit tests cover target isolation, direct Ironman
+endpoint fetching, Hiscores failures, and incomplete responses. This work is
+not yet merged and does not make Stage 6 complete.
 
 The merged account-registration foundation provides a
 guild-scoped tracked-account schema and reviewed migration; stable account IDs;
@@ -148,6 +157,12 @@ guild isolation, autocomplete, response translation, and factory construction.
 Stage 5 is not complete. The durable daily-recap run, scheduling, and delivery
 work remain owned by later slices.
 
+The remaining Discord adapters for account-mode changes, account-association
+conversion, and linked-account reassignment are deliberately deferred until
+post-launch use demonstrates a need. Their Discord-independent services are
+merged and remain available; this is an implementation-priority decision, not
+a removal of the approved product behaviour.
+
 The merged development Discord runtime foundation adds explicit development-guild
 command registration and a runnable local bot composition for the merged
 `/account register`, `/account remove`, and `/account default` adapter slices.
@@ -172,10 +187,9 @@ channel without undoing a valid rename if delivery fails. Focused unit tests
 cover the command definition, authorization, guild isolation, modal handling,
 audit context, audit delivery, and delivery failure.
 
-## Later planned stages
+## Deferred and later planned stages
 
-- Stage 5 - Account registration and management.
-- Stage 6 - Lookups and permanent leaderboards.
+- Stage 5 - Remaining deferred account-management Discord adapters.
 - Stage 7 - Competition lifecycle, snapshots, claims, scheduling, roles, and
   history.
 - Stage 8 - Recap baselines, preview, durable send, automatic scheduling, and
@@ -205,7 +219,8 @@ runtime wiring, and focused tests.
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
-## Next recommended branch-sized task
+## Next recommended branch-sized task after the current branch is merged
 
-Add the Discord `/account` account-mode change flow
-(`codex/discord-account-mode-change`).
+Add a narrow Discord skill-lookup command adapter
+(`codex/discord-skill-lookup`) that delegates to the merged lookup foundation
+and presents a canonical skill result.
