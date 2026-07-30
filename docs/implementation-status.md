@@ -102,14 +102,16 @@ reports the delivery failure. It delegates target isolation and Hiscores
 handling to the merged boss-lookup service. Focused adapter, slow-lookup, and
 delivery-failure tests cover these behaviours.
 
-The unmerged `codex/one-time-boss-lookup` branch adds the separate guild-only
+The merged Discord one-time boss-lookup adapter adds the separate guild-only
 `/one-time-boss` guided flow. It collects a username in a modal, then game mode
 and canonical boss choices through an initiator- and guild-bound five-minute
-session. It uses only the existing transient boss-lookup target, so no tracked
-account, quota, or recap baseline is persisted; the guided flow stays private
-and successful results are published in the invoking guild channel. The branch also registers and binds the command in the development
-runtime and adds focused session, interaction, and wiring tests. This is not a
-completed implementation record until the branch is merged.
+session. Boss choices are grouped into bounded alphabetical menus, ordered as
+though a leading `The` were absent while retaining their displayed names. It
+uses only the existing transient boss-lookup target, so no tracked account,
+quota, or recap baseline is persisted. The guided flow stays private, while a
+successful result is published in the invoking guild channel and the private
+controls are removed. Focused session, interaction, public-delivery, and
+development-runtime wiring tests cover the flow.
 
 The merged account-registration foundation provides a
 guild-scoped tracked-account schema and reviewed migration; stable account IDs;
@@ -297,12 +299,12 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
-`ad337c3` (2026-07-30) - Add Discord boss lookup command.
+`e60bfb3` (2026-07-30) - Add Discord one-time boss lookup.
 
-This merged guild-only `/boss` for tracked accounts, with canonical boss and
-guild-scoped account autocomplete, private acknowledgement of slow lookups,
-public found-result delivery, private expected failures, development command and
-runtime wiring, and focused tests.
+This merged the separate guild-only `/one-time-boss` flow, including a username
+modal, private mode and bounded boss selection menus, a transient Hiscores
+lookup, public successful results, development command/runtime wiring,
+documentation, and focused tests.
 
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
