@@ -46,6 +46,12 @@ import {
   type DefaultAccountSelectionRepository,
 } from '../../features/accounts/select-default-account.js';
 import {
+  AccountRenameService,
+  canRename,
+  type AccountRenameRepository,
+  type RenameAccountResult,
+} from '../../features/accounts/rename-account.js';
+import {
   GuildPermissionService,
   type GuildPermissionRequest,
   type GuildPermissions,
@@ -55,15 +61,18 @@ import {
   type GuildModeEmojis,
 } from '../../features/guild-configuration/guild-configuration-service.js';
 import { shouldDeliverAdministrativeAuditEvent } from '../../features/audit/administrative-audit-policy.js';
+import type { AuditService } from '../../features/audit/audit-service.js';
 import {
   OSRS_ACCOUNT_MODES,
   type OsrsAccountMode,
 } from '../../infrastructure/hiscores/osrs-hiscore-catalog.js';
+import type { StructuredLogEntry } from '../../shared/structured-logging.js';
 
 const ACCOUNT_COMMAND_NAME = 'account';
 const REGISTER_SUBCOMMAND_NAME = 'register';
 const REMOVE_SUBCOMMAND_NAME = 'remove';
 const DEFAULT_SUBCOMMAND_NAME = 'default';
+const RENAME_SUBCOMMAND_NAME = 'rename';
 const ACCOUNT_OPTION_NAME = 'account';
 const REMOVAL_CONFIRMATION_PREFIX = 'osleaders:account-remove';
 const MAX_AUTOCOMPLETE_CHOICES = 25;
@@ -72,6 +81,7 @@ const REMOVAL_CONFIRMATION_LIFETIME_MS = 5 * 60 * 1000;
 const REGISTRATION_INTERACTION_PREFIX = 'osleaders:account-register';
 const REGISTRATION_INTERACTION_LIFETIME_MS = 5 * 60 * 1000;
 const USERNAME_INPUT_ID = 'username';
+const RENAME_INTERACTION_PREFIX = 'osleaders:account-rename';
 
 export const accountCommandDefinitions = [
   new SlashCommandBuilder()
@@ -103,6 +113,18 @@ export const accountCommandDefinitions = [
           option
             .setName(ACCOUNT_OPTION_NAME)
             .setDescription('The linked account to make default.')
+            .setRequired(true)
+            .setAutocomplete(true),
+        ),
+    )
+    .addSubcommand((subcommand) =>
+      subcommand
+        .setName(RENAME_SUBCOMMAND_NAME)
+        .setDescription('Rename a tracked OSRS account after an RSN change.')
+        .addStringOption((option) =>
+          option
+            .setName(ACCOUNT_OPTION_NAME)
+            .setDescription('The account to rename.')
             .setRequired(true)
             .setAutocomplete(true),
         ),
@@ -423,6 +445,98 @@ export class AccountDefaultSelectionCommandHandler {
           account.association.type === 'linked' &&
           (authorization.canManageAccounts ||
             account.association.discordUserId === authorization.requesterDiscordUserId),
+      )
+      .filter((account) =>
+        account.displayUsername.toLocaleLowerCase('en-US').includes(normalizedQuery),
+      )
+      .slice(0, MAX_AUTOCOMPLETE_CHOICES)
+      .map((account) => ({
+        name: `${account.displayUsername} (${account.accountMode})`,
+        value: account.id,
+      }));
+  }
+
+  private async authorize(
+    context: GuildInteractionContext,
+  ): Promise<
+    | (GuildPermissionRequest & { canManageAccounts: boolean; requesterDiscordUserId: string })
+    | undefined
+  > {
+    if (context.guildId === null) {
+      return undefined;
+    }
+
+    const permissions = await this.services.permissions.evaluate({
+      guildId: context.guildId,
+      hasAdministratorPermission: context.hasAdministratorPermission,
+      memberRoleIds: context.memberRoleIds,
+    });
+    return {
+      ...context,
+      canManageAccounts: permissions.canManageAccounts,
+      guildId: context.guildId,
+    };
+  }
+}
+
+export interface AccountRenameCommandServices {
+  accountRetrieval: Pick<AccountRetrievalService, 'listForGuild'>;
+  accountRename: Pick<AccountRenameService, 'rename'>;
+  audit: Pick<AuditService, 'record'>;
+  permissions: AccountCommandPermissionEvaluator;
+}
+
+export type AccountRenameCommandResult =
+  | { kind: 'renamed'; message: string; auditEntry: StructuredLogEntry }
+  | { kind: 'forbidden'; message: string }
+  | { kind: 'account_not_found'; message: string }
+  | { kind: 'invalid_username'; message: string }
+  | { kind: 'username_taken'; message: string }
+  | { kind: 'hiscores_failure'; message: string }
+  | { kind: 'not_in_guild'; message: string };
+
+export class AccountRenameCommandHandler {
+  public constructor(private readonly services: AccountRenameCommandServices) {}
+
+  public async rename(
+    context: GuildInteractionContext,
+    accountId: string,
+    username: string,
+  ): Promise<AccountRenameCommandResult> {
+    const authorization = await this.authorize(context);
+    if (authorization === undefined) {
+      return {
+        kind: 'not_in_guild',
+        message: 'This command can only be used in a Discord server.',
+      };
+    }
+
+    const result = await this.services.accountRename.rename({
+      accountId,
+      canManageAccounts: authorization.canManageAccounts,
+      guildId: authorization.guildId,
+      requesterDiscordUserId: authorization.requesterDiscordUserId,
+      username,
+    });
+    return renameCommandResult(result, (event) => this.services.audit.record(event), {
+      guildId: authorization.guildId,
+      requesterDiscordUserId: authorization.requesterDiscordUserId,
+    });
+  }
+
+  public async autocomplete(
+    context: GuildInteractionContext,
+    query: string,
+  ): Promise<{ name: string; value: string }[]> {
+    const authorization = await this.authorize(context);
+    if (authorization === undefined) {
+      return [];
+    }
+
+    const normalizedQuery = query.trim().toLocaleLowerCase('en-US');
+    return (await this.services.accountRetrieval.listForGuild(authorization.guildId))
+      .filter((account) =>
+        canRename(account, { ...authorization, accountId: account.id, username: '' }),
       )
       .filter((account) =>
         account.displayUsername.toLocaleLowerCase('en-US').includes(normalizedQuery),
@@ -821,8 +935,59 @@ class NoopRegistrationAdministrativeLogPublisher implements RegistrationAdminist
   }
 }
 
+export interface RenameAdministrativeLogPublisher {
+  publish(interaction: ModalSubmitInteraction, auditEntry: StructuredLogEntry): Promise<void>;
+}
+
+export class DiscordRenameAdministrativeLogPublisher implements RenameAdministrativeLogPublisher {
+  public constructor(
+    private readonly configuration: Pick<GuildConfigurationService, 'getOrCreate'>,
+  ) {}
+
+  public async publish(
+    interaction: ModalSubmitInteraction,
+    auditEntry: StructuredLogEntry,
+  ): Promise<void> {
+    if (interaction.guildId === null) {
+      return;
+    }
+
+    const configuration = await this.configuration.getOrCreate(interaction.guildId);
+    if (
+      configuration.administrativeLogChannelId === null ||
+      !shouldDeliverAdministrativeAuditEvent(
+        {
+          guildId: interaction.guildId,
+          occurredAt: new Date(),
+          operation: auditEntry.operation,
+          severity: auditEntry.severity,
+          type: 'account-edit-or-deletion',
+        },
+        configuration.administrativeLogMode,
+      )
+    ) {
+      return;
+    }
+
+    const channel = await interaction.guild?.channels.fetch(
+      configuration.administrativeLogChannelId,
+    );
+    if (!channel?.isSendable()) {
+      throw new Error('The configured administrative log channel is not available.');
+    }
+    await channel.send({ content: renderRenameAuditEntry(auditEntry) });
+  }
+}
+
+class NoopRenameAdministrativeLogPublisher implements RenameAdministrativeLogPublisher {
+  public publish(): Promise<void> {
+    return Promise.resolve();
+  }
+}
+
 export class DiscordAccountCommandAdapter {
   private readonly registrationAdministrativeLogPublisher: RegistrationAdministrativeLogPublisher;
+  private readonly renameAdministrativeLogPublisher: RenameAdministrativeLogPublisher;
 
   public constructor(
     private readonly removalHandler: AccountRemovalCommandHandler,
@@ -830,12 +995,19 @@ export class DiscordAccountCommandAdapter {
     private readonly registrationHandler?: AccountRegistrationCommandHandler,
     private readonly registrationAnnouncementPublisher: RegistrationAnnouncementPublisher = new DiscordRegistrationAnnouncementPublisher(),
     registrationAdministrativeLogPublisher?: RegistrationAdministrativeLogPublisher,
+    private readonly renameHandler?: AccountRenameCommandHandler,
+    renameAdministrativeLogPublisher?: RenameAdministrativeLogPublisher,
   ) {
     if (registrationHandler !== undefined && registrationAdministrativeLogPublisher === undefined) {
       throw new Error('Registration support requires an administrative log publisher.');
     }
     this.registrationAdministrativeLogPublisher =
       registrationAdministrativeLogPublisher ?? new NoopRegistrationAdministrativeLogPublisher();
+    if (renameHandler !== undefined && renameAdministrativeLogPublisher === undefined) {
+      throw new Error('Rename support requires an administrative log publisher.');
+    }
+    this.renameAdministrativeLogPublisher =
+      renameAdministrativeLogPublisher ?? new NoopRenameAdministrativeLogPublisher();
   }
 
   public async handle(
@@ -890,6 +1062,15 @@ export class DiscordAccountCommandAdapter {
       );
       return;
     }
+    if (subcommand === RENAME_SUBCOMMAND_NAME && this.renameHandler !== undefined) {
+      await interaction.respond(
+        await this.renameHandler.autocomplete(
+          toGuildInteractionContext(interaction),
+          interaction.options.getFocused(),
+        ),
+      );
+      return;
+    }
     if (subcommand !== REMOVE_SUBCOMMAND_NAME) {
       return;
     }
@@ -912,6 +1093,10 @@ export class DiscordAccountCommandAdapter {
     }
     if (interaction.options.getSubcommand() === DEFAULT_SUBCOMMAND_NAME) {
       await this.handleDefaultSelection(interaction);
+      return;
+    }
+    if (interaction.options.getSubcommand() === RENAME_SUBCOMMAND_NAME) {
+      await this.handleRenameStart(interaction);
       return;
     }
     if (interaction.options.getSubcommand() !== REMOVE_SUBCOMMAND_NAME) {
@@ -949,6 +1134,17 @@ export class DiscordAccountCommandAdapter {
     await interaction.reply({ content: result.message, flags: MessageFlags.Ephemeral });
   }
 
+  private async handleRenameStart(interaction: ChatInputCommandInteraction): Promise<void> {
+    if (this.renameHandler === undefined) {
+      return;
+    }
+    await interaction.showModal(
+      renameModal(
+        encodeRenameInteraction(interaction.options.getString(ACCOUNT_OPTION_NAME, true)),
+      ),
+    );
+  }
+
   private async handleButton(interaction: ButtonInteraction): Promise<void> {
     if (!interaction.customId.startsWith(`${REMOVAL_CONFIRMATION_PREFIX}:`)) {
       return;
@@ -975,6 +1171,23 @@ export class DiscordAccountCommandAdapter {
   }
 
   private async handleModalSubmit(interaction: ModalSubmitInteraction): Promise<void> {
+    const renameAccountId = decodeRenameInteraction(interaction.customId);
+    if (renameAccountId !== undefined && this.renameHandler !== undefined) {
+      const result = await this.renameHandler.rename(
+        toGuildInteractionContext(interaction),
+        renameAccountId,
+        interaction.fields.getTextInputValue(USERNAME_INPUT_ID),
+      );
+      await interaction.reply({ content: result.message, flags: MessageFlags.Ephemeral });
+      if (result.kind === 'renamed') {
+        try {
+          await this.renameAdministrativeLogPublisher.publish(interaction, result.auditEntry);
+        } catch {
+          // Administrative delivery is an optional side effect and must not undo a rename.
+        }
+      }
+      return;
+    }
     if (
       this.registrationHandler === undefined ||
       decodeRegistrationInteraction(interaction.customId, 'username') === undefined
@@ -1119,10 +1332,29 @@ export function createAccountDefaultSelectionCommandHandler(
   });
 }
 
+export function createAccountRenameCommandHandler(
+  accountRepository: AccountRetrievalRepository & AccountRenameRepository,
+  accountModeValidator: AccountModeValidationService,
+  audit: Pick<AuditService, 'record'>,
+  permissions: AccountCommandPermissionEvaluator,
+): AccountRenameCommandHandler {
+  return new AccountRenameCommandHandler({
+    accountRetrieval: new AccountRetrievalService(accountRepository),
+    accountRename: new AccountRenameService(
+      accountModeValidator,
+      accountRepository,
+      accountRepository,
+    ),
+    audit,
+    permissions,
+  });
+}
+
 export function createDiscordAccountCommandAdapter(
   removalHandler: AccountRemovalCommandHandler,
   defaultSelectionHandler: AccountDefaultSelectionCommandHandler,
   registrationHandler: AccountRegistrationCommandHandler,
+  renameHandler: AccountRenameCommandHandler,
   configuration: Pick<GuildConfigurationService, 'getOrCreate'>,
 ): DiscordAccountCommandAdapter {
   return new DiscordAccountCommandAdapter(
@@ -1131,6 +1363,8 @@ export function createDiscordAccountCommandAdapter(
     registrationHandler,
     new DiscordRegistrationAnnouncementPublisher(),
     new DiscordRegistrationAdministrativeLogPublisher(configuration),
+    renameHandler,
+    new DiscordRenameAdministrativeLogPublisher(configuration),
   );
 }
 
@@ -1235,6 +1469,21 @@ function usernameModal(customId: string): ModalBuilder {
         new TextInputBuilder()
           .setCustomId(USERNAME_INPUT_ID)
           .setLabel('OSRS username')
+          .setRequired(true)
+          .setStyle(TextInputStyle.Short),
+      ),
+    );
+}
+
+function renameModal(customId: string): ModalBuilder {
+  return new ModalBuilder()
+    .setCustomId(customId)
+    .setTitle('Rename an OSRS account')
+    .addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(
+        new TextInputBuilder()
+          .setCustomId(USERNAME_INPUT_ID)
+          .setLabel('New OSRS username')
           .setRequired(true)
           .setStyle(TextInputStyle.Short),
       ),
@@ -1421,6 +1670,19 @@ function decodeRegistrationInteraction(
   return sessionId.length > 0 && !sessionId.includes(':') ? sessionId : undefined;
 }
 
+function encodeRenameInteraction(accountId: string): string {
+  return `${RENAME_INTERACTION_PREFIX}:${accountId}`;
+}
+
+function decodeRenameInteraction(customId: string): string | undefined {
+  const prefix = `${RENAME_INTERACTION_PREFIX}:`;
+  if (!customId.startsWith(prefix)) {
+    return undefined;
+  }
+  const accountId = customId.slice(prefix.length);
+  return accountId.length > 0 && !accountId.includes(':') ? accountId : undefined;
+}
+
 function toRegistrationBinding(
   context: GuildInteractionContext,
 ): Pick<AccountRegistrationSession, 'guildId' | 'requesterDiscordUserId'> | undefined {
@@ -1448,6 +1710,71 @@ function registrationSessionFailure(
 
 function registrationForbidden(): AccountRegistrationCommandResult {
   return { kind: 'forbidden', message: 'You are not allowed to use this registration flow.' };
+}
+
+function renameCommandResult(
+  result: RenameAccountResult,
+  recordAudit: (event: Parameters<AuditService['record']>[0]) => StructuredLogEntry,
+  actor: { guildId: string; requesterDiscordUserId: string },
+): AccountRenameCommandResult {
+  switch (result.kind) {
+    case 'renamed':
+      return {
+        auditEntry: recordAudit({
+          context: {
+            accountId: result.account.id,
+            accountMode: result.account.accountMode,
+            actorDiscordUserId: actor.requesterDiscordUserId,
+            associationType: result.account.association.type,
+            newDisplayUsername: result.account.displayUsername,
+            previousDisplayUsername: result.previousDisplayUsername,
+          },
+          guildId: actor.guildId,
+          occurredAt: new Date(),
+          operation: 'account.rename',
+          severity: 'info',
+          type: 'account-edit-or-deletion',
+        }),
+        kind: 'renamed',
+        message: `Renamed the tracked account to **${result.account.displayUsername}**.`,
+      };
+    case 'account_not_found':
+      return { kind: 'account_not_found', message: 'That tracked account is no longer available.' };
+    case 'forbidden':
+      return { kind: 'forbidden', message: 'You are not allowed to rename that account.' };
+    case 'invalid_username':
+      return { kind: 'invalid_username', message: 'That OSRS username is invalid.' };
+    case 'username_taken':
+      return {
+        kind: 'username_taken',
+        message: 'That OSRS username is already tracked in this server.',
+      };
+    case 'hiscores_failure':
+      return { kind: 'hiscores_failure', message: hiscoresFailureMessage(result.failure.kind) };
+  }
+}
+
+function renderRenameAuditEntry(auditEntry: StructuredLogEntry): string {
+  const context = auditEntry.context;
+  const previousDisplayUsername = stringContextValue(context, 'previousDisplayUsername');
+  const newDisplayUsername = stringContextValue(context, 'newDisplayUsername');
+  const actorDiscordUserId = stringContextValue(context, 'actorDiscordUserId');
+  if (
+    previousDisplayUsername === undefined ||
+    newDisplayUsername === undefined ||
+    actorDiscordUserId === undefined
+  ) {
+    return 'A tracked OSRS account was renamed.';
+  }
+  return `Renamed tracked account **${previousDisplayUsername}** to **${newDisplayUsername}** by <@${actorDiscordUserId}>.`;
+}
+
+function stringContextValue(
+  context: Record<string, unknown> | undefined,
+  key: string,
+): string | undefined {
+  const value = context?.[key];
+  return typeof value === 'string' ? value : undefined;
 }
 
 function notInGuildRegistration(): AccountRegistrationCommandResult {

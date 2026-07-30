@@ -193,7 +193,16 @@ Discord test checklist for the merged account command slices.
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
+## Current unmerged implementation work
+
+The current `codex/discord-account-renaming` branch adds the guild-only
+`/account rename` Discord flow. It uses the existing rename service for
+authorization and Hiscores validation, adds permission-scoped autocomplete and
+a username modal, wires the handler into the development runtime, and delivers
+successful account-edit summaries to the configured administrative log channel.
+This work is not complete until it is merged.
+
 ## Next recommended branch-sized task
 
-Add the Discord `/account` account-renaming flow
-(`codex/discord-account-renaming`).
+After the current branch is merged, add the Discord `/account` account-mode
+change flow (`codex/discord-account-mode-change`).
