@@ -91,13 +91,16 @@ responses, and it never persists one-time accounts. Focused unit tests cover
 default, guild-scoped explicit, and one-time targets; stored-mode endpoint
 selection; failures; and incomplete responses.
 
-The pending Discord boss-lookup adapter adds guild-only `/boss` with canonical
+The merged Discord boss-lookup adapter adds guild-only `/boss` with canonical
 boss autocomplete and optional guild-scoped tracked-account autocomplete. It
 uses the caller's default account when no account is selected, presents found
 KC, rank, and text mode-label results publicly, and keeps expected failures
-private. It delegates target isolation and Hiscores handling to the merged
-boss-lookup service. This work is implemented on the current branch but is not
-merged.
+private. It acknowledges slow Hiscores work privately before posting successful
+results directly to the guild channel, then removes the private acknowledgement.
+If public delivery fails, it gives the requester a private retry message and
+reports the delivery failure. It delegates target isolation and Hiscores
+handling to the merged boss-lookup service. Focused adapter, slow-lookup, and
+delivery-failure tests cover these behaviours.
 
 The merged account-registration foundation provides a
 guild-scoped tracked-account schema and reviewed migration; stable account IDs;
@@ -285,12 +288,12 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
-`f4037aa` (2026-07-30) - Add boss lookup foundation.
+`ad337c3` (2026-07-30) - Add Discord boss lookup command.
 
-This merged the Discord-independent boss lookup service. It supports default,
-guild-scoped tracked, and transient one-time targets; uses the stored or
-selected mode's Hiscores endpoint; and returns resolved targets alongside
-Hiscores failures or incomplete boss responses.
+This merged guild-only `/boss` for tracked accounts, with canonical boss and
+guild-scoped account autocomplete, private acknowledgement of slow lookups,
+public found-result delivery, private expected failures, development command and
+runtime wiring, and focused tests.
 
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
