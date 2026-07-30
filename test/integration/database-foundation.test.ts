@@ -18,6 +18,7 @@ import {
 } from '../../src/infrastructure/database/connection.js';
 import { PostgresGuildConfigurationRepository } from '../../src/infrastructure/database/postgres-guild-configuration-repository.js';
 import { PostgresAccountRegistrationRepository } from '../../src/infrastructure/database/postgres-account-registration-repository.js';
+import { PostgresDailyRecapCollectionRepository } from '../../src/infrastructure/database/postgres-daily-recap-collection-repository.js';
 import {
   guildConfigurations,
   guildMemberPresences,
@@ -184,6 +185,38 @@ describe('database foundation', () => {
     expect(clearedConfiguration?.updatedAt.getTime()).toBeGreaterThan(
       beforeClear.updatedAt.getTime(),
     );
+  });
+
+  it('loads recap collection accounts with baselines only from the requested guild', async () => {
+    const accounts = new PostgresAccountRegistrationRepository(connection.database);
+    const recaps = new PostgresDailyRecapCollectionRepository(connection.database);
+
+    await accounts.register(
+      account({
+        displayUsername: 'Recap Guild One',
+        guildId: 'recap-collection-guild-one',
+        id: 'recap-collection-one',
+        normalizedUsername: 'recap guild one',
+      }),
+      initialRecapBaseline(),
+    );
+    await accounts.register(
+      account({
+        displayUsername: 'Recap Guild Two',
+        guildId: 'recap-collection-guild-two',
+        id: 'recap-collection-two',
+        normalizedUsername: 'recap guild two',
+      }),
+      initialRecapBaseline(),
+    );
+
+    const results = await recaps.listForGuild('recap-collection-guild-one');
+    expect(results).toHaveLength(1);
+    const [result] = results;
+    expect(result?.account.id).toBe('recap-collection-one');
+    expect(result?.baseline.bossKillCounts).toEqual({ Zulrah: 12 });
+    expect(result?.baseline.skillExperience).toEqual({ Attack: 1234 });
+    expect(result?.baseline.skillLevels).toEqual({ Attack: 10 });
   });
 
   it('keeps durable recap runs and deliveries in their owning guild', async () => {

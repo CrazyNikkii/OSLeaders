@@ -19,11 +19,11 @@ merged.
 
 ## Current implementation stage
 
-Stage 6 - Lookups and permanent leaderboards (complete for the approved
-slash-command-only v1 scope). Daily recaps have been intentionally
-reprioritized ahead of competitions so the bot can provide useful automatic
-activity posts to a private server while competition development continues
-afterward.
+Stage 7 - Daily recaps. Stage 6 - Lookups and permanent leaderboards is
+complete for the approved slash-command-only v1 scope. Daily recaps have been
+intentionally reprioritized ahead of competitions so the bot can provide useful
+automatic activity posts to a private server while competition development
+continues afterward.
 
 The merged skill-lookup foundation begins the lookup module with a
 Discord-independent, guild-scoped skill lookup service. It resolves a
@@ -310,31 +310,34 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
-`e60bfb3` (2026-07-30) - Add Discord one-time boss lookup.
+`abbb314` (2026-07-30) - Add daily recap configuration foundation.
 
-This merged the separate guild-only `/one-time-boss` flow, including a username
-modal, private mode and bounded boss selection menus, a transient Hiscores
-lookup, public successful results, development command/runtime wiring,
-documentation, and focused tests.
+This merged the first reprioritized Stage 7 foundation. It adds guild-scoped
+recap configuration fields (channel, local time, IANA timezone, and enabled
+state), durable recap-run retry and failure metadata, and one durable delivery
+record per run with guild-consistent ownership constraints and automatic-run
+schedule identity. The migration and Drizzle metadata are reviewed, with
+focused configuration and PostgreSQL integration tests.
 
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
 ## Current unmerged implementation work
 
-`codex/daily-recap-configuration-foundation` begins the reprioritized Stage 7
-work. It adds the guild-scoped recap configuration fields (channel, local time,
-IANA timezone, and enabled state), plus durable recap-run retry and failure
-metadata and one durable delivery record per run with guild-consistent ownership
-constraints and automatic-run schedule identity. This is not yet merged and
-must not be treated as completed
-implementation work.
+`codex/daily-recap-collection-calculation` continues the reprioritized Stage 7
+work. It adds a Discord-independent recap collection and calculation service
+that loads guild-scoped accounts and rolling baselines, bypasses the ordinary
+Hiscores cache, calculates positive-only changes, and returns candidate
+replacement baselines only for complete successful results. Failed or
+incomplete account fetches retain their previous baselines. This is not yet
+merged and must not be treated as completed implementation work.
 
 ## Next recommended branch-sized task
 
-After the recap configuration foundation is merged, add the Discord-independent
-recap collection and calculation service. Keep that branch limited to loading
-guild-scoped tracked accounts and baselines, collecting fresh complete
-Hiscores, calculating positive-only changes, and preserving failed-account
-baselines. Do not add Discord delivery, manual-send confirmation, or scheduling
-until the calculation result is reviewed.
+After the recap collection and calculation work is merged, add a
+Discord-independent recap presentation and preview service. Keep that branch
+limited to grouping positive changes by linked Discord user and separate
+watchlist accounts, rendering no-activity and failure summaries, and producing
+a preview without advancing baselines or posting to Discord. Do not add manual
+send confirmation, baseline advancement, delivery, or scheduling until the
+preview result is reviewed.
