@@ -17,6 +17,7 @@ const VALID_ENVIRONMENT: NodeJS.ProcessEnv = {
   DATABASE_POOL_MAX: '4',
   DATABASE_URL: 'postgresql://osleaders_dev:private@localhost:5432/osleaders_dev',
   DISCORD_APPLICATION_ID: '123456789012345678',
+  DISCORD_DEVELOPMENT_GUILD_ID: '987654321098765432',
   DISCORD_TOKEN: 'private-development-token',
   LOG_LEVEL: 'info',
   NODE_ENV: 'development',
@@ -53,6 +54,7 @@ describe('runtime environment configuration', () => {
       },
       discord: {
         applicationId: '123456789012345678',
+        developmentGuildId: '987654321098765432',
         token: 'private-development-token',
       },
       environment: 'development',
@@ -67,6 +69,16 @@ describe('runtime environment configuration', () => {
         NODE_ENV: 'production',
       }).environment,
     ).toBe('production');
+  });
+
+  it('allows production configuration without a development guild', () => {
+    expect(
+      parseRuntimeConfiguration({
+        ...VALID_ENVIRONMENT,
+        DISCORD_DEVELOPMENT_GUILD_ID: undefined,
+        NODE_ENV: 'production',
+      }).discord.developmentGuildId,
+    ).toBeUndefined();
   });
 
   it.each(['debug', 'info', 'warn', 'error'] as const)('accepts the %s log level', (logLevel) => {
@@ -135,6 +147,18 @@ describe('runtime environment configuration', () => {
         'DISCORD_APPLICATION_ID must contain decimal digits only.',
       );
       expect((thrownError as Error).message).not.toContain(applicationId);
+    },
+  );
+
+  it.each(['abc', '123.5', '-123'])(
+    'rejects the invalid development guild ID %s without echoing it',
+    (guildId) => {
+      expect(() => {
+        parseRuntimeConfiguration({
+          ...VALID_ENVIRONMENT,
+          DISCORD_DEVELOPMENT_GUILD_ID: guildId,
+        });
+      }).toThrow('DISCORD_DEVELOPMENT_GUILD_ID must contain decimal digits only.');
     },
   );
 

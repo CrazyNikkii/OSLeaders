@@ -17,6 +17,8 @@
     "db:migrate": "drizzle-kit migrate --config=drizzle.dev.config.ts",
     "db:test:reset": "node --env-file-if-exists=.env.test --import tsx scripts/reset-test-database.ts",
     "db:test:migrate": "node --env-file-if-exists=.env.test ./node_modules/drizzle-kit/bin.cjs migrate --config=drizzle.test.config.ts",
+    "discord:commands:development": "tsx scripts/register-development-discord-commands.ts",
+    "dev": "tsx src/main.ts",
     "test:unit": "vitest run --exclude test/integration/**",
     "test:integration": "npm run db:test:reset -- --confirm osleaders_test && npm run db:test:migrate && node --env-file-if-exists=.env.test ./node_modules/vitest/vitest.mjs run --config vitest.integration.config.ts --no-file-parallelism",
     "test": "npm run test:unit && npm run test:integration",

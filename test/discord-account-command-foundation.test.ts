@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { Events, MessageFlags } from 'discord.js';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   AccountDefaultSelectionCommandHandler,
@@ -10,6 +11,7 @@ import {
   InMemoryAccountRegistrationSessionStore,
   InMemoryDestructiveConfirmationStore,
   accountCommandDefinitions,
+  bindDiscordAccountCommandAdapter,
   createAccountDefaultSelectionCommandHandler,
   createDiscordAccountCommandAdapter,
   type AccountCommandPermissionEvaluator,
@@ -27,6 +29,34 @@ import type {
 } from '../src/features/accounts/register-account.js';
 
 describe('Discord account command foundation', () => {
+  it('does not dispatch interactions rejected by the binding predicate', async () => {
+    const listeners = new Map<string, (interaction: never) => void>();
+    const client = {
+      on: (event: string, listener: (interaction: never) => void) => {
+        listeners.set(event, listener);
+      },
+    };
+    const adapter = { handle: vi.fn(() => Promise.resolve()) };
+
+    bindDiscordAccountCommandAdapter(
+      client as never,
+      adapter as never,
+      () => undefined,
+      (interaction) => interaction.guildId === 'guild-one',
+    );
+
+    const listener = listeners.get(Events.InteractionCreate);
+    if (listener === undefined) {
+      throw new Error('Expected an interaction listener.');
+    }
+    listener({ guildId: 'guild-two' } as never);
+    listener({ guildId: 'guild-one', isAutocomplete: () => true } as never);
+    await Promise.resolve();
+
+    expect(adapter.handle).toHaveBeenCalledOnce();
+    expect(adapter.handle).toHaveBeenCalledWith(expect.objectContaining({ guildId: 'guild-one' }));
+  });
+
   it('publishes registration announcements through a sendable interaction channel', async () => {
     const publisher = new DiscordRegistrationAnnouncementPublisher();
     const messages: unknown[] = [];
@@ -259,7 +289,7 @@ describe('Discord account command foundation', () => {
     expect(replies).toEqual([
       {
         content: '**Account One** is now the default account.',
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       },
     ]);
   });
@@ -397,9 +427,9 @@ describe('Discord account command foundation', () => {
     expect(replies).toHaveLength(1);
     const response = replies[0] as {
       components: { components: { data: { custom_id: string } }[] }[];
-      ephemeral: boolean;
+      flags: MessageFlags;
     };
-    expect(response.ephemeral).toBe(true);
+    expect(response.flags).toBe(MessageFlags.Ephemeral);
     const customId = response.components[0]?.components[0]?.data.custom_id;
     if (customId === undefined) {
       throw new Error('Expected a confirmation button.');
@@ -971,7 +1001,6 @@ interface ModalResponse {
 interface ComponentResponse {
   components: { toJSON(): { components: { custom_id: string; options?: unknown[] }[] } }[];
   content: string;
-  ephemeral?: boolean;
 }
 
 function registrationCommand(showModal: (modal: ModalResponse) => Promise<void>) {

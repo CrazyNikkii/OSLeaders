@@ -1,0 +1,37 @@
+# Development Discord testing
+
+Use a separate development Discord application, bot token, guild, and local
+`osleaders_dev` PostgreSQL database. Never point these commands at production.
+
+1. Copy `.env.example` to `.env` and supply the development application ID,
+   bot token, and development guild ID. Keep `NODE_ENV=development` and use a
+   local `osleaders_dev` database URL.
+2. Install the locked dependencies with `npm ci` and apply migrations with
+   `npm run db:migrate`.
+3. Invite the development bot to the development guild with the `bot` and
+   `applications.commands` scopes. It needs permission to view the channel,
+   send messages, and use application commands.
+4. Run `npm run discord:commands:development`. This registers `/account` in
+   only the configured development guild, so command updates are available
+   without waiting for global Discord command propagation.
+5. Run `npm run dev`. Startup verifies PostgreSQL before logging the bot in;
+   stop it with Ctrl+C to close Discord and the database connection.
+
+## Current vertical-slice checklist
+
+1. Run `/account register`, choose a watchlist account, select the correct
+   mode, and complete the flow with a real fetchable OSRS username. Confirm the
+   public registration message appears and the account persists after restarting
+   the bot.
+2. Register two linked accounts for yourself. Confirm the first becomes the
+   default, then use `/account default` to select the other one.
+3. Run `/account remove` for one account. Confirm that the button is required,
+   another member cannot use your confirmation, and the replacement default is
+   clearly reported when applicable.
+4. Attempt a duplicate registration with changed capitalization and confirm it
+   is rejected within the same guild.
+5. Test an invalid or unavailable username and confirm no account is persisted.
+
+Administrative-log configuration does not yet have a Discord configuration
+command, so that optional delivery path remains covered by adapter tests until
+the configuration interface is implemented.
