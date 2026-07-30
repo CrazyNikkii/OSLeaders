@@ -28,6 +28,11 @@ import {
   createSkillLookupCommandHandler,
   DiscordSkillLookupCommandAdapter,
 } from './skill-lookup-command.js';
+import {
+  bindDiscordOneTimeSkillLookupCommandAdapter,
+  DiscordOneTimeSkillLookupCommandAdapter,
+  OneTimeSkillLookupCommandHandler,
+} from './one-time-skill-lookup-command.js';
 
 export interface DevelopmentDiscordRuntime {
   close(): Promise<void>;
@@ -94,6 +99,9 @@ export async function startDevelopmentDiscordRuntime(
         new SkillLookupService(accountRepository, hiscores),
       ),
     );
+    const oneTimeSkillLookupAdapter = new DiscordOneTimeSkillLookupCommandAdapter(
+      new OneTimeSkillLookupCommandHandler(new SkillLookupService(accountRepository, hiscores)),
+    );
 
     bindDiscordAccountCommandAdapter(
       client,
@@ -104,6 +112,12 @@ export async function startDevelopmentDiscordRuntime(
     bindDiscordSkillLookupCommandAdapter(
       client,
       skillLookupAdapter,
+      (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
+      (interaction) => interaction.guildId === configuration.discord.developmentGuildId,
+    );
+    bindDiscordOneTimeSkillLookupCommandAdapter(
+      client,
+      oneTimeSkillLookupAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.developmentGuildId,
     );

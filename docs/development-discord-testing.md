@@ -11,9 +11,9 @@ Use a separate development Discord application, bot token, guild, and local
 3. Invite the development bot to the development guild with the `bot` and
    `applications.commands` scopes. It needs permission to view the channel,
    send messages, and use application commands.
-4. Run `npm run discord:commands:development`. This registers `/account` in
-   only the configured development guild, so command updates are available
-   without waiting for global Discord command propagation.
+4. Run `npm run discord:commands:development`. This registers the current
+   commands in only the configured development guild, so command updates are
+   available without waiting for global Discord command propagation.
 5. Run `npm run dev`. Startup verifies PostgreSQL before logging the bot in;
    stop it with Ctrl+C to close Discord and the database connection.
 
@@ -31,6 +31,10 @@ Use a separate development Discord application, bot token, guild, and local
 4. Attempt a duplicate registration with changed capitalization and confirm it
    is rejected within the same guild.
 5. Test an invalid or unavailable username and confirm no account is persisted.
+6. Run `/one-time-skill`, enter an unregistered OSRS username, select its mode
+   and a skill, and confirm the private result has the expected level,
+   experience, rank, and text mode label. Restart the bot and confirm no
+   tracked account was created.
 
 Administrative-log configuration does not yet have a Discord configuration
 command, so that optional delivery path remains covered by adapter tests until

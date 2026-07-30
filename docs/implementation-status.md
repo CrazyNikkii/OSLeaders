@@ -40,6 +40,17 @@ private. Focused adapter, runtime-binding, and development-command
 registration tests cover command definition, target isolation, presentation,
 failure translation, and development-guild interaction wiring.
 
+The implemented but unmerged Discord one-time skill-lookup adapter adds the
+separate guild-only `/one-time-skill` guided flow. It collects a username in a
+modal, then mode and canonical skill choices through an initiator- and
+guild-bound five-minute session. It delegates only to the existing transient
+lookup target, so no tracked account, quota, or recap baseline is persisted.
+The flow and result remain private, while its found-result embed and failure
+translation reuse the established skill-lookup presenter. Focused tests cover
+the command, complete interaction chain, selected mode, session binding and
+expiry, development command registration, and runtime wiring. This work is
+implemented on `codex/discord-one-time-skill-lookup` but is not merged.
+
 The merged account-registration foundation provides a
 guild-scoped tracked-account schema and reviewed migration; stable account IDs;
 normalized username uniqueness per guild; linked and watchlist associations;
@@ -232,6 +243,7 @@ authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-Add the guided one-time skill-lookup flow
-(`codex/discord-one-time-skill-lookup`) using the already merged transient
-lookup target.
+Review and merge the implemented one-time skill-lookup flow
+(`codex/discord-one-time-skill-lookup`). After it is merged, add the
+Discord-independent skill-leaderboard foundation
+(`codex/skill-leaderboard-foundation`).

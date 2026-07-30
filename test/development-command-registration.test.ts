@@ -7,7 +7,7 @@ import {
 } from '../src/infrastructure/discord/development-command-registration.js';
 
 describe('development Discord command registration', () => {
-  it('registers account and skill commands in the configured development guild', async () => {
+  it('registers account, tracked-skill, and one-time-skill commands in the configured development guild', async () => {
     const registrar = new RecordingRegistrar();
 
     await registerDevelopmentDiscordCommands(configuration(), registrar);
@@ -21,6 +21,7 @@ describe('development Discord command registration', () => {
     expect(registrar.requests[0]?.commands).toEqual([
       expect.objectContaining({ name: 'account' }),
       expect.objectContaining({ name: 'skill' }),
+      expect.objectContaining({ name: 'one-time-skill' }),
     ]);
   });
 
