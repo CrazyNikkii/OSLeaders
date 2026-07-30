@@ -125,8 +125,7 @@ valid and the initiator receives a private delivery-failure notice. Focused
 adapter tests cover success, unsuccessful registrations, delivery failures, and
 the concrete channel publisher.
 
-The current unmerged branch,
-`codex/discord-account-registration-administrative-log`, adds registration
+The merged registration administrative-log work adds registration
 delivery to the configured administrative log channel. It resolves the
 configuration and channel within the invoking guild, applies the existing
 Standard/Verbose audit-delivery policy, and sends only the fixed registration
@@ -135,11 +134,10 @@ the provided composition factory wires it from guild configuration. Missing
 configuration and Discord delivery failures do not undo a completed registration
 or its public announcement. Focused adapter tests cover configured and
 unconfigured delivery, guild-scoped channel resolution, required wiring, and
-the completed registration flow. This work is not yet merged.
+the completed registration flow.
 
-Stage 5 is not complete. The current unmerged branch adds administrative-channel
-delivery; the durable daily-recap run, scheduling, and delivery work remain
-owned by later slices.
+Stage 5 is not complete. The durable daily-recap run, scheduling, and delivery
+work remain owned by later slices.
 
 ## Later planned stages
 
@@ -163,10 +161,10 @@ confirmation, bounded in-memory cleanup, and focused adapter tests.
 
 ## Latest merged implementation work
 
-`a9cef4b` (2026-07-30) - Merge registration success announcements.
+`dd579ab` (2026-07-30) - Merge registration administrative log delivery.
 
-This merged public registration-success announcements in the invoking guild
-channel, including delivery-failure handling and focused adapter tests.
+This merged guild-scoped administrative-log delivery for successful account
+registrations, including required publisher wiring and focused adapter tests.
 
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
