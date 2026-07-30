@@ -50,6 +50,16 @@ translation reuse the established skill-lookup presenter. Focused tests cover
 the command, complete interaction chain, selected mode, session binding and
 expiry, development command registration, and runtime wiring.
 
+The unmerged skill-leaderboard foundation on
+`codex/skill-leaderboard-foundation` adds a Discord-independent, guild-scoped
+service that fetches every tracked account through its stored mode's Hiscores
+endpoint, returns successful level/XP entries sorted by experience, and keeps
+per-account Hiscores or incomplete-response failures separate. It preserves
+linked and watchlist accounts as individual entries. Focused unit tests cover
+guild isolation, endpoint selection, deterministic ordering, partial failure,
+incomplete results, and empty guilds. This work is awaiting review and is not
+yet merged.
+
 The merged account-registration foundation provides a
 guild-scoped tracked-account schema and reviewed migration; stable account IDs;
 normalized username uniqueness per guild; linked and watchlist associations;
@@ -241,5 +251,6 @@ authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-Add the Discord-independent skill-leaderboard foundation
-(`codex/skill-leaderboard-foundation`).
+Review and merge the unmerged Discord-independent skill-leaderboard foundation
+(`codex/skill-leaderboard-foundation`). After it is merged, add the Discord
+skill-leaderboard adapter with top-10/default and all-results presentation.
