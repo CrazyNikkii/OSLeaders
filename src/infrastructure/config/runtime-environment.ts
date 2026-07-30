@@ -18,6 +18,7 @@ export interface RuntimeConfiguration {
   database: DatabaseConfiguration;
   discord: {
     applicationId: string;
+    developmentGuildId: string | undefined;
     token: string;
   };
   environment: RuntimeEnvironment;
@@ -37,6 +38,7 @@ export function parseRuntimeConfiguration(environment: NodeJS.ProcessEnv): Runti
       applicationId: parseDiscordApplicationId(
         requiredConfiguredEnvironmentValue(environment, 'DISCORD_APPLICATION_ID'),
       ),
+      developmentGuildId: optionalDiscordGuildId(environment.DISCORD_DEVELOPMENT_GUILD_ID),
       token: requiredConfiguredEnvironmentValue(environment, 'DISCORD_TOKEN'),
     },
     environment: parseRuntimeEnvironment(requiredEnvironmentValue(environment, 'NODE_ENV')),
@@ -44,9 +46,21 @@ export function parseRuntimeConfiguration(environment: NodeJS.ProcessEnv): Runti
   };
 }
 
+function optionalDiscordGuildId(value: string | undefined): string | undefined {
+  if (value === undefined || value.trim().length === 0) {
+    return undefined;
+  }
+
+  return parseDiscordSnowflake(value, 'DISCORD_DEVELOPMENT_GUILD_ID');
+}
+
 function parseDiscordApplicationId(value: string): string {
+  return parseDiscordSnowflake(value, 'DISCORD_APPLICATION_ID');
+}
+
+function parseDiscordSnowflake(value: string, environmentVariableName: string): string {
   if (!/^\d+$/.test(value)) {
-    throw new Error('DISCORD_APPLICATION_ID must contain decimal digits only.');
+    throw new Error(`${environmentVariableName} must contain decimal digits only.`);
   }
 
   return value;

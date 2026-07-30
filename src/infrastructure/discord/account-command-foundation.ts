@@ -3,6 +3,7 @@ import {
   ButtonBuilder,
   ButtonStyle,
   Events,
+  MessageFlags,
   ModalBuilder,
   PermissionFlagsBits,
   Routes,
@@ -15,6 +16,7 @@ import {
   type ButtonInteraction,
   type ChatInputCommandInteraction,
   type Client,
+  type Interaction,
   type ModalSubmitInteraction,
   type REST,
   type StringSelectMenuInteraction,
@@ -931,12 +933,12 @@ export class DiscordAccountCommandAdapter {
           ),
         ],
         content: result.message,
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
       return;
     }
 
-    await interaction.reply({ content: result.message, ephemeral: true });
+    await interaction.reply({ content: result.message, flags: MessageFlags.Ephemeral });
   }
 
   private async handleDefaultSelection(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -944,7 +946,7 @@ export class DiscordAccountCommandAdapter {
       toGuildInteractionContext(interaction),
       interaction.options.getString(ACCOUNT_OPTION_NAME, true),
     );
-    await interaction.reply({ content: result.message, ephemeral: true });
+    await interaction.reply({ content: result.message, flags: MessageFlags.Ephemeral });
   }
 
   private async handleButton(interaction: ButtonInteraction): Promise<void> {
@@ -966,7 +968,7 @@ export class DiscordAccountCommandAdapter {
     }
     const result = await this.registrationHandler.start(toGuildInteractionContext(interaction));
     if (result.kind !== 'username_required') {
-      await interaction.reply({ content: result.message, ephemeral: true });
+      await interaction.reply({ content: result.message, flags: MessageFlags.Ephemeral });
       return;
     }
     await interaction.showModal(usernameModal(result.customId));
@@ -1054,8 +1056,12 @@ export function bindDiscordAccountCommandAdapter(
   client: Client,
   adapter: DiscordAccountCommandAdapter,
   reportUnexpectedError: (error: unknown) => void,
+  shouldHandleInteraction: (interaction: Interaction) => boolean = () => true,
 ): void {
   client.on(Events.InteractionCreate, (interaction) => {
+    if (!shouldHandleInteraction(interaction)) {
+      return;
+    }
     if (
       interaction.isAutocomplete() ||
       interaction.isButton() ||
@@ -1239,7 +1245,7 @@ async function replyRegistrationResult(
   interaction: ModalSubmitInteraction,
   result: AccountRegistrationCommandResult,
 ): Promise<void> {
-  await interaction.reply(registrationResponse(result));
+  await interaction.reply({ ...registrationResponse(result), flags: MessageFlags.Ephemeral });
 }
 
 async function updateRegistrationResult(
@@ -1272,7 +1278,6 @@ function registrationResponse(result: AccountRegistrationCommandResult) {
           ),
         ],
         content: result.message,
-        ephemeral: true,
       };
     case 'member_selection':
       return {
@@ -1286,7 +1291,6 @@ function registrationResponse(result: AccountRegistrationCommandResult) {
           ),
         ],
         content: result.message,
-        ephemeral: true,
       };
     case 'mode_selection':
       return {
@@ -1307,16 +1311,14 @@ function registrationResponse(result: AccountRegistrationCommandResult) {
           ),
         ],
         content: result.message,
-        ephemeral: true,
       };
     case 'username_required':
       return {
         components: [],
         content: 'Run `/account register` again to enter an OSRS username.',
-        ephemeral: true,
       };
     default:
-      return { components: [], content: result.message, ephemeral: true };
+      return { components: [], content: result.message };
   }
 }
 
