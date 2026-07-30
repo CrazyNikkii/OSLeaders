@@ -117,15 +117,13 @@ interaction chain, configured emoji rendering, self-service watchlist flow,
 manager-linked flow, session binding, and expiry. This work is implemented and
 merged.
 
-The current unmerged branch,
-`codex/discord-account-registration-announcements`, adds a public
-registration-success announcement to the invoking guild channel after the
-account registration service reports success. The guided interaction and
-unsuccessful registration results remain ephemeral. If Discord cannot publish
-the announcement, the completed registration remains valid and the initiator
-receives a private delivery-failure notice. Focused adapter tests cover success,
-unsuccessful registrations, delivery failures, and the concrete channel
-publisher. This work is not yet merged, so Stage 5 remains incomplete.
+The merged public registration-success announcement work adds delivery to the
+invoking guild channel after the account registration service reports success.
+The guided interaction and unsuccessful registration results remain ephemeral.
+If Discord cannot publish the announcement, the completed registration remains
+valid and the initiator receives a private delivery-failure notice. Focused
+adapter tests cover success, unsuccessful registrations, delivery failures, and
+the concrete channel publisher.
 
 Stage 5 is not complete. It does not yet add administrative-channel delivery,
 or the durable daily-recap run, scheduling, and delivery work owned by later
@@ -153,17 +151,15 @@ confirmation, bounded in-memory cleanup, and focused adapter tests.
 
 ## Latest merged implementation work
 
-`e784616` (2026-07-30) - Merge Discord account registration flow.
+`a9cef4b` (2026-07-30) - Merge registration success announcements.
 
-This merged the guided `/account register` Discord interaction flow and
-guild-scoped optional mode-emoji configuration, including the reviewed
-PostgreSQL migration and focused adapter, unit, and integration tests.
+This merged public registration-success announcements in the invoking guild
+channel, including delivery-failure handling and focused adapter tests.
 
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-After the current announcement branch is merged, add registration delivery to
-the configured administrative log channel
+Add registration delivery to the configured administrative log channel
 (`codex/discord-account-registration-administrative-log`).
