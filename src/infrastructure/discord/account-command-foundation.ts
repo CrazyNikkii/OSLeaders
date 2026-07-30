@@ -48,6 +48,7 @@ import {
   GuildConfigurationService,
   type GuildModeEmojis,
 } from '../../features/guild-configuration/guild-configuration-service.js';
+import { shouldDeliverAdministrativeAuditEvent } from '../../features/audit/administrative-audit-policy.js';
 import {
   OSRS_ACCOUNT_MODES,
   type OsrsAccountMode,
@@ -654,12 +655,68 @@ export class DiscordRegistrationAnnouncementPublisher implements RegistrationAnn
   }
 }
 
+export interface RegistrationAdministrativeLogPublisher {
+  publish(interaction: StringSelectMenuInteraction, message: string): Promise<void>;
+}
+
+export class DiscordRegistrationAdministrativeLogPublisher implements RegistrationAdministrativeLogPublisher {
+  public constructor(
+    private readonly configuration: Pick<GuildConfigurationService, 'getOrCreate'>,
+  ) {}
+
+  public async publish(interaction: StringSelectMenuInteraction, message: string): Promise<void> {
+    if (interaction.guildId === null) {
+      return;
+    }
+
+    const configuration = await this.configuration.getOrCreate(interaction.guildId);
+    if (
+      configuration.administrativeLogChannelId === null ||
+      !shouldDeliverAdministrativeAuditEvent(
+        {
+          guildId: interaction.guildId,
+          occurredAt: new Date(),
+          operation: 'account.register',
+          severity: 'info',
+          type: 'account-registration',
+        },
+        configuration.administrativeLogMode,
+      )
+    ) {
+      return;
+    }
+
+    const channel = await interaction.guild?.channels.fetch(
+      configuration.administrativeLogChannelId,
+    );
+    if (!channel?.isSendable()) {
+      throw new Error('The configured administrative log channel is not available.');
+    }
+    await channel.send({ content: message });
+  }
+}
+
+class NoopRegistrationAdministrativeLogPublisher implements RegistrationAdministrativeLogPublisher {
+  public publish(): Promise<void> {
+    return Promise.resolve();
+  }
+}
+
 export class DiscordAccountCommandAdapter {
+  private readonly registrationAdministrativeLogPublisher: RegistrationAdministrativeLogPublisher;
+
   public constructor(
     private readonly removalHandler: AccountRemovalCommandHandler,
     private readonly registrationHandler?: AccountRegistrationCommandHandler,
     private readonly registrationAnnouncementPublisher: RegistrationAnnouncementPublisher = new DiscordRegistrationAnnouncementPublisher(),
-  ) {}
+    registrationAdministrativeLogPublisher?: RegistrationAdministrativeLogPublisher,
+  ) {
+    if (registrationHandler !== undefined && registrationAdministrativeLogPublisher === undefined) {
+      throw new Error('Registration support requires an administrative log publisher.');
+    }
+    this.registrationAdministrativeLogPublisher =
+      registrationAdministrativeLogPublisher ?? new NoopRegistrationAdministrativeLogPublisher();
+  }
 
   public async handle(
     interaction:
@@ -820,6 +877,14 @@ export class DiscordAccountCommandAdapter {
             content: `${result.message} The public registration announcement could not be posted.`,
           });
         }
+        try {
+          await this.registrationAdministrativeLogPublisher.publish(
+            interaction,
+            result.announcement,
+          );
+        } catch {
+          // Administrative delivery is an optional side effect and must not undo registration.
+        }
       }
     }
   }
@@ -889,6 +954,19 @@ export function createAccountRegistrationCommandHandler(
     permissions,
     sessions: new InMemoryAccountRegistrationSessionStore(),
   });
+}
+
+export function createDiscordAccountCommandAdapter(
+  removalHandler: AccountRemovalCommandHandler,
+  registrationHandler: AccountRegistrationCommandHandler,
+  configuration: Pick<GuildConfigurationService, 'getOrCreate'>,
+): DiscordAccountCommandAdapter {
+  return new DiscordAccountCommandAdapter(
+    removalHandler,
+    registrationHandler,
+    new DiscordRegistrationAnnouncementPublisher(),
+    new DiscordRegistrationAdministrativeLogPublisher(configuration),
+  );
 }
 
 function toGuildInteractionContext(

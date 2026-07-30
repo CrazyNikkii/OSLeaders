@@ -125,9 +125,21 @@ valid and the initiator receives a private delivery-failure notice. Focused
 adapter tests cover success, unsuccessful registrations, delivery failures, and
 the concrete channel publisher.
 
-Stage 5 is not complete. It does not yet add administrative-channel delivery,
-or the durable daily-recap run, scheduling, and delivery work owned by later
-slices.
+The current unmerged branch,
+`codex/discord-account-registration-administrative-log`, adds registration
+delivery to the configured administrative log channel. It resolves the
+configuration and channel within the invoking guild, applies the existing
+Standard/Verbose audit-delivery policy, and sends only the fixed registration
+summary. Registration-enabled adapter construction requires this publisher, and
+the provided composition factory wires it from guild configuration. Missing
+configuration and Discord delivery failures do not undo a completed registration
+or its public announcement. Focused adapter tests cover configured and
+unconfigured delivery, guild-scoped channel resolution, required wiring, and
+the completed registration flow. This work is not yet merged.
+
+Stage 5 is not complete. The current unmerged branch adds administrative-channel
+delivery; the durable daily-recap run, scheduling, and delivery work remain
+owned by later slices.
 
 ## Later planned stages
 
@@ -161,5 +173,5 @@ authority for the latest repository change.
 
 ## Next recommended branch-sized task
 
-Add registration delivery to the configured administrative log channel
-(`codex/discord-account-registration-administrative-log`).
+Add the Discord `/account` default-account selection command
+(`codex/discord-account-default-selection`).
