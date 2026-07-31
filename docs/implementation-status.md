@@ -325,13 +325,27 @@ authority for the latest repository change.
 
 ## Current unmerged implementation work
 
-None.
+`codex/daily-recap-send-foundation` implements the Discord-independent durable
+manual-recap-send foundation. It claims one active recap run per guild before
+fresh collection, requires a configured recap channel, and records collection
+failure without advancing baselines. On successful collection, one serialized
+PostgreSQL transaction advances only complete successful account baselines,
+persists every account outcome, and creates a pending durable change-only
+recap payload before marking the run ready for delivery. The payload retains
+activity, no-activity, and unavailable-account sections for later at-least-once
+delivery, including every successful account's last successful snapshot time
+so delayed recovery is not presented as a one-day comparison. The service and
+repository reject collection or account data from a different guild. Failed
+account baselines remain unchanged.
+Focused unit and PostgreSQL integration tests cover unavailable configuration,
+active-run exclusion, collection failure, guild isolation, pending delivery,
+and partial-success baseline replacement. The Discord confirmation command,
+public delivery, and retry handling remain outside this branch.
 
 ## Next recommended branch-sized task
 
-Start `codex/daily-recap-send-foundation` with the Discord-independent durable
-manual-recap-send workflow. It must fetch fresh Hiscores data, preserve
-per-account failure baselines, and atomically advance only complete successful
-baselines. The later Discord adapter must require explicit confirmation. Do not
-add public Discord delivery or automatic scheduling until the durable workflow
-is reviewed.
+After this branch is merged, start `codex/discord-manual-daily-recap-send`.
+Add the guild-only `/recap send` adapter with administrator-or-bot-manager
+authorization and an initiator- and guild-bound explicit confirmation. It may
+call the durable manual-send workflow and present its pending delivery, but it
+must not yet add Discord public delivery or automatic scheduling.

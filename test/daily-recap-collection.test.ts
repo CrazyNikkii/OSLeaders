@@ -56,6 +56,7 @@ describe('daily recap collection service', () => {
             ],
           },
           kind: 'success',
+          previousBaselineCapturedAt: new Date('2026-07-30T10:00:00.000Z'),
         },
       ],
       startedAt: new Date('2026-07-31T10:00:00.000Z'),

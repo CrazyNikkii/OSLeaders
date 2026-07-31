@@ -8,6 +8,7 @@ import type {
 export interface DailyRecapAccountPresentation {
   account: TrackedAccount;
   changes: DailyRecapAccountChanges;
+  previousBaselineCapturedAt: Date;
 }
 
 export interface DailyRecapLinkedMemberPresentation {
@@ -61,7 +62,11 @@ export function presentDailyRecap(collection: DailyRecapCollectionResult): Daily
       continue;
     }
 
-    const account = { account: outcome.account, changes: outcome.changes };
+    const account = {
+      account: outcome.account,
+      changes: outcome.changes,
+      previousBaselineCapturedAt: outcome.previousBaselineCapturedAt,
+    };
     if (outcome.account.association.type === 'watchlist') {
       watchlistAccounts.push(account);
       continue;
