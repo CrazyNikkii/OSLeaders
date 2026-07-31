@@ -6,6 +6,9 @@ import { SkillLookupService } from '../../features/lookups/skill-lookup.js';
 import { SkillLeaderboardService } from '../../features/leaderboards/skill-leaderboard.js';
 import { BossLeaderboardService } from '../../features/leaderboards/boss-leaderboard.js';
 import { BossLookupService } from '../../features/lookups/boss-lookup.js';
+import { DailyRecapCollectionService } from '../../features/recaps/daily-recap-collection.js';
+import { DailyRecapPreviewService } from '../../features/recaps/daily-recap-presentation.js';
+import { PreviewDailyRecapService } from '../../features/recaps/preview-daily-recap.js';
 import { createErrorReferenceId } from '../../features/audit/error-reference.js';
 import { GuildConfigurationService } from '../../features/guild-configuration/guild-configuration-service.js';
 import { GuildPermissionService } from '../../features/guild-configuration/guild-permission-service.js';
@@ -13,6 +16,7 @@ import type { RuntimeConfiguration } from '../config/runtime-environment.js';
 import { createDatabaseConnection, type DatabaseConnection } from '../database/connection.js';
 import { PostgresAccountRegistrationRepository } from '../database/postgres-account-registration-repository.js';
 import { PostgresGuildConfigurationRepository } from '../database/postgres-guild-configuration-repository.js';
+import { PostgresDailyRecapCollectionRepository } from '../database/postgres-daily-recap-collection-repository.js';
 import { OsrsHiscoreHttpClient } from '../hiscores/osrs-hiscore-http-client.js';
 import { OSRS_MODE_FETCH_STRATEGIES } from '../hiscores/osrs-hiscore-catalog.js';
 import { StdoutStructuredLocalLogger } from '../logging/structured-local-logger.js';
@@ -56,6 +60,10 @@ import {
   DiscordOneTimeBossLookupCommandAdapter,
   OneTimeBossLookupCommandHandler,
 } from './one-time-boss-lookup-command.js';
+import {
+  bindDiscordDailyRecapPreviewCommandAdapter,
+  DiscordDailyRecapPreviewCommandAdapter,
+} from './daily-recap-preview-command.js';
 
 export interface DevelopmentDiscordRuntime {
   close(): Promise<void>;
@@ -144,6 +152,16 @@ export async function startDevelopmentDiscordRuntime(
         new BossLookupService(accountRepository, hiscores),
       ),
     );
+    const dailyRecapPreviewAdapter = new DiscordDailyRecapPreviewCommandAdapter(
+      new PreviewDailyRecapService(
+        new DailyRecapPreviewService(
+          new DailyRecapCollectionService(
+            new PostgresDailyRecapCollectionRepository(connection.database),
+            hiscores,
+          ),
+        ),
+      ),
+    );
 
     bindDiscordAccountCommandAdapter(
       client,
@@ -184,6 +202,12 @@ export async function startDevelopmentDiscordRuntime(
     bindDiscordBossLookupCommandAdapter(
       client,
       bossLookupAdapter,
+      (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
+      (interaction) => interaction.guildId === configuration.discord.developmentGuildId,
+    );
+    bindDiscordDailyRecapPreviewCommandAdapter(
+      client,
+      dailyRecapPreviewAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.developmentGuildId,
     );

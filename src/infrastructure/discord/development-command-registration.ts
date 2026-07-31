@@ -8,6 +8,7 @@ import { oneTimeBossLookupCommandDefinitions } from './one-time-boss-lookup-comm
 import { skillLeaderboardCommandDefinitions } from './skill-leaderboard-command.js';
 import { bossLeaderboardCommandDefinitions } from './boss-leaderboard-command.js';
 import { bossLookupCommandDefinitions } from './boss-lookup-command.js';
+import { dailyRecapPreviewCommandDefinitions } from './daily-recap-preview-command.js';
 
 export interface DevelopmentCommandRegistrar {
   put(applicationId: string, guildId: string, commands: readonly object[]): Promise<void>;
@@ -51,6 +52,7 @@ export async function registerDevelopmentDiscordCommands(
       ...skillLeaderboardCommandDefinitions,
       ...bossLeaderboardCommandDefinitions,
       ...bossLookupCommandDefinitions,
+      ...dailyRecapPreviewCommandDefinitions,
     ],
   );
 }
