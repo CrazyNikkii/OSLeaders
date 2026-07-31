@@ -310,40 +310,28 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
-`3c0a561` (2026-07-31) - Add daily recap preview foundation.
+`3e684cf` (2026-07-31) - Merge Discord daily recap preview.
 
-This merged the third reprioritized Stage 7 foundation. It transforms fresh
-collection outcomes into a Discord-independent structured preview: positive
-changes are grouped by linked Discord user, watchlist accounts and failures
-remain separate, and no-activity is explicit. Preview delegates only to the
-existing collection service and cannot advance baselines or deliver to Discord.
-Focused tests cover grouping, watchlist separation, failures, no activity, and
-the non-mutating dependency boundary.
+This merged the guild-only `/recap preview` adapter and private Discord
+presenter. It uses the existing non-mutating preview foundation, makes the
+preview available to every current guild member, rejects non-member contexts,
+and separates each account's boss activities and skills in bounded numbered
+embed pages. It does not advance baselines or post publicly. Development
+command registration and runtime wiring, together with focused authorization,
+adapter, and presenter tests, are included.
 
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
 ## Current unmerged implementation work
 
-`codex/discord-daily-recap-preview` adds the guild-only `/recap preview`
-Discord adapter and presenter. It delegates to the existing non-mutating
-preview service, keeps every response private, renders linked-member and
-watchlist changes separately, reports unavailable accounts, and splits long
-valid output into numbered bounded embeds or messages. It does not advance
-recap baselines or post to a guild channel. Development command registration
-and runtime wiring are included. Recap preview is intentionally available to
-every member of the current guild because it is private and non-mutating;
-the application service rejects non-member contexts before collection. The
-administrator-or-bot-manager restriction remains specific to the separate,
-baseline-advancing recap-send command. Focused authorization, adapter, and
-presenter tests are included. This work is implemented locally but is not yet
-merged.
+None.
 
 ## Next recommended branch-sized task
 
-After the preview interface is reviewed and merged, start
-`codex/daily-recap-send-foundation` with the Discord-independent durable
-manual-recap-send workflow. It must require a later Discord confirmation,
-fetch fresh Hiscores data, preserve per-account failure baselines, and atomically
-advance only complete successful baselines. Do not add public Discord delivery
-or automatic scheduling until the durable workflow is reviewed.
+Start `codex/daily-recap-send-foundation` with the Discord-independent durable
+manual-recap-send workflow. It must fetch fresh Hiscores data, preserve
+per-account failure baselines, and atomically advance only complete successful
+baselines. The later Discord adapter must require explicit confirmation. Do not
+add public Discord delivery or automatic scheduling until the durable workflow
+is reviewed.
