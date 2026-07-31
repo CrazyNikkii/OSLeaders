@@ -310,43 +310,30 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
-`396ec05` (2026-07-31) - Add daily recap delivery recovery.
+`064cbe7` (2026-07-31) - Merge automatic daily recap scheduling.
 
-This merged bounded automatic recovery for durable recap deliveries. PostgreSQL
-claims only due pending deliveries or expired in-progress leases, and Discord
-rejection persists capped retry delays. The development runtime performs a
-bounded recovery pass after login, continues at a restrained interval, prevents
-overlapping passes, and stops recovery before Discord and PostgreSQL close.
-Every recap post has a stable delivery identifier and retries are explicitly
-labelled, making ambiguous at-least-once retries conservatively identifiable.
-Focused unit and PostgreSQL integration tests cover retry scheduling, in-flight
-recovery guards, guild isolation, lease expiry, and failure persistence. This
-does not add automatic recap scheduling.
+This merged the first automatic-recap scheduling slice. Guild administrators
+and bot managers can configure the recap channel, enabled state, local time,
+and IANA timezone through `/recap configure`. It rejects malformed values and
+recurring local times that would be missing or ambiguous at an upcoming
+daylight-saving transition. A restrained in-process scheduler creates one
+durable, guild-scoped `pending_collection` automatic recap run for a due local
+time, safely catches up the most recent overdue occurrence at startup, and
+does not schedule future recaps early. PostgreSQL uniqueness makes repeated
+polling and restart attempts safe. Focused service, scheduler, command,
+adapter, repository, runtime, and PostgreSQL integration tests cover the work.
+Automatic collection and delivery of scheduled runs remain deferred.
 
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
 ## Current unmerged implementation work
 
-`codex/daily-recap-automatic-scheduling` adds the first automatic-recap
-scheduling slice. It provides guild-only administrator or bot-manager recap
-configuration for the recap channel, enabled state, local time, and IANA
-timezone. It rejects malformed values and recurring local times that would be
-missing or ambiguous at an upcoming daylight-saving transition rather than
-guessing. A restrained in-process scheduler creates one durable,
-guild-scoped `pending_collection` automatic recap run for a due local-time
-occurrence, relying on the existing `(guild_id, scheduled_for)` uniqueness
-constraint to make restart and polling repeats safe. Startup also creates the
-most recent overdue occurrence after local midnight, while routine polling
-does not schedule a future local-day recap early. It starts after Discord login
-and stops before the runtime closes. Focused service, scheduler, command,
-adapter, repository, and runtime tests cover the new behaviour. This work is
-unmerged; automatic collection and delivery of these scheduled runs are not yet
-implemented.
+None.
 
 ## Next recommended branch-sized task
 
-After this branch is merged, start `codex/daily-recap-automatic-collection`.
+Start `codex/daily-recap-automatic-collection`.
 Claim due automatic recap runs, collect fresh Hiscores, atomically advance only
 successful baselines, create durable deliveries, and hand them to the existing
 delivery/recovery path. Preserve per-guild serialization with manual recap
