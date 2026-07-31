@@ -326,14 +326,19 @@ authority for the latest repository change.
 
 ## Current unmerged implementation work
 
-None.
+`codex/daily-recap-presentation-preview` adds a Discord-independent recap
+presentation and preview service. It groups only positive changes by linked
+Discord user, keeps watchlist accounts separate, and returns structured
+no-activity and per-account failure results. It invokes the existing fresh
+collection service without advancing baselines or posting to Discord. This
+work is not merged and must not be recorded as completed until merged.
 
 ## Next recommended branch-sized task
 
-Start `codex/daily-recap-presentation-preview` with a Discord-independent
-recap presentation and preview service. Keep that branch limited to grouping
-positive changes by linked Discord user and separate watchlist accounts,
-rendering no-activity and failure summaries, and producing a preview without
-advancing baselines or posting to Discord. Do not add manual-send confirmation,
-baseline advancement, delivery, or scheduling until the preview result is
-reviewed.
+After this preview foundation is merged, start
+`codex/discord-daily-recap-preview` with the guild-only slash-command adapter
+and presenter that show the existing preview result privately. The presenter
+must create bounded, numbered Discord embeds or messages from the structured
+result without omitting valid data. Do not add baseline advancement,
+manual-send confirmation, public delivery, or scheduling until the preview
+interface is reviewed.
