@@ -18,6 +18,7 @@ import { PreviewDailyRecapService } from '../../features/recaps/preview-daily-re
 
 const RECAP_COMMAND_NAME = 'recap';
 const PREVIEW_SUBCOMMAND_NAME = 'preview';
+const SEND_SUBCOMMAND_NAME = 'send';
 const MAX_EMBED_DESCRIPTION_LENGTH = 4_096;
 const MAX_EMBEDS_PER_MESSAGE = 10;
 
@@ -30,6 +31,11 @@ export const dailyRecapPreviewCommandDefinitions = [
       subcommand
         .setName(PREVIEW_SUBCOMMAND_NAME)
         .setDescription('Privately preview the current daily recap without updating baselines.'),
+    )
+    .addSubcommand((subcommand) =>
+      subcommand
+        .setName(SEND_SUBCOMMAND_NAME)
+        .setDescription('Prepare a daily recap for delivery after confirmation.'),
     )
     .toJSON(),
 ] as const;

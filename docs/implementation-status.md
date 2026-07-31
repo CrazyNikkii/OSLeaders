@@ -310,42 +310,43 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
-`3e684cf` (2026-07-31) - Merge Discord daily recap preview.
+`04e5d0e` (2026-07-31) - Merge durable daily recap send foundation.
 
-This merged the guild-only `/recap preview` adapter and private Discord
-presenter. It uses the existing non-mutating preview foundation, makes the
-preview available to every current guild member, rejects non-member contexts,
-and separates each account's boss activities and skills in bounded numbered
-embed pages. It does not advance baselines or post publicly. Development
-command registration and runtime wiring, together with focused authorization,
-adapter, and presenter tests, are included.
+This merged the Discord-independent durable manual-recap-send foundation. It
+claims one active recap run per guild before fresh collection, requires a
+configured recap channel, and records collection failure without advancing
+baselines. On successful collection, one serialized PostgreSQL transaction
+advances only complete successful account baselines, persists every account
+outcome, and creates a pending durable change-only recap payload before
+marking the run ready for delivery. The payload retains activity, no-activity,
+and unavailable-account sections for later at-least-once delivery, including
+every successful account's last successful snapshot time so delayed recovery
+is not presented as a one-day comparison. The service and repository reject
+collection or account data from a different guild. Failed account baselines
+remain unchanged. Focused unit and PostgreSQL integration tests cover
+unavailable configuration, active-run exclusion, collection failure, guild
+isolation, pending delivery, and partial-success baseline replacement.
 
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
 ## Current unmerged implementation work
 
-`codex/daily-recap-send-foundation` implements the Discord-independent durable
-manual-recap-send foundation. It claims one active recap run per guild before
-fresh collection, requires a configured recap channel, and records collection
-failure without advancing baselines. On successful collection, one serialized
-PostgreSQL transaction advances only complete successful account baselines,
-persists every account outcome, and creates a pending durable change-only
-recap payload before marking the run ready for delivery. The payload retains
-activity, no-activity, and unavailable-account sections for later at-least-once
-delivery, including every successful account's last successful snapshot time
-so delayed recovery is not presented as a one-day comparison. The service and
-repository reject collection or account data from a different guild. Failed
-account baselines remain unchanged.
-Focused unit and PostgreSQL integration tests cover unavailable configuration,
-active-run exclusion, collection failure, guild isolation, pending delivery,
-and partial-success baseline replacement. The Discord confirmation command,
-public delivery, and retry handling remain outside this branch.
+`codex/discord-manual-daily-recap-send` adds the guild-only `/recap send`
+adapter. It requires Discord Administrator permission or the configured
+bot-manager role, then creates a one-time confirmation bound to the requesting
+member and guild with a five-minute expiry. A confirmed request invokes the
+existing durable manual-send workflow and privately reports whether a recap is
+ready for later delivery, not configured, or already running. It does not
+deliver publicly, retry deliveries, or schedule automatic recaps. Development
+command registration and runtime wiring are included. Focused adapter tests
+cover command definition, authorization, confirmation binding and expiry,
+guild-only handling, and pending-delivery presentation.
 
 ## Next recommended branch-sized task
 
-After this branch is merged, start `codex/discord-manual-daily-recap-send`.
-Add the guild-only `/recap send` adapter with administrator-or-bot-manager
-authorization and an initiator- and guild-bound explicit confirmation. It may
-call the durable manual-send workflow and present its pending delivery, but it
-must not yet add Discord public delivery or automatic scheduling.
+After this branch is merged, start `codex/daily-recap-discord-delivery`.
+Implement one durable-at-least-once Discord delivery attempt for the existing
+pending recap payload, including guild-scoped channel resolution, delivery
+status/message-reference persistence, and safe failure recording. Do not add
+automatic scheduling until manual delivery and recovery semantics are covered.

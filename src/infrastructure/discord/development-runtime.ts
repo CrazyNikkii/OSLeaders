@@ -9,6 +9,7 @@ import { BossLookupService } from '../../features/lookups/boss-lookup.js';
 import { DailyRecapCollectionService } from '../../features/recaps/daily-recap-collection.js';
 import { DailyRecapPreviewService } from '../../features/recaps/daily-recap-presentation.js';
 import { PreviewDailyRecapService } from '../../features/recaps/preview-daily-recap.js';
+import { ManualDailyRecapSendService } from '../../features/recaps/send-daily-recap.js';
 import { createErrorReferenceId } from '../../features/audit/error-reference.js';
 import { GuildConfigurationService } from '../../features/guild-configuration/guild-configuration-service.js';
 import { GuildPermissionService } from '../../features/guild-configuration/guild-permission-service.js';
@@ -17,6 +18,7 @@ import { createDatabaseConnection, type DatabaseConnection } from '../database/c
 import { PostgresAccountRegistrationRepository } from '../database/postgres-account-registration-repository.js';
 import { PostgresGuildConfigurationRepository } from '../database/postgres-guild-configuration-repository.js';
 import { PostgresDailyRecapCollectionRepository } from '../database/postgres-daily-recap-collection-repository.js';
+import { PostgresManualDailyRecapSendRepository } from '../database/postgres-manual-daily-recap-send-repository.js';
 import { OsrsHiscoreHttpClient } from '../hiscores/osrs-hiscore-http-client.js';
 import { OSRS_MODE_FETCH_STRATEGIES } from '../hiscores/osrs-hiscore-catalog.js';
 import { StdoutStructuredLocalLogger } from '../logging/structured-local-logger.js';
@@ -64,6 +66,10 @@ import {
   bindDiscordDailyRecapPreviewCommandAdapter,
   DiscordDailyRecapPreviewCommandAdapter,
 } from './daily-recap-preview-command.js';
+import {
+  bindDiscordManualDailyRecapSendCommandAdapter,
+  DiscordManualDailyRecapSendCommandAdapter,
+} from './manual-daily-recap-send-command.js';
 
 export interface DevelopmentDiscordRuntime {
   close(): Promise<void>;
@@ -162,6 +168,16 @@ export async function startDevelopmentDiscordRuntime(
         ),
       ),
     );
+    const manualDailyRecapSendAdapter = new DiscordManualDailyRecapSendCommandAdapter(
+      new ManualDailyRecapSendService(
+        new PostgresManualDailyRecapSendRepository(connection.database),
+        new DailyRecapCollectionService(
+          new PostgresDailyRecapCollectionRepository(connection.database),
+          hiscores,
+        ),
+      ),
+      permissions,
+    );
 
     bindDiscordAccountCommandAdapter(
       client,
@@ -208,6 +224,12 @@ export async function startDevelopmentDiscordRuntime(
     bindDiscordDailyRecapPreviewCommandAdapter(
       client,
       dailyRecapPreviewAdapter,
+      (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
+      (interaction) => interaction.guildId === configuration.discord.developmentGuildId,
+    );
+    bindDiscordManualDailyRecapSendCommandAdapter(
+      client,
+      manualDailyRecapSendAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.developmentGuildId,
     );
