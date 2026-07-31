@@ -325,13 +325,25 @@ authority for the latest repository change.
 
 ## Current unmerged implementation work
 
-None.
+`codex/discord-daily-recap-preview` adds the guild-only `/recap preview`
+Discord adapter and presenter. It delegates to the existing non-mutating
+preview service, keeps every response private, renders linked-member and
+watchlist changes separately, reports unavailable accounts, and splits long
+valid output into numbered bounded embeds or messages. It does not advance
+recap baselines or post to a guild channel. Development command registration
+and runtime wiring are included. Recap preview is intentionally available to
+every member of the current guild because it is private and non-mutating;
+the application service rejects non-member contexts before collection. The
+administrator-or-bot-manager restriction remains specific to the separate,
+baseline-advancing recap-send command. Focused authorization, adapter, and
+presenter tests are included. This work is implemented locally but is not yet
+merged.
 
 ## Next recommended branch-sized task
 
-Start `codex/discord-daily-recap-preview` with the guild-only slash-command adapter
-and presenter that show the existing preview result privately. The presenter
-must create bounded, numbered Discord embeds or messages from the structured
-result without omitting valid data. Do not add baseline advancement,
-manual-send confirmation, public delivery, or scheduling until the preview
-interface is reviewed.
+After the preview interface is reviewed and merged, start
+`codex/daily-recap-send-foundation` with the Discord-independent durable
+manual-recap-send workflow. It must require a later Discord confirmation,
+fetch fresh Hiscores data, preserve per-account failure baselines, and atomically
+advance only complete successful baselines. Do not add public Discord delivery
+or automatic scheduling until the durable workflow is reviewed.
