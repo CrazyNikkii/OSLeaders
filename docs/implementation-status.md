@@ -310,43 +310,37 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
-`04e5d0e` (2026-07-31) - Merge durable daily recap send foundation.
+`0b63599` (2026-07-31) - Add Discord manual daily recap send command.
 
-This merged the Discord-independent durable manual-recap-send foundation. It
-claims one active recap run per guild before fresh collection, requires a
-configured recap channel, and records collection failure without advancing
-baselines. On successful collection, one serialized PostgreSQL transaction
-advances only complete successful account baselines, persists every account
-outcome, and creates a pending durable change-only recap payload before
-marking the run ready for delivery. The payload retains activity, no-activity,
-and unavailable-account sections for later at-least-once delivery, including
-every successful account's last successful snapshot time so delayed recovery
-is not presented as a one-day comparison. The service and repository reject
-collection or account data from a different guild. Failed account baselines
-remain unchanged. Focused unit and PostgreSQL integration tests cover
-unavailable configuration, active-run exclusion, collection failure, guild
-isolation, pending delivery, and partial-success baseline replacement.
+This merged the guild-only `/recap send` adapter. It requires Discord
+Administrator permission or the configured bot-manager role, then creates a
+one-time confirmation bound to the requesting member and guild with a
+five-minute expiry. A confirmed request invokes the durable manual-send
+workflow and privately reports whether a recap is ready for delivery, is not
+configured, or is already running. Development command registration and
+runtime wiring are included. Focused adapter tests cover command definition,
+authorization, confirmation binding and expiry, guild-only handling, and
+pending-delivery presentation.
 
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
 ## Current unmerged implementation work
 
-`codex/discord-manual-daily-recap-send` adds the guild-only `/recap send`
-adapter. It requires Discord Administrator permission or the configured
-bot-manager role, then creates a one-time confirmation bound to the requesting
-member and guild with a five-minute expiry. A confirmed request invokes the
-existing durable manual-send workflow and privately reports whether a recap is
-ready for later delivery, not configured, or already running. It does not
-deliver publicly, retry deliveries, or schedule automatic recaps. Development
-command registration and runtime wiring are included. Focused adapter tests
-cover command definition, authorization, confirmation binding and expiry,
-guild-only handling, and pending-delivery presentation.
+`codex/daily-recap-discord-delivery` adds one durable at-least-once Discord
+delivery attempt after a confirmed manual recap send. It claims only the
+matching guild's pending delivery, resolves the configured channel through that
+guild, persists the Discord message reference on success, and records a safe
+recoverable failure on delivery rejection. A later confirmed `/recap send`
+retries the oldest pending or failed delivery, and only retries an interrupted
+delivery after its five-minute delivery lease has expired, before it permits a
+new baseline-advancing collection; retry-marked payloads are chunked into
+numbered Discord-safe messages. It deliberately does not add retry polling,
+startup recovery, or automatic scheduling.
 
 ## Next recommended branch-sized task
 
-After this branch is merged, start `codex/daily-recap-discord-delivery`.
-Implement one durable-at-least-once Discord delivery attempt for the existing
-pending recap payload, including guild-scoped channel resolution, delivery
-status/message-reference persistence, and safe failure recording. Do not add
-automatic scheduling until manual delivery and recovery semantics are covered.
+After this branch is merged, start `codex/daily-recap-delivery-recovery`.
+Implement bounded startup and scheduled recovery of durable recap deliveries,
+including conservative duplicate identification and retry intervals. Do not
+add automatic recap scheduling until delivery recovery semantics are covered.

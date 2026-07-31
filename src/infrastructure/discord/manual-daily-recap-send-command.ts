@@ -14,6 +14,7 @@ import {
 } from 'discord.js';
 
 import type { ManualDailyRecapSendService } from '../../features/recaps/send-daily-recap.js';
+import type { DailyRecapDeliveryService } from '../../features/recaps/deliver-daily-recap.js';
 import type {
   GuildPermissionRequest,
   GuildPermissions,
@@ -42,6 +43,7 @@ export class DiscordManualDailyRecapSendCommandAdapter {
 
   public constructor(
     private readonly manualSend: Pick<ManualDailyRecapSendService, 'send'>,
+    private readonly delivery: Pick<DailyRecapDeliveryService, 'deliver' | 'recover'>,
     private readonly permissions: ManualDailyRecapSendPermissionEvaluator,
     private readonly clock: Clock = systemClock,
   ) {}
@@ -133,8 +135,17 @@ export class DiscordManualDailyRecapSendCommandAdapter {
     }
 
     await interaction.deferUpdate();
+    const recovered = await this.delivery.recover(authorization.guildId);
+    if (recovered.kind !== 'no_recoverable_delivery') {
+      await interaction.editReply({ components: [], content: recoveryMessage(recovered) });
+      return;
+    }
     const result = await this.manualSend.send(authorization.guildId);
-    await interaction.editReply({ components: [], content: resultMessage(result) });
+    const delivery =
+      result.kind === 'ready_for_delivery'
+        ? await this.delivery.deliver(authorization.guildId, result.recapRunId)
+        : undefined;
+    await interaction.editReply({ components: [], content: resultMessage(result, delivery) });
   }
 
   private async authorize(
@@ -240,14 +251,39 @@ function memberRoleIds(
   return Array.isArray(roles) ? roles : [...roles.cache.keys()];
 }
 
-function resultMessage(result: Awaited<ReturnType<ManualDailyRecapSendService['send']>>): string {
+function resultMessage(
+  result: Awaited<ReturnType<ManualDailyRecapSendService['send']>>,
+  delivery: Awaited<ReturnType<DailyRecapDeliveryService['deliver']>> | undefined,
+): string {
   switch (result.kind) {
     case 'ready_for_delivery':
-      return `Daily recap collected and saved for delivery to <#${result.recapChannelId}>. Discord delivery will be added in a later update.`;
+      if (delivery?.kind === 'delivered') {
+        return `Daily recap was delivered to <#${result.recapChannelId}>.`;
+      }
+      if (delivery?.kind === 'delivery_failed') {
+        return `Daily recap was collected, but delivery to <#${result.recapChannelId}> failed. It was recorded for recovery.`;
+      }
+      return 'Daily recap delivery was already being handled. Check the recap channel before sending again.';
     case 'recap_not_configured':
       return 'A daily recap channel has not been configured for this server.';
     case 'recap_already_running':
       return 'Another daily recap collection or pending delivery is already in progress.';
+  }
+}
+
+function recoveryMessage(
+  result: Exclude<
+    Awaited<ReturnType<DailyRecapDeliveryService['recover']>>,
+    { kind: 'no_recoverable_delivery' }
+  >,
+): string {
+  switch (result.kind) {
+    case 'delivered':
+      return 'A previously pending daily recap was delivered. No new recap was collected.';
+    case 'delivery_failed':
+      return 'A previously pending daily recap could not be delivered. It remains queued for recovery.';
+    case 'delivery_not_pending':
+      return 'A previously pending daily recap is already being handled. Check the recap channel before sending again.';
   }
 }
 
