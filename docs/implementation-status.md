@@ -310,36 +310,25 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
-`db2500a` (2026-07-31) - Merge Discord daily recap delivery.
+`396ec05` (2026-07-31) - Add daily recap delivery recovery.
 
-This merged one durable at-least-once Discord delivery attempt after a
-confirmed manual recap send. It claims only the matching guild's pending
-delivery, resolves the configured channel through that guild, persists the
-Discord message reference on success, and records a safe recoverable failure
-on delivery rejection. A later confirmed `/recap send` retries the oldest
-pending or failed delivery, and only retries an interrupted delivery after its
-five-minute delivery lease has expired, before it permits a new
-baseline-advancing collection; retry-marked payloads are chunked into numbered
-Discord-safe messages. Focused unit and PostgreSQL integration tests cover
-guild isolation, recovery, lease expiry, delivery failure, message-reference
-persistence, and chunking. It deliberately does not add retry polling, startup
-recovery, or automatic scheduling.
+This merged bounded automatic recovery for durable recap deliveries. PostgreSQL
+claims only due pending deliveries or expired in-progress leases, and Discord
+rejection persists capped retry delays. The development runtime performs a
+bounded recovery pass after login, continues at a restrained interval, prevents
+overlapping passes, and stops recovery before Discord and PostgreSQL close.
+Every recap post has a stable delivery identifier and retries are explicitly
+labelled, making ambiguous at-least-once retries conservatively identifiable.
+Focused unit and PostgreSQL integration tests cover retry scheduling, in-flight
+recovery guards, guild isolation, lease expiry, and failure persistence. This
+does not add automatic recap scheduling.
 
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
 ## Current unmerged implementation work
 
-`codex/daily-recap-delivery-recovery` adds bounded automatic recovery for
-durable recap deliveries. It uses the existing PostgreSQL retry timestamp to
-claim only due pending deliveries (or expired in-progress leases), persists
-capped retry delays after Discord rejection, and starts a bounded recovery pass
-after the development bot logs in before continuing at a restrained interval.
-The scheduler uses the existing delivery service, prevents overlapping passes,
-and stops before Discord and PostgreSQL close. Every posted recap now contains
-a stable delivery identifier and retries remain explicitly labelled, so an
-ambiguous at-least-once retry is conservatively identifiable. It does not add
-automatic recap scheduling.
+None.
 
 ## Next recommended branch-sized task
 
