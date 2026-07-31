@@ -73,6 +73,10 @@ import {
   DiscordManualDailyRecapSendCommandAdapter,
 } from './manual-daily-recap-send-command.js';
 import { DiscordDailyRecapPublisher } from './daily-recap-discord-publisher.js';
+import {
+  InProcessDailyRecapDeliveryRecoveryScheduler,
+  type DailyRecapDeliveryRecoveryScheduler,
+} from './daily-recap-delivery-recovery-scheduler.js';
 
 export interface DevelopmentDiscordRuntime {
   close(): Promise<void>;
@@ -82,12 +86,18 @@ export interface DevelopmentDiscordRuntimeDependencies {
   createClient(): Client;
   createDatabaseConnection(configuration: RuntimeConfiguration['database']): DatabaseConnection;
   createLogger(): StructuredLocalLogger;
+  createDailyRecapDeliveryRecoveryScheduler(
+    delivery: DailyRecapDeliveryService,
+    logger: StructuredLocalLogger,
+  ): DailyRecapDeliveryRecoveryScheduler;
 }
 
 const defaultDependencies: DevelopmentDiscordRuntimeDependencies = {
   createClient: () => new Client({ intents: [GatewayIntentBits.Guilds] }),
   createDatabaseConnection,
   createLogger: () => new StdoutStructuredLocalLogger(),
+  createDailyRecapDeliveryRecoveryScheduler: (delivery, logger) =>
+    new InProcessDailyRecapDeliveryRecoveryScheduler(delivery, logger),
 };
 
 export async function startDevelopmentDiscordRuntime(
@@ -171,6 +181,10 @@ export async function startDevelopmentDiscordRuntime(
         ),
       ),
     );
+    const delivery = new DailyRecapDeliveryService(
+      new PostgresDailyRecapDeliveryRepository(connection.database),
+      new DiscordDailyRecapPublisher(client),
+    );
     const manualDailyRecapSendAdapter = new DiscordManualDailyRecapSendCommandAdapter(
       new ManualDailyRecapSendService(
         new PostgresManualDailyRecapSendRepository(connection.database),
@@ -179,11 +193,12 @@ export async function startDevelopmentDiscordRuntime(
           hiscores,
         ),
       ),
-      new DailyRecapDeliveryService(
-        new PostgresDailyRecapDeliveryRepository(connection.database),
-        new DiscordDailyRecapPublisher(client),
-      ),
+      delivery,
       permissions,
+    );
+    const deliveryRecoveryScheduler = dependencies.createDailyRecapDeliveryRecoveryScheduler(
+      delivery,
+      logger,
     );
 
     bindDiscordAccountCommandAdapter(
@@ -256,19 +271,13 @@ export async function startDevelopmentDiscordRuntime(
     });
 
     await client.login(configuration.discord.token);
+    await deliveryRecoveryScheduler.start();
+    return createRuntime(client, connection, logger, deliveryRecoveryScheduler);
   } catch (error) {
     await client.destroy();
     await connection.close();
     throw error;
   }
-
-  let closePromise: Promise<void> | undefined;
-  return {
-    close: () => {
-      closePromise ??= closeRuntime(client, connection, logger);
-      return closePromise;
-    },
-  };
 }
 
 export function reportDiscordInteractionFailure(
@@ -293,7 +302,9 @@ async function closeRuntime(
   client: Client,
   connection: DatabaseConnection,
   logger: StructuredLocalLogger,
+  deliveryRecoveryScheduler: DailyRecapDeliveryRecoveryScheduler,
 ): Promise<void> {
+  deliveryRecoveryScheduler.stop();
   await client.destroy();
   await connection.close();
   logger.write({
@@ -301,4 +312,19 @@ async function closeRuntime(
     severity: 'info',
     timestamp: new Date().toISOString(),
   });
+}
+
+function createRuntime(
+  client: Client,
+  connection: DatabaseConnection,
+  logger: StructuredLocalLogger,
+  deliveryRecoveryScheduler: DailyRecapDeliveryRecoveryScheduler,
+): DevelopmentDiscordRuntime {
+  let closePromise: Promise<void> | undefined;
+  return {
+    close: () => {
+      closePromise ??= closeRuntime(client, connection, logger, deliveryRecoveryScheduler);
+      return closePromise;
+    },
+  };
 }

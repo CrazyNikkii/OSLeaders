@@ -12,7 +12,13 @@ export interface DailyRecapDeliveryRepository {
     recapRunId: string,
   ): Promise<PendingDailyRecapDelivery | undefined>;
   claimRecoverableDelivery(guildId: string): Promise<PendingDailyRecapDelivery | undefined>;
-  recordDeliveryFailure(guildId: string, recapRunId: string, failureSummary: string): Promise<void>;
+  claimDueRecoverableDelivery(): Promise<PendingDailyRecapDelivery | undefined>;
+  recordDeliveryFailure(
+    guildId: string,
+    recapRunId: string,
+    failureSummary: string,
+    nextAttemptAt: Date,
+  ): Promise<void>;
   recordDeliverySuccess(
     guildId: string,
     recapRunId: string,
@@ -36,6 +42,7 @@ export class DailyRecapDeliveryService {
   public constructor(
     private readonly repository: DailyRecapDeliveryRepository,
     private readonly publisher: DailyRecapPublisher,
+    private readonly now: () => Date = () => new Date(),
   ) {}
 
   public async deliver(guildId: string, recapRunId: string): Promise<DailyRecapDeliveryResult> {
@@ -49,6 +56,14 @@ export class DailyRecapDeliveryService {
 
   public async recover(guildId: string): Promise<DailyRecapRecoveryResult> {
     const delivery = await this.repository.claimRecoverableDelivery(guildId);
+    if (delivery === undefined) {
+      return { kind: 'no_recoverable_delivery' };
+    }
+    return this.publishClaimedDelivery(delivery);
+  }
+
+  public async recoverDue(): Promise<DailyRecapRecoveryResult> {
+    const delivery = await this.repository.claimDueRecoverableDelivery();
     if (delivery === undefined) {
       return { kind: 'no_recoverable_delivery' };
     }
@@ -71,10 +86,16 @@ export class DailyRecapDeliveryService {
         delivery.guildId,
         delivery.recapRunId,
         failureSummary(error),
+        new Date(this.now().getTime() + retryDelayMs(delivery.attemptCount)),
       );
       return { kind: 'delivery_failed' };
     }
   }
+}
+
+export function retryDelayMs(attemptCount: number): number {
+  const retryDelays = [60_000, 5 * 60_000, 15 * 60_000, 30 * 60_000] as const;
+  return retryDelays[Math.min(Math.max(attemptCount - 1, 0), retryDelays.length - 1)]!;
 }
 
 function failureSummary(error: unknown): string {

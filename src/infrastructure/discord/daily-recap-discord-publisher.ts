@@ -17,7 +17,11 @@ export class DiscordDailyRecapPublisher implements DailyRecapPublisher {
       throw new Error('The configured daily recap channel is not available for delivery.');
     }
     let message: { id: string } | undefined;
-    for (const content of splitDailyRecapContent(delivery.content, delivery.attemptCount)) {
+    for (const content of splitDailyRecapContent(
+      delivery.content,
+      delivery.attemptCount,
+      delivery.recapRunId,
+    )) {
       const sent = await channel.send({ content });
       message ??= sent;
     }
@@ -28,14 +32,15 @@ export class DiscordDailyRecapPublisher implements DailyRecapPublisher {
   }
 }
 
-export function splitDailyRecapContent(content: string, attemptCount: number): readonly string[] {
+export function splitDailyRecapContent(
+  content: string,
+  attemptCount: number,
+  recapRunId: string,
+): readonly string[] {
   const chunks = splitAtLineBoundaries(content, CHUNK_LENGTH);
-  if (chunks.length === 1 && attemptCount === 1) {
-    return chunks;
-  }
   return chunks.map(
     (chunk, index) =>
-      `**Daily recap - part ${index + 1}/${chunks.length}${attemptCount > 1 ? `, retry ${attemptCount}` : ''}**\n${chunk}`,
+      `**Daily recap - delivery ${recapRunId}, part ${index + 1}/${chunks.length}${attemptCount > 1 ? `, retry ${attemptCount}` : ''}**\n${chunk}`,
   );
 }
 

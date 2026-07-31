@@ -28,6 +28,8 @@ describe('development Discord runtime', () => {
     expect(dependencies.client.login).toHaveBeenCalledWith('token-one');
     expect(dependencies.client.destroy).toHaveBeenCalledOnce();
     expect(dependencies.closeDatabase).toHaveBeenCalledOnce();
+    expect(dependencies.deliveryRecoveryScheduler.start).toHaveBeenCalledOnce();
+    expect(dependencies.deliveryRecoveryScheduler.stop).toHaveBeenCalledOnce();
   });
 
   it('does not construct external dependencies outside development', async () => {
@@ -165,6 +167,10 @@ class RuntimeDependencies {
     database: this.database,
     pool: this.pool,
   }));
+  public readonly deliveryRecoveryScheduler = {
+    start: vi.fn(() => Promise.resolve()),
+    stop: vi.fn(),
+  };
   public readonly logger = new RecordingLogger();
   public readonly pool = { query: vi.fn(() => Promise.resolve()) };
 
@@ -172,6 +178,7 @@ class RuntimeDependencies {
     return {
       createClient: this.createClient,
       createDatabaseConnection: this.createDatabaseConnection as never,
+      createDailyRecapDeliveryRecoveryScheduler: vi.fn(() => this.deliveryRecoveryScheduler),
       createLogger: () => this.logger,
     };
   }

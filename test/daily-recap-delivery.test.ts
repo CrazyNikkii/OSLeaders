@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DailyRecapDeliveryService,
+  retryDelayMs,
   type DailyRecapDeliveryRepository,
   type DailyRecapPublisher,
   type PendingDailyRecapDelivery,
@@ -39,9 +40,13 @@ describe('daily recap delivery service', () => {
   it('records a bounded failure after Discord rejects a claimed delivery', async () => {
     const repository = new RepositoryStub(delivery());
     const publisher = new PublisherStub(new Error('Discord channel unavailable.'));
+    const now = new Date('2026-07-31T12:00:00.000Z');
 
     await expect(
-      new DailyRecapDeliveryService(repository, publisher).deliver('guild-one', 'run-one'),
+      new DailyRecapDeliveryService(repository, publisher, () => now).deliver(
+        'guild-one',
+        'run-one',
+      ),
     ).resolves.toEqual({
       kind: 'delivery_failed',
     });
@@ -49,15 +54,28 @@ describe('daily recap delivery service', () => {
       {
         failureSummary: 'Discord channel unavailable.',
         guildId: 'guild-one',
+        nextAttemptAt: new Date('2026-07-31T12:01:00.000Z'),
         recapRunId: 'run-one',
       },
     ]);
     expect(repository.successes).toEqual([]);
   });
+
+  it('uses progressively delayed, capped retry intervals', () => {
+    expect(retryDelayMs(1)).toBe(60_000);
+    expect(retryDelayMs(2)).toBe(5 * 60_000);
+    expect(retryDelayMs(3)).toBe(15 * 60_000);
+    expect(retryDelayMs(99)).toBe(30 * 60_000);
+  });
 });
 
 class RepositoryStub implements DailyRecapDeliveryRepository {
-  public readonly failures: { failureSummary: string; guildId: string; recapRunId: string }[] = [];
+  public readonly failures: {
+    failureSummary: string;
+    guildId: string;
+    nextAttemptAt: Date;
+    recapRunId: string;
+  }[] = [];
   public readonly successes: { discordMessageId: string; guildId: string; recapRunId: string }[] =
     [];
 
@@ -71,12 +89,17 @@ class RepositoryStub implements DailyRecapDeliveryRepository {
     return Promise.resolve(this.pending);
   }
 
+  public claimDueRecoverableDelivery(): Promise<PendingDailyRecapDelivery | undefined> {
+    return Promise.resolve(this.pending);
+  }
+
   public recordDeliveryFailure(
     guildId: string,
     recapRunId: string,
     failureSummary: string,
+    nextAttemptAt: Date,
   ): Promise<void> {
-    this.failures.push({ failureSummary, guildId, recapRunId });
+    this.failures.push({ failureSummary, guildId, nextAttemptAt, recapRunId });
     return Promise.resolve();
   }
 

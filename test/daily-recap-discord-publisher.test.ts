@@ -25,7 +25,9 @@ describe('Discord daily recap publisher', () => {
     ).resolves.toEqual({ discordMessageId: 'message-one' });
     expect(fetchGuild).toHaveBeenCalledWith('guild-one');
     expect(fetchChannel).toHaveBeenCalledWith('channel-one');
-    expect(send).toHaveBeenCalledWith({ content: '# Daily recap' });
+    expect(send).toHaveBeenCalledWith({
+      content: '**Daily recap - delivery run-one, part 1/1**\n# Daily recap',
+    });
   });
 
   it('rejects an unavailable or non-sendable stored channel without posting', async () => {
@@ -50,12 +52,14 @@ describe('Discord daily recap publisher', () => {
   it('splits long valid recap content into numbered Discord-safe messages without omitting text', () => {
     const content = `# Daily recap\n${'A'.repeat(2_500)}\n${'B'.repeat(2_500)}`;
 
-    const chunks = splitDailyRecapContent(content, 2);
+    const chunks = splitDailyRecapContent(content, 2, 'run-one');
 
     expect(chunks.length).toBeGreaterThan(1);
     expect(chunks.every((chunk) => chunk.length <= 2_000)).toBe(true);
-    expect(chunks.join('').replaceAll(/\*\*Daily recap - part \d\/\d+, retry 2\*\*\n/g, '')).toBe(
-      content.replaceAll('\n', ''),
-    );
+    expect(
+      chunks
+        .join('')
+        .replaceAll(/\*\*Daily recap - delivery run-one, part \d\/\d+, retry 2\*\*\n/g, ''),
+    ).toBe(content.replaceAll('\n', ''));
   });
 });

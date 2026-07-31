@@ -330,11 +330,21 @@ authority for the latest repository change.
 
 ## Current unmerged implementation work
 
-None.
+`codex/daily-recap-delivery-recovery` adds bounded automatic recovery for
+durable recap deliveries. It uses the existing PostgreSQL retry timestamp to
+claim only due pending deliveries (or expired in-progress leases), persists
+capped retry delays after Discord rejection, and starts a bounded recovery pass
+after the development bot logs in before continuing at a restrained interval.
+The scheduler uses the existing delivery service, prevents overlapping passes,
+and stops before Discord and PostgreSQL close. Every posted recap now contains
+a stable delivery identifier and retries remain explicitly labelled, so an
+ambiguous at-least-once retry is conservatively identifiable. It does not add
+automatic recap scheduling.
 
 ## Next recommended branch-sized task
 
-Start `codex/daily-recap-delivery-recovery`.
-Implement bounded startup and scheduled recovery of durable recap deliveries,
-including conservative duplicate identification and retry intervals. Do not
-add automatic recap scheduling until delivery recovery semantics are covered.
+After this branch is merged, start `codex/daily-recap-automatic-scheduling`.
+Implement automatic daily-recap configuration and durable local-time schedule
+creation using the established delivery recovery path. Validate daylight-saving
+gaps and ambiguities rather than guessing, and do not begin competition work in
+that branch.

@@ -320,7 +320,7 @@ describe('database foundation', () => {
   });
 
   it('claims, delivers, fails, and isolates durable recap deliveries by guild', async () => {
-    const now = new Date('2026-07-31T12:00:00.000Z');
+    let now = new Date('2026-07-31T12:00:00.000Z');
     const repository = new PostgresDailyRecapDeliveryRepository(connection.database, () => now);
     const guildId = 'delivery-guild-one';
     const otherGuildId = 'delivery-guild-two';
@@ -397,17 +397,31 @@ describe('database foundation', () => {
       guildId,
       'delivery-run-two',
       'Discord rejected delivery.',
+      new Date(now.getTime() + 60_000),
     );
     await expect(
       connection.database
         .select({
           lastFailureSummary: dailyRecapDeliveries.lastFailureSummary,
+          nextAttemptAt: dailyRecapDeliveries.nextAttemptAt,
           status: dailyRecapDeliveries.status,
         })
         .from(dailyRecapDeliveries)
         .where(eq(dailyRecapDeliveries.recapRunId, 'delivery-run-two')),
-    ).resolves.toEqual([{ lastFailureSummary: 'Discord rejected delivery.', status: 'pending' }]);
-    await expect(repository.claimRecoverableDelivery(guildId)).resolves.toMatchObject({
+    ).resolves.toEqual([
+      {
+        lastFailureSummary: 'Discord rejected delivery.',
+        nextAttemptAt: new Date(now.getTime() + 60_000),
+        status: 'pending',
+      },
+    ]);
+    await connection.database
+      .update(dailyRecapDeliveries)
+      .set({ nextAttemptAt: new Date(now.getTime() + 24 * 60 * 60_000) })
+      .where(eq(dailyRecapDeliveries.guildId, 'manual-recap-guild'));
+    await expect(repository.claimDueRecoverableDelivery()).resolves.toBeUndefined();
+    now = new Date(now.getTime() + 60_000);
+    await expect(repository.claimDueRecoverableDelivery()).resolves.toMatchObject({
       attemptCount: 2,
       recapRunId: 'delivery-run-two',
     });
