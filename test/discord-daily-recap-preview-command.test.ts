@@ -14,15 +14,19 @@ import {
 } from '../src/infrastructure/discord/daily-recap-preview-command.js';
 
 describe('Discord daily recap preview command', () => {
-  it('registers a guild-only recap preview subcommand', () => {
+  it('registers guild-only preview, send, and configuration recap subcommands', () => {
     const definition = dailyRecapPreviewCommandDefinitions[0];
 
     expect(definition).toMatchObject({
-      description: 'View or send a daily recap.',
+      description: 'Configure, view, or send a daily recap.',
       name: 'recap',
     });
     expect(JSON.stringify(definition)).toContain('"name":"preview"');
-    expect(JSON.stringify(definition)).toContain('without updating baselines');
+    const serialized = JSON.stringify(definition);
+    expect(serialized).toContain('without updating baselines');
+    expect(serialized).toContain('"name":"send"');
+    expect(serialized).toContain('"name":"configure"');
+    expect(serialized).toContain('"name":"timezone"');
   });
 
   it('uses the interaction guild, keeps the result private, and does not invoke delivery', async () => {
