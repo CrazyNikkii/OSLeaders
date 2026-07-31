@@ -2,6 +2,10 @@ import { MessageFlags } from 'discord.js';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ManualDailyRecapSendResult } from '../src/features/recaps/send-daily-recap.js';
+import type {
+  DailyRecapDeliveryResult,
+  DailyRecapRecoveryResult,
+} from '../src/features/recaps/deliver-daily-recap.js';
 import { DiscordManualDailyRecapSendCommandAdapter } from '../src/infrastructure/discord/manual-daily-recap-send-command.js';
 
 describe('Discord manual daily recap send command', () => {
@@ -18,7 +22,11 @@ describe('Discord manual daily recap send command', () => {
   it('requires administrator-or-bot-manager authorization before issuing a bound confirmation', async () => {
     const sends = new ManualSendStub();
     const permissions = new PermissionStub(false);
-    const adapter = new DiscordManualDailyRecapSendCommandAdapter(sends, permissions);
+    const adapter = new DiscordManualDailyRecapSendCommandAdapter(
+      sends,
+      new DeliveryStub(),
+      permissions,
+    );
     const responses = commandResponses();
 
     await adapter.handle(commandInteraction(responses) as never);
@@ -40,7 +48,8 @@ describe('Discord manual daily recap send command', () => {
       recapRunId: 'run-one',
     });
     const permissions = new PermissionStub(true);
-    const adapter = new DiscordManualDailyRecapSendCommandAdapter(sends, permissions);
+    const deliveries = new DeliveryStub();
+    const adapter = new DiscordManualDailyRecapSendCommandAdapter(sends, deliveries, permissions);
     const commandResponses = commandResponse();
 
     await adapter.handle(
@@ -67,11 +76,77 @@ describe('Discord manual daily recap send command', () => {
     await adapter.handle(buttonInteraction(customId, confirmationResponses) as never);
 
     expect(sends.guildIds).toEqual(['guild-one']);
+    expect(deliveries.recoveredGuildIds).toEqual(['guild-one']);
+    expect(deliveries.requests).toEqual([{ guildId: 'guild-one', recapRunId: 'run-one' }]);
     expect(confirmationResponses.deferUpdate).toHaveBeenCalledOnce();
     expect(confirmationResponses.editReply).toHaveBeenCalledWith({
       components: [],
+      content: 'Daily recap was delivered to <#recap-channel>.',
+    });
+  });
+
+  it('delivers a recovered recap without collecting a new one', async () => {
+    const sends = new ManualSendStub({
+      kind: 'ready_for_delivery',
+      recapChannelId: 'recap-channel',
+      recapRunId: 'new-run',
+    });
+    const deliveries = new DeliveryStub(
+      { discordMessageId: 'unused', kind: 'delivered' },
+      {
+        discordMessageId: 'recovered-message',
+        kind: 'delivered',
+      },
+    );
+    const adapter = new DiscordManualDailyRecapSendCommandAdapter(
+      sends,
+      deliveries,
+      new PermissionStub(true),
+    );
+    const commandResponses = commandResponse();
+    await adapter.handle(commandInteraction(commandResponses) as never);
+    const responses = buttonResponses();
+
+    await adapter.handle(
+      buttonInteraction(confirmationCustomId(firstReply(commandResponses)), responses) as never,
+    );
+
+    expect(deliveries.recoveredGuildIds).toEqual(['guild-one']);
+    expect(deliveries.requests).toEqual([]);
+    expect(sends.guildIds).toEqual([]);
+    expect(responses.editReply).toHaveBeenCalledWith({
+      components: [],
+      content: 'A previously pending daily recap was delivered. No new recap was collected.',
+    });
+  });
+
+  it('leaves a failed recovered recap queued without collecting a new one', async () => {
+    const sends = new ManualSendStub();
+    const deliveries = new DeliveryStub(
+      { discordMessageId: 'unused', kind: 'delivered' },
+      {
+        kind: 'delivery_failed',
+      },
+    );
+    const adapter = new DiscordManualDailyRecapSendCommandAdapter(
+      sends,
+      deliveries,
+      new PermissionStub(true),
+    );
+    const commandResponses = commandResponse();
+    await adapter.handle(commandInteraction(commandResponses) as never);
+    const responses = buttonResponses();
+
+    await adapter.handle(
+      buttonInteraction(confirmationCustomId(firstReply(commandResponses)), responses) as never,
+    );
+
+    expect(deliveries.recoveredGuildIds).toEqual(['guild-one']);
+    expect(sends.guildIds).toEqual([]);
+    expect(responses.editReply).toHaveBeenCalledWith({
+      components: [],
       content:
-        'Daily recap collected and saved for delivery to <#recap-channel>. Discord delivery will be added in a later update.',
+        'A previously pending daily recap could not be delivered. It remains queued for recovery.',
     });
   });
 
@@ -81,6 +156,7 @@ describe('Discord manual daily recap send command', () => {
     const sends = new ManualSendStub();
     const adapter = new DiscordManualDailyRecapSendCommandAdapter(
       sends,
+      new DeliveryStub(),
       new PermissionStub(true),
       clock,
     );
@@ -102,7 +178,11 @@ describe('Discord manual daily recap send command', () => {
 
   it('does not allow direct-message invocation', async () => {
     const sends = new ManualSendStub();
-    const adapter = new DiscordManualDailyRecapSendCommandAdapter(sends, new PermissionStub(true));
+    const adapter = new DiscordManualDailyRecapSendCommandAdapter(
+      sends,
+      new DeliveryStub(),
+      new PermissionStub(true),
+    );
     const responses = commandResponse();
 
     await adapter.handle(commandInteraction(responses, { guildId: null }) as never);
@@ -132,6 +212,29 @@ class ManualSendStub {
   public send(guildId: string): Promise<ManualDailyRecapSendResult> {
     this.guildIds.push(guildId);
     return Promise.resolve(this.result as ManualDailyRecapSendResult);
+  }
+}
+
+class DeliveryStub {
+  public readonly requests: { guildId: string; recapRunId: string }[] = [];
+  public readonly recoveredGuildIds: string[] = [];
+
+  public constructor(
+    private readonly result: DailyRecapDeliveryResult = {
+      discordMessageId: 'message-one',
+      kind: 'delivered',
+    },
+    private readonly recoveryResult: DailyRecapRecoveryResult = { kind: 'no_recoverable_delivery' },
+  ) {}
+
+  public deliver(guildId: string, recapRunId: string): Promise<DailyRecapDeliveryResult> {
+    this.requests.push({ guildId, recapRunId });
+    return Promise.resolve(this.result);
+  }
+
+  public recover(guildId: string): Promise<DailyRecapRecoveryResult> {
+    this.recoveredGuildIds.push(guildId);
+    return Promise.resolve(this.recoveryResult);
   }
 }
 

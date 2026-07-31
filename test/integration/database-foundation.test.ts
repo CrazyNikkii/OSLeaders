@@ -20,6 +20,7 @@ import { PostgresGuildConfigurationRepository } from '../../src/infrastructure/d
 import { PostgresAccountRegistrationRepository } from '../../src/infrastructure/database/postgres-account-registration-repository.js';
 import { PostgresDailyRecapCollectionRepository } from '../../src/infrastructure/database/postgres-daily-recap-collection-repository.js';
 import { PostgresManualDailyRecapSendRepository } from '../../src/infrastructure/database/postgres-manual-daily-recap-send-repository.js';
+import { PostgresDailyRecapDeliveryRepository } from '../../src/infrastructure/database/postgres-daily-recap-delivery-repository.js';
 import {
   guildConfigurations,
   guildMemberPresences,
@@ -316,6 +317,116 @@ describe('database foundation', () => {
         .from(dailyRecapRuns)
         .where(eq(dailyRecapRuns.id, 'manual-recap-run')),
     ).resolves.toEqual([{ status: 'delivery_pending' }]);
+  });
+
+  it('claims, delivers, fails, and isolates durable recap deliveries by guild', async () => {
+    const now = new Date('2026-07-31T12:00:00.000Z');
+    const repository = new PostgresDailyRecapDeliveryRepository(connection.database, () => now);
+    const guildId = 'delivery-guild-one';
+    const otherGuildId = 'delivery-guild-two';
+    await connection.database.insert(guilds).values([{ guildId }, { guildId: otherGuildId }]);
+    await connection.database.insert(dailyRecapRuns).values([
+      { guildId, id: 'delivery-run-one', status: 'delivery_pending', trigger: 'manual' },
+      { guildId, id: 'delivery-run-two', status: 'delivery_pending', trigger: 'manual' },
+      { guildId, id: 'delivery-run-three', status: 'delivery_pending', trigger: 'manual' },
+    ]);
+    await connection.database.insert(dailyRecapDeliveries).values([
+      {
+        channelId: 'delivery-channel-one',
+        content: '# Daily recap one',
+        guildId,
+        id: 'delivery-one',
+        recapRunId: 'delivery-run-one',
+      },
+      {
+        channelId: 'delivery-channel-two',
+        content: '# Daily recap two',
+        guildId,
+        id: 'delivery-two',
+        recapRunId: 'delivery-run-two',
+      },
+      {
+        channelId: 'delivery-channel-three',
+        content: '# Daily recap three',
+        guildId,
+        id: 'delivery-three',
+        recapRunId: 'delivery-run-three',
+        status: 'delivering',
+        updatedAt: now,
+      },
+    ]);
+
+    await expect(
+      repository.claimPendingDelivery(otherGuildId, 'delivery-run-one'),
+    ).resolves.toBeUndefined();
+    await expect(repository.claimPendingDelivery(guildId, 'delivery-run-one')).resolves.toEqual({
+      attemptCount: 1,
+      channelId: 'delivery-channel-one',
+      content: '# Daily recap one',
+      guildId,
+      recapRunId: 'delivery-run-one',
+    });
+    await expect(
+      repository.claimPendingDelivery(guildId, 'delivery-run-one'),
+    ).resolves.toBeUndefined();
+    await repository.recordDeliverySuccess(guildId, 'delivery-run-one', 'discord-message-one');
+    await expect(
+      connection.database
+        .select({
+          deliveredAt: dailyRecapDeliveries.deliveredAt,
+          discordMessageId: dailyRecapDeliveries.discordMessageId,
+          status: dailyRecapDeliveries.status,
+        })
+        .from(dailyRecapDeliveries)
+        .where(eq(dailyRecapDeliveries.recapRunId, 'delivery-run-one')),
+    ).resolves.toEqual([
+      { deliveredAt: now, discordMessageId: 'discord-message-one', status: 'delivered' },
+    ]);
+    await expect(
+      connection.database
+        .select({ status: dailyRecapRuns.status })
+        .from(dailyRecapRuns)
+        .where(eq(dailyRecapRuns.id, 'delivery-run-one')),
+    ).resolves.toEqual([{ status: 'delivered' }]);
+    await expect(
+      repository.claimPendingDelivery(guildId, 'delivery-run-two'),
+    ).resolves.toMatchObject({
+      recapRunId: 'delivery-run-two',
+    });
+    await repository.recordDeliveryFailure(
+      guildId,
+      'delivery-run-two',
+      'Discord rejected delivery.',
+    );
+    await expect(
+      connection.database
+        .select({
+          lastFailureSummary: dailyRecapDeliveries.lastFailureSummary,
+          status: dailyRecapDeliveries.status,
+        })
+        .from(dailyRecapDeliveries)
+        .where(eq(dailyRecapDeliveries.recapRunId, 'delivery-run-two')),
+    ).resolves.toEqual([{ lastFailureSummary: 'Discord rejected delivery.', status: 'pending' }]);
+    await expect(repository.claimRecoverableDelivery(guildId)).resolves.toMatchObject({
+      attemptCount: 2,
+      recapRunId: 'delivery-run-two',
+    });
+    await repository.recordDeliverySuccess(guildId, 'delivery-run-two', 'discord-message-two');
+    await expect(
+      connection.database
+        .select({ status: dailyRecapRuns.status })
+        .from(dailyRecapRuns)
+        .where(eq(dailyRecapRuns.id, 'delivery-run-two')),
+    ).resolves.toEqual([{ status: 'delivered' }]);
+    await expect(repository.claimRecoverableDelivery(guildId)).resolves.toBeUndefined();
+    await connection.database
+      .update(dailyRecapDeliveries)
+      .set({ updatedAt: new Date(now.getTime() - 5 * 60 * 1_000) })
+      .where(eq(dailyRecapDeliveries.recapRunId, 'delivery-run-three'));
+    await expect(repository.claimRecoverableDelivery(guildId)).resolves.toMatchObject({
+      attemptCount: 1,
+      recapRunId: 'delivery-run-three',
+    });
   });
 
   it('keeps durable recap runs and deliveries in their owning guild', async () => {

@@ -1,0 +1,115 @@
+import { describe, expect, it } from 'vitest';
+
+import {
+  DailyRecapDeliveryService,
+  type DailyRecapDeliveryRepository,
+  type DailyRecapPublisher,
+  type PendingDailyRecapDelivery,
+} from '../src/features/recaps/deliver-daily-recap.js';
+
+describe('daily recap delivery service', () => {
+  it('claims a pending guild delivery, publishes it, and persists the Discord message reference', async () => {
+    const repository = new RepositoryStub(delivery());
+    const publisher = new PublisherStub();
+    const service = new DailyRecapDeliveryService(repository, publisher);
+
+    await expect(service.deliver('guild-one', 'run-one')).resolves.toEqual({
+      discordMessageId: 'message-one',
+      kind: 'delivered',
+    });
+    expect(publisher.deliveries).toEqual([delivery()]);
+    expect(repository.successes).toEqual([
+      { discordMessageId: 'message-one', guildId: 'guild-one', recapRunId: 'run-one' },
+    ]);
+    expect(repository.failures).toEqual([]);
+  });
+
+  it('does not publish a delivery that is absent, claimed, or from another guild', async () => {
+    const repository = new RepositoryStub(undefined);
+    const publisher = new PublisherStub();
+
+    await expect(
+      new DailyRecapDeliveryService(repository, publisher).deliver('guild-one', 'run-one'),
+    ).resolves.toEqual({
+      kind: 'delivery_not_pending',
+    });
+    expect(publisher.deliveries).toEqual([]);
+  });
+
+  it('records a bounded failure after Discord rejects a claimed delivery', async () => {
+    const repository = new RepositoryStub(delivery());
+    const publisher = new PublisherStub(new Error('Discord channel unavailable.'));
+
+    await expect(
+      new DailyRecapDeliveryService(repository, publisher).deliver('guild-one', 'run-one'),
+    ).resolves.toEqual({
+      kind: 'delivery_failed',
+    });
+    expect(repository.failures).toEqual([
+      {
+        failureSummary: 'Discord channel unavailable.',
+        guildId: 'guild-one',
+        recapRunId: 'run-one',
+      },
+    ]);
+    expect(repository.successes).toEqual([]);
+  });
+});
+
+class RepositoryStub implements DailyRecapDeliveryRepository {
+  public readonly failures: { failureSummary: string; guildId: string; recapRunId: string }[] = [];
+  public readonly successes: { discordMessageId: string; guildId: string; recapRunId: string }[] =
+    [];
+
+  public constructor(private readonly pending: PendingDailyRecapDelivery | undefined) {}
+
+  public claimPendingDelivery(): Promise<PendingDailyRecapDelivery | undefined> {
+    return Promise.resolve(this.pending);
+  }
+
+  public claimRecoverableDelivery(): Promise<PendingDailyRecapDelivery | undefined> {
+    return Promise.resolve(this.pending);
+  }
+
+  public recordDeliveryFailure(
+    guildId: string,
+    recapRunId: string,
+    failureSummary: string,
+  ): Promise<void> {
+    this.failures.push({ failureSummary, guildId, recapRunId });
+    return Promise.resolve();
+  }
+
+  public recordDeliverySuccess(
+    guildId: string,
+    recapRunId: string,
+    discordMessageId: string,
+  ): Promise<void> {
+    this.successes.push({ discordMessageId, guildId, recapRunId });
+    return Promise.resolve();
+  }
+}
+
+class PublisherStub implements DailyRecapPublisher {
+  public readonly deliveries: PendingDailyRecapDelivery[] = [];
+
+  public constructor(private readonly error?: Error) {}
+
+  public publish(deliveryValue: PendingDailyRecapDelivery): Promise<{ discordMessageId: string }> {
+    this.deliveries.push(deliveryValue);
+    if (this.error !== undefined) {
+      return Promise.reject(this.error);
+    }
+    return Promise.resolve({ discordMessageId: 'message-one' });
+  }
+}
+
+function delivery(): PendingDailyRecapDelivery {
+  return {
+    attemptCount: 1,
+    channelId: 'channel-one',
+    content: '# Daily recap',
+    guildId: 'guild-one',
+    recapRunId: 'run-one',
+  };
+}

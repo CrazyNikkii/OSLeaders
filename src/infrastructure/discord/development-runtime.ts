@@ -10,6 +10,7 @@ import { DailyRecapCollectionService } from '../../features/recaps/daily-recap-c
 import { DailyRecapPreviewService } from '../../features/recaps/daily-recap-presentation.js';
 import { PreviewDailyRecapService } from '../../features/recaps/preview-daily-recap.js';
 import { ManualDailyRecapSendService } from '../../features/recaps/send-daily-recap.js';
+import { DailyRecapDeliveryService } from '../../features/recaps/deliver-daily-recap.js';
 import { createErrorReferenceId } from '../../features/audit/error-reference.js';
 import { GuildConfigurationService } from '../../features/guild-configuration/guild-configuration-service.js';
 import { GuildPermissionService } from '../../features/guild-configuration/guild-permission-service.js';
@@ -19,6 +20,7 @@ import { PostgresAccountRegistrationRepository } from '../database/postgres-acco
 import { PostgresGuildConfigurationRepository } from '../database/postgres-guild-configuration-repository.js';
 import { PostgresDailyRecapCollectionRepository } from '../database/postgres-daily-recap-collection-repository.js';
 import { PostgresManualDailyRecapSendRepository } from '../database/postgres-manual-daily-recap-send-repository.js';
+import { PostgresDailyRecapDeliveryRepository } from '../database/postgres-daily-recap-delivery-repository.js';
 import { OsrsHiscoreHttpClient } from '../hiscores/osrs-hiscore-http-client.js';
 import { OSRS_MODE_FETCH_STRATEGIES } from '../hiscores/osrs-hiscore-catalog.js';
 import { StdoutStructuredLocalLogger } from '../logging/structured-local-logger.js';
@@ -70,6 +72,7 @@ import {
   bindDiscordManualDailyRecapSendCommandAdapter,
   DiscordManualDailyRecapSendCommandAdapter,
 } from './manual-daily-recap-send-command.js';
+import { DiscordDailyRecapPublisher } from './daily-recap-discord-publisher.js';
 
 export interface DevelopmentDiscordRuntime {
   close(): Promise<void>;
@@ -175,6 +178,10 @@ export async function startDevelopmentDiscordRuntime(
           new PostgresDailyRecapCollectionRepository(connection.database),
           hiscores,
         ),
+      ),
+      new DailyRecapDeliveryService(
+        new PostgresDailyRecapDeliveryRepository(connection.database),
+        new DiscordDailyRecapPublisher(client),
       ),
       permissions,
     );
