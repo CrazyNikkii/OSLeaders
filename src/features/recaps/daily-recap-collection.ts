@@ -57,6 +57,7 @@ export interface DailyRecapCollectionSuccess {
   candidateBaseline: InitialRecapBaseline;
   changes: DailyRecapAccountChanges;
   kind: 'success';
+  previousBaselineCapturedAt: Date;
 }
 
 export interface DailyRecapCollectionFailureOutcome {
@@ -118,6 +119,7 @@ export class DailyRecapCollectionService {
       candidateBaseline: toBaseline(result.data, capturedAt),
       changes: calculateChanges(entry.baseline, result.data),
       kind: 'success',
+      previousBaselineCapturedAt: entry.baseline.capturedAt,
     };
   }
 }

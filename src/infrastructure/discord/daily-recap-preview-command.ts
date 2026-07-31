@@ -132,7 +132,10 @@ function failureSections(preview: DailyRecapPreview): RenderSection[] {
 }
 
 function accountLines(entry: DailyRecapAccountPresentation): string[] {
-  const lines = [`## ${entry.account.displayUsername} (${accountModeLabel(entry.account)})`];
+  const lines = [
+    `## ${entry.account.displayUsername} (${accountModeLabel(entry.account)})`,
+    `*Compared with the last successful snapshot: <t:${Math.floor(entry.previousBaselineCapturedAt.getTime() / 1_000)}:f>*`,
+  ];
   if (entry.changes.bosses.length > 0) {
     lines.push(
       '**Boss activities**',

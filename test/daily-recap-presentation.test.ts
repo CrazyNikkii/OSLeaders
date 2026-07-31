@@ -127,6 +127,7 @@ function success(
     },
     changes,
     kind: 'success',
+    previousBaselineCapturedAt: new Date('2026-07-30T10:00:00.000Z'),
   };
 }
 

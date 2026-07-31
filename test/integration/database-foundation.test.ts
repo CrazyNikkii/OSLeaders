@@ -19,6 +19,7 @@ import {
 import { PostgresGuildConfigurationRepository } from '../../src/infrastructure/database/postgres-guild-configuration-repository.js';
 import { PostgresAccountRegistrationRepository } from '../../src/infrastructure/database/postgres-account-registration-repository.js';
 import { PostgresDailyRecapCollectionRepository } from '../../src/infrastructure/database/postgres-daily-recap-collection-repository.js';
+import { PostgresManualDailyRecapSendRepository } from '../../src/infrastructure/database/postgres-manual-daily-recap-send-repository.js';
 import {
   guildConfigurations,
   guildMemberPresences,
@@ -217,6 +218,104 @@ describe('database foundation', () => {
     expect(result?.baseline.bossKillCounts).toEqual({ Zulrah: 12 });
     expect(result?.baseline.skillExperience).toEqual({ Attack: 1234 });
     expect(result?.baseline.skillLevels).toEqual({ Attack: 10 });
+  });
+
+  it('durably prepares a manual recap delivery and advances only successful account baselines', async () => {
+    const accounts = new PostgresAccountRegistrationRepository(connection.database);
+    const repository = new PostgresManualDailyRecapSendRepository(
+      connection.database,
+      () => new Date('2026-07-31T12:00:00.000Z'),
+    );
+    const guildId = 'manual-recap-guild';
+    const successful = await accounts.register(
+      account({
+        displayUsername: 'Manual Success',
+        guildId,
+        id: 'manual-success-account',
+        normalizedUsername: 'manual success',
+      }),
+      initialRecapBaseline(),
+    );
+    const failed = await accounts.register(
+      account({
+        displayUsername: 'Manual Failure',
+        guildId,
+        id: 'manual-failure-account',
+        normalizedUsername: 'manual failure',
+      }),
+      initialRecapBaseline(),
+    );
+    if (successful.kind !== 'registered' || failed.kind !== 'registered') {
+      throw new Error('Manual recap test accounts were not registered.');
+    }
+    await connection.database.insert(guildConfigurations).values({
+      guildId,
+      recapChannelId: 'manual-recap-channel',
+    });
+
+    await expect(repository.startManualRun(guildId, 'manual-recap-run')).resolves.toEqual({
+      kind: 'started',
+      run: { recapChannelId: 'manual-recap-channel', recapRunId: 'manual-recap-run' },
+    });
+    await expect(repository.startManualRun(guildId, 'second-manual-recap-run')).resolves.toEqual({
+      kind: 'recap_already_running',
+    });
+    await repository.finalizeManualRun({
+      collection: {
+        completedAt: new Date('2026-07-31T11:05:00.000Z'),
+        guildId,
+        outcomes: [
+          {
+            account: successful.account,
+            candidateBaseline: {
+              bossKillCounts: { Zulrah: 20 },
+              capturedAt: new Date('2026-07-31T11:00:00.000Z'),
+              skillExperience: { Attack: 2000 },
+              skillLevels: { Attack: 20 },
+            },
+            changes: { bosses: [{ boss: 'Zulrah', killCountGained: 8 }], skills: [] },
+            kind: 'success',
+            previousBaselineCapturedAt: new Date('2026-07-25T00:00:00.000Z'),
+          },
+          { account: failed.account, failure: { kind: 'timeout' }, kind: 'failure' },
+        ],
+        startedAt: new Date('2026-07-31T10:00:00.000Z'),
+      },
+      deliveryContent:
+        '# Daily recap\n## <@member-one>\n### Manual Success (Main)\n*Compared with the last successful snapshot: <t:1784937600:f>*\n**Boss activities**\n• Zulrah: +8 KC\n## Unavailable accounts\n**Manual Failure** (Main) — Hiscores timed out',
+      guildId,
+      recapChannelId: 'manual-recap-channel',
+      recapRunId: 'manual-recap-run',
+    });
+
+    await expect(
+      connection.database
+        .select({ accountId: recapBaselines.accountId, experience: recapBaselines.skillExperience })
+        .from(recapBaselines)
+        .where(eq(recapBaselines.guildId, guildId))
+        .orderBy(recapBaselines.accountId),
+    ).resolves.toEqual([
+      { accountId: 'manual-failure-account', experience: { Attack: 1234 } },
+      { accountId: 'manual-success-account', experience: { Attack: 2000 } },
+    ]);
+    await expect(
+      connection.database
+        .select({ content: dailyRecapDeliveries.content, status: dailyRecapDeliveries.status })
+        .from(dailyRecapDeliveries)
+        .where(eq(dailyRecapDeliveries.recapRunId, 'manual-recap-run')),
+    ).resolves.toEqual([
+      {
+        content:
+          '# Daily recap\n## <@member-one>\n### Manual Success (Main)\n*Compared with the last successful snapshot: <t:1784937600:f>*\n**Boss activities**\n• Zulrah: +8 KC\n## Unavailable accounts\n**Manual Failure** (Main) — Hiscores timed out',
+        status: 'pending',
+      },
+    ]);
+    await expect(
+      connection.database
+        .select({ status: dailyRecapRuns.status })
+        .from(dailyRecapRuns)
+        .where(eq(dailyRecapRuns.id, 'manual-recap-run')),
+    ).resolves.toEqual([{ status: 'delivery_pending' }]);
   });
 
   it('keeps durable recap runs and deliveries in their owning guild', async () => {

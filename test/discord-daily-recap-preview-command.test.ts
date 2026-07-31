@@ -102,6 +102,7 @@ describe('Discord daily recap preview command', () => {
           },
         ],
       },
+      previousBaselineCapturedAt: new Date('2026-07-30T10:00:00.000Z'),
     }));
 
     const embeds = dailyRecapPreviewEmbeds(
@@ -181,6 +182,7 @@ function preview(
                 },
               ],
             },
+            previousBaselineCapturedAt: new Date('2026-07-30T10:00:00.000Z'),
           },
         ],
         discordUserId: 'member-one',
@@ -205,6 +207,7 @@ function preview(
             },
           ],
         },
+        previousBaselineCapturedAt: new Date('2026-07-30T10:00:00.000Z'),
       },
     ],
   },
