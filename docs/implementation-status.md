@@ -310,33 +310,26 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
-`199904a` (2026-07-31) - Add daily recap collection calculation.
+`3c0a561` (2026-07-31) - Add daily recap preview foundation.
 
-This merged the second reprioritized Stage 7 foundation. It loads tracked
-accounts and rolling baselines with guild-consistent ownership, bypasses the
-ordinary Hiscores cache, calculates positive-only skill XP, level, and boss KC
-changes, and returns candidate replacement baselines only for complete
-successful results. Failed, incomplete, or baseline-invalid account outcomes do
-not create candidate replacements. Focused unit and PostgreSQL integration
-tests cover guild isolation, fresh fetching, incomplete results, and Jagex's
-unranked boss-score sentinel.
+This merged the third reprioritized Stage 7 foundation. It transforms fresh
+collection outcomes into a Discord-independent structured preview: positive
+changes are grouped by linked Discord user, watchlist accounts and failures
+remain separate, and no-activity is explicit. Preview delegates only to the
+existing collection service and cannot advance baselines or deliver to Discord.
+Focused tests cover grouping, watchlist separation, failures, no activity, and
+the non-mutating dependency boundary.
 
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
 ## Current unmerged implementation work
 
-`codex/daily-recap-presentation-preview` adds a Discord-independent recap
-presentation and preview service. It groups only positive changes by linked
-Discord user, keeps watchlist accounts separate, and returns structured
-no-activity and per-account failure results. It invokes the existing fresh
-collection service without advancing baselines or posting to Discord. This
-work is not merged and must not be recorded as completed until merged.
+None.
 
 ## Next recommended branch-sized task
 
-After this preview foundation is merged, start
-`codex/discord-daily-recap-preview` with the guild-only slash-command adapter
+Start `codex/discord-daily-recap-preview` with the guild-only slash-command adapter
 and presenter that show the existing preview result privately. The presenter
 must create bounded, numbered Discord embeds or messages from the structured
 result without omitting valid data. Do not add baseline advancement,
