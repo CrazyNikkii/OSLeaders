@@ -310,37 +310,31 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
-`0b63599` (2026-07-31) - Add Discord manual daily recap send command.
+`db2500a` (2026-07-31) - Merge Discord daily recap delivery.
 
-This merged the guild-only `/recap send` adapter. It requires Discord
-Administrator permission or the configured bot-manager role, then creates a
-one-time confirmation bound to the requesting member and guild with a
-five-minute expiry. A confirmed request invokes the durable manual-send
-workflow and privately reports whether a recap is ready for delivery, is not
-configured, or is already running. Development command registration and
-runtime wiring are included. Focused adapter tests cover command definition,
-authorization, confirmation binding and expiry, guild-only handling, and
-pending-delivery presentation.
+This merged one durable at-least-once Discord delivery attempt after a
+confirmed manual recap send. It claims only the matching guild's pending
+delivery, resolves the configured channel through that guild, persists the
+Discord message reference on success, and records a safe recoverable failure
+on delivery rejection. A later confirmed `/recap send` retries the oldest
+pending or failed delivery, and only retries an interrupted delivery after its
+five-minute delivery lease has expired, before it permits a new
+baseline-advancing collection; retry-marked payloads are chunked into numbered
+Discord-safe messages. Focused unit and PostgreSQL integration tests cover
+guild isolation, recovery, lease expiry, delivery failure, message-reference
+persistence, and chunking. It deliberately does not add retry polling, startup
+recovery, or automatic scheduling.
 
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
 ## Current unmerged implementation work
 
-`codex/daily-recap-discord-delivery` adds one durable at-least-once Discord
-delivery attempt after a confirmed manual recap send. It claims only the
-matching guild's pending delivery, resolves the configured channel through that
-guild, persists the Discord message reference on success, and records a safe
-recoverable failure on delivery rejection. A later confirmed `/recap send`
-retries the oldest pending or failed delivery, and only retries an interrupted
-delivery after its five-minute delivery lease has expired, before it permits a
-new baseline-advancing collection; retry-marked payloads are chunked into
-numbered Discord-safe messages. It deliberately does not add retry polling,
-startup recovery, or automatic scheduling.
+None.
 
 ## Next recommended branch-sized task
 
-After this branch is merged, start `codex/daily-recap-delivery-recovery`.
+Start `codex/daily-recap-delivery-recovery`.
 Implement bounded startup and scheduled recovery of durable recap deliveries,
 including conservative duplicate identification and retry intervals. Do not
 add automatic recap scheduling until delivery recovery semantics are covered.
