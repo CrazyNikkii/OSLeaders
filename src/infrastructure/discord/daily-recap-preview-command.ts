@@ -1,4 +1,5 @@
 import {
+  ChannelType,
   EmbedBuilder,
   Events,
   MessageFlags,
@@ -19,13 +20,14 @@ import { PreviewDailyRecapService } from '../../features/recaps/preview-daily-re
 const RECAP_COMMAND_NAME = 'recap';
 const PREVIEW_SUBCOMMAND_NAME = 'preview';
 const SEND_SUBCOMMAND_NAME = 'send';
+const CONFIGURE_SUBCOMMAND_NAME = 'configure';
 const MAX_EMBED_DESCRIPTION_LENGTH = 4_096;
 const MAX_EMBEDS_PER_MESSAGE = 10;
 
 export const dailyRecapPreviewCommandDefinitions = [
   new SlashCommandBuilder()
     .setName(RECAP_COMMAND_NAME)
-    .setDescription('View or send a daily recap.')
+    .setDescription('Configure, view, or send a daily recap.')
     .setDMPermission(false)
     .addSubcommand((subcommand) =>
       subcommand
@@ -36,6 +38,36 @@ export const dailyRecapPreviewCommandDefinitions = [
       subcommand
         .setName(SEND_SUBCOMMAND_NAME)
         .setDescription('Prepare a daily recap for delivery after confirmation.'),
+    )
+    .addSubcommand((subcommand) =>
+      subcommand
+        .setName(CONFIGURE_SUBCOMMAND_NAME)
+        .setDescription('Configure this server’s automatic daily recap.')
+        .addChannelOption((option) =>
+          option
+            .setName('channel')
+            .setDescription('Channel where daily recaps are posted.')
+            .addChannelTypes(ChannelType.GuildText)
+            .setRequired(true),
+        )
+        .addStringOption((option) =>
+          option
+            .setName('time')
+            .setDescription('Daily local time in 24-hour HH:mm format.')
+            .setRequired(true),
+        )
+        .addStringOption((option) =>
+          option
+            .setName('timezone')
+            .setDescription('IANA timezone, for example Europe/Helsinki.')
+            .setRequired(true),
+        )
+        .addBooleanOption((option) =>
+          option
+            .setName('enabled')
+            .setDescription('Whether automatic recap scheduling is enabled.')
+            .setRequired(true),
+        ),
     )
     .toJSON(),
 ] as const;

@@ -11,6 +11,8 @@ import { DailyRecapPreviewService } from '../../features/recaps/daily-recap-pres
 import { PreviewDailyRecapService } from '../../features/recaps/preview-daily-recap.js';
 import { ManualDailyRecapSendService } from '../../features/recaps/send-daily-recap.js';
 import { DailyRecapDeliveryService } from '../../features/recaps/deliver-daily-recap.js';
+import { ConfigureDailyRecapService } from '../../features/recaps/configure-daily-recap.js';
+import { AutomaticDailyRecapSchedulingService } from '../../features/recaps/schedule-automatic-daily-recaps.js';
 import { createErrorReferenceId } from '../../features/audit/error-reference.js';
 import { GuildConfigurationService } from '../../features/guild-configuration/guild-configuration-service.js';
 import { GuildPermissionService } from '../../features/guild-configuration/guild-permission-service.js';
@@ -21,6 +23,7 @@ import { PostgresGuildConfigurationRepository } from '../database/postgres-guild
 import { PostgresDailyRecapCollectionRepository } from '../database/postgres-daily-recap-collection-repository.js';
 import { PostgresManualDailyRecapSendRepository } from '../database/postgres-manual-daily-recap-send-repository.js';
 import { PostgresDailyRecapDeliveryRepository } from '../database/postgres-daily-recap-delivery-repository.js';
+import { PostgresAutomaticDailyRecapScheduleRepository } from '../database/postgres-automatic-daily-recap-schedule-repository.js';
 import { OsrsHiscoreHttpClient } from '../hiscores/osrs-hiscore-http-client.js';
 import { OSRS_MODE_FETCH_STRATEGIES } from '../hiscores/osrs-hiscore-catalog.js';
 import { StdoutStructuredLocalLogger } from '../logging/structured-local-logger.js';
@@ -77,6 +80,14 @@ import {
   InProcessDailyRecapDeliveryRecoveryScheduler,
   type DailyRecapDeliveryRecoveryScheduler,
 } from './daily-recap-delivery-recovery-scheduler.js';
+import {
+  InProcessAutomaticDailyRecapSchedulingScheduler,
+  type AutomaticDailyRecapSchedulingScheduler,
+} from './automatic-daily-recap-scheduling-scheduler.js';
+import {
+  bindDiscordDailyRecapConfigurationCommandAdapter,
+  DiscordDailyRecapConfigurationCommandAdapter,
+} from './daily-recap-configuration-command.js';
 
 export interface DevelopmentDiscordRuntime {
   close(): Promise<void>;
@@ -90,6 +101,10 @@ export interface DevelopmentDiscordRuntimeDependencies {
     delivery: DailyRecapDeliveryService,
     logger: StructuredLocalLogger,
   ): DailyRecapDeliveryRecoveryScheduler;
+  createAutomaticDailyRecapSchedulingScheduler(
+    schedules: AutomaticDailyRecapSchedulingService,
+    logger: StructuredLocalLogger,
+  ): AutomaticDailyRecapSchedulingScheduler;
 }
 
 const defaultDependencies: DevelopmentDiscordRuntimeDependencies = {
@@ -98,6 +113,8 @@ const defaultDependencies: DevelopmentDiscordRuntimeDependencies = {
   createLogger: () => new StdoutStructuredLocalLogger(),
   createDailyRecapDeliveryRecoveryScheduler: (delivery, logger) =>
     new InProcessDailyRecapDeliveryRecoveryScheduler(delivery, logger),
+  createAutomaticDailyRecapSchedulingScheduler: (schedules, logger) =>
+    new InProcessAutomaticDailyRecapSchedulingScheduler(schedules, logger),
 };
 
 export async function startDevelopmentDiscordRuntime(
@@ -200,6 +217,15 @@ export async function startDevelopmentDiscordRuntime(
       delivery,
       logger,
     );
+    const automaticSchedulingScheduler = dependencies.createAutomaticDailyRecapSchedulingScheduler(
+      new AutomaticDailyRecapSchedulingService(
+        new PostgresAutomaticDailyRecapScheduleRepository(connection.database),
+      ),
+      logger,
+    );
+    const dailyRecapConfigurationAdapter = new DiscordDailyRecapConfigurationCommandAdapter(
+      new ConfigureDailyRecapService(configurationRepository, permissions),
+    );
 
     bindDiscordAccountCommandAdapter(
       client,
@@ -255,6 +281,12 @@ export async function startDevelopmentDiscordRuntime(
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.developmentGuildId,
     );
+    bindDiscordDailyRecapConfigurationCommandAdapter(
+      client,
+      dailyRecapConfigurationAdapter,
+      (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
+      (interaction) => interaction.guildId === configuration.discord.developmentGuildId,
+    );
     client.once(Events.ClientReady, () => {
       logger.write({
         operation: 'discord.ready',
@@ -272,7 +304,14 @@ export async function startDevelopmentDiscordRuntime(
 
     await client.login(configuration.discord.token);
     await deliveryRecoveryScheduler.start();
-    return createRuntime(client, connection, logger, deliveryRecoveryScheduler);
+    await automaticSchedulingScheduler.start();
+    return createRuntime(
+      client,
+      connection,
+      logger,
+      deliveryRecoveryScheduler,
+      automaticSchedulingScheduler,
+    );
   } catch (error) {
     await client.destroy();
     await connection.close();
@@ -303,8 +342,10 @@ async function closeRuntime(
   connection: DatabaseConnection,
   logger: StructuredLocalLogger,
   deliveryRecoveryScheduler: DailyRecapDeliveryRecoveryScheduler,
+  automaticSchedulingScheduler: AutomaticDailyRecapSchedulingScheduler,
 ): Promise<void> {
   deliveryRecoveryScheduler.stop();
+  automaticSchedulingScheduler.stop();
   await client.destroy();
   await connection.close();
   logger.write({
@@ -319,11 +360,18 @@ function createRuntime(
   connection: DatabaseConnection,
   logger: StructuredLocalLogger,
   deliveryRecoveryScheduler: DailyRecapDeliveryRecoveryScheduler,
+  automaticSchedulingScheduler: AutomaticDailyRecapSchedulingScheduler,
 ): DevelopmentDiscordRuntime {
   let closePromise: Promise<void> | undefined;
   return {
     close: () => {
-      closePromise ??= closeRuntime(client, connection, logger, deliveryRecoveryScheduler);
+      closePromise ??= closeRuntime(
+        client,
+        connection,
+        logger,
+        deliveryRecoveryScheduler,
+        automaticSchedulingScheduler,
+      );
       return closePromise;
     },
   };

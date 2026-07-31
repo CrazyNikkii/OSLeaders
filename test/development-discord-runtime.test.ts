@@ -30,6 +30,8 @@ describe('development Discord runtime', () => {
     expect(dependencies.closeDatabase).toHaveBeenCalledOnce();
     expect(dependencies.deliveryRecoveryScheduler.start).toHaveBeenCalledOnce();
     expect(dependencies.deliveryRecoveryScheduler.stop).toHaveBeenCalledOnce();
+    expect(dependencies.automaticSchedulingScheduler.start).toHaveBeenCalledOnce();
+    expect(dependencies.automaticSchedulingScheduler.stop).toHaveBeenCalledOnce();
   });
 
   it('does not construct external dependencies outside development', async () => {
@@ -107,7 +109,7 @@ describe('development Discord runtime', () => {
     }
     await vi.waitFor(() => expect(reply).toHaveBeenCalledOnce());
 
-    expect(dependencies.interactionHandlers).toHaveLength(9);
+    expect(dependencies.interactionHandlers).toHaveLength(10);
     expect(reply).toHaveBeenCalledWith({
       content: 'You do not have a default linked account in this server.',
       flags: MessageFlags.Ephemeral,
@@ -171,6 +173,10 @@ class RuntimeDependencies {
     start: vi.fn(() => Promise.resolve()),
     stop: vi.fn(),
   };
+  public readonly automaticSchedulingScheduler = {
+    start: vi.fn(() => Promise.resolve()),
+    stop: vi.fn(),
+  };
   public readonly logger = new RecordingLogger();
   public readonly pool = { query: vi.fn(() => Promise.resolve()) };
 
@@ -179,6 +185,7 @@ class RuntimeDependencies {
       createClient: this.createClient,
       createDatabaseConnection: this.createDatabaseConnection as never,
       createDailyRecapDeliveryRecoveryScheduler: vi.fn(() => this.deliveryRecoveryScheduler),
+      createAutomaticDailyRecapSchedulingScheduler: vi.fn(() => this.automaticSchedulingScheduler),
       createLogger: () => this.logger,
     };
   }

@@ -328,12 +328,27 @@ authority for the latest repository change.
 
 ## Current unmerged implementation work
 
-None.
+`codex/daily-recap-automatic-scheduling` adds the first automatic-recap
+scheduling slice. It provides guild-only administrator or bot-manager recap
+configuration for the recap channel, enabled state, local time, and IANA
+timezone. It rejects malformed values and recurring local times that would be
+missing or ambiguous at an upcoming daylight-saving transition rather than
+guessing. A restrained in-process scheduler creates one durable,
+guild-scoped `pending_collection` automatic recap run for a due local-time
+occurrence, relying on the existing `(guild_id, scheduled_for)` uniqueness
+constraint to make restart and polling repeats safe. Startup also creates the
+most recent overdue occurrence after local midnight, while routine polling
+does not schedule a future local-day recap early. It starts after Discord login
+and stops before the runtime closes. Focused service, scheduler, command,
+adapter, repository, and runtime tests cover the new behaviour. This work is
+unmerged; automatic collection and delivery of these scheduled runs are not yet
+implemented.
 
 ## Next recommended branch-sized task
 
-After this branch is merged, start `codex/daily-recap-automatic-scheduling`.
-Implement automatic daily-recap configuration and durable local-time schedule
-creation using the established delivery recovery path. Validate daylight-saving
-gaps and ambiguities rather than guessing, and do not begin competition work in
-that branch.
+After this branch is merged, start `codex/daily-recap-automatic-collection`.
+Claim due automatic recap runs, collect fresh Hiscores, atomically advance only
+successful baselines, create durable deliveries, and hand them to the existing
+delivery/recovery path. Preserve per-guild serialization with manual recap
+sends, bounded retry/recovery behaviour, and the real comparison period for
+overdue runs. Do not begin competition work in that branch.

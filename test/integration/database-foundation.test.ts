@@ -21,6 +21,7 @@ import { PostgresAccountRegistrationRepository } from '../../src/infrastructure/
 import { PostgresDailyRecapCollectionRepository } from '../../src/infrastructure/database/postgres-daily-recap-collection-repository.js';
 import { PostgresManualDailyRecapSendRepository } from '../../src/infrastructure/database/postgres-manual-daily-recap-send-repository.js';
 import { PostgresDailyRecapDeliveryRepository } from '../../src/infrastructure/database/postgres-daily-recap-delivery-repository.js';
+import { PostgresAutomaticDailyRecapScheduleRepository } from '../../src/infrastructure/database/postgres-automatic-daily-recap-schedule-repository.js';
 import {
   guildConfigurations,
   guildMemberPresences,
@@ -524,6 +525,59 @@ describe('database foundation', () => {
         .from(dailyRecapDeliveries)
         .where(eq(dailyRecapDeliveries.guildId, 'recap-run-guild-two')),
     ).resolves.toEqual([]);
+  });
+
+  it('lists only enabled complete recap configurations and creates one automatic run per guild instant', async () => {
+    const configurations = new PostgresGuildConfigurationRepository(connection.database);
+    const repository = new PostgresAutomaticDailyRecapScheduleRepository(connection.database);
+    const scheduledFor = new Date('2026-08-01T15:00:00.000Z');
+
+    await configurations.update('automatic-schedule-guild-one', {
+      recapChannelId: 'recap-channel-one',
+      recapEnabled: true,
+      recapLocalTime: '18:00',
+      timezone: 'Europe/Helsinki',
+    });
+    await configurations.update('automatic-schedule-guild-two', {
+      recapEnabled: true,
+      recapLocalTime: '18:00',
+    });
+
+    const enabled = await repository.listEnabledRecapConfigurations();
+    expect(enabled).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          guildId: 'automatic-schedule-guild-one',
+          recapChannelId: 'recap-channel-one',
+          recapEnabled: true,
+          recapLocalTime: '18:00',
+        }),
+      ]),
+    );
+    expect(enabled.map((configuration) => configuration.guildId)).not.toContain(
+      'automatic-schedule-guild-two',
+    );
+    await expect(
+      repository.createAutomaticRun(
+        'automatic-schedule-guild-one',
+        'automatic-schedule-run-one',
+        scheduledFor,
+      ),
+    ).resolves.toBe(true);
+    await expect(
+      repository.createAutomaticRun(
+        'automatic-schedule-guild-one',
+        'automatic-schedule-run-two',
+        scheduledFor,
+      ),
+    ).resolves.toBe(false);
+    await expect(
+      repository.createAutomaticRun(
+        'automatic-schedule-guild-two',
+        'automatic-schedule-run-three',
+        scheduledFor,
+      ),
+    ).resolves.toBe(true);
   });
 
   it('keeps account names guild-scoped and selects the first linked account as default', async () => {
