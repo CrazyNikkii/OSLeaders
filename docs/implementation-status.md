@@ -310,6 +310,13 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
+`6bca34d` (2026-08-05) - Merge boss selection coverage fix.
+
+This merged the `/boss` bounded-menu fix. Boss choices are now shared with the
+one-time boss flow, retain their names while sorting without a leading `The `,
+and are available through bounded alphabetical select menus. `/boss` selection
+sessions are limited to five minutes and bound to the initiating user and guild.
+
 `664b9c8` (2026-08-05) - Record recap configuration fix merge.
 
 This merged the status-record correction for the recap configuration acknowledgement
@@ -341,19 +348,14 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-The `/boss` bounded boss-menu coverage fix is implemented locally but remains
-unmerged. It centralizes the bounded alphabetical boss choices used by the
-one-time boss lookup flow, applies them to `/boss`, and preserves the existing
-guild-scoped lookup and response handling. It is not completed until merged.
-
-The recap configuration acknowledgement and private-beta CI fixes are merged.
-The Debian private-beta readiness work remains merged; it does not establish
-private-beta readiness because the real-server checklist must still be
-completed and recorded on the Debian laptop.
+None. The `/boss` bounded boss-menu coverage fix, recap configuration
+acknowledgement, and private-beta CI fixes are merged. The Debian private-beta
+readiness work remains merged; it does not establish private-beta readiness
+because the real-server checklist must still be completed and recorded on the
+Debian laptop.
 
 ## Next recommended branch-sized task
 
-Merge the `/boss` bounded boss-menu coverage fix after review. Then complete and
-record the Debian real-server acceptance checklist before claiming 24/7
-private-beta readiness. Keep competition work deferred until the Debian
+Complete and record the Debian real-server acceptance checklist before claiming
+24/7 private-beta readiness. Keep competition work deferred until the Debian
 operating path has proven reliable.
