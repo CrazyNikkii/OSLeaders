@@ -319,22 +319,21 @@ deployment correction below; Windows remains the development environment.
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
+`ff398d9` (2026-08-05) - Merge Debian private-beta readiness.
+
+This merged the Debian 13 headless-SSH operating path: separate production
+Discord and database configuration, guarded production migrations, systemd
+runtime and backup-timer units, protected unattended PostgreSQL credentials,
+and Debian backup, restore-rehearsal, and acceptance guidance.
+
 ## Current unmerged implementation work
 
-The `codex/debian-private-beta-readiness` branch replaces the Windows-only
-private-beta operating assets with a Debian 13 headless-SSH path. It adds a
-separate production Discord guild configuration and guarded production
-migrations, systemd service and backup-timer units, local-PostgreSQL-only
-backup and isolated restore-rehearsal scripts, Debian-focused documentation,
-and focused asset/configuration tests. The backup service uses an explicit
-`PGPASSFILE` outside its `ProtectHome=true` sandbox so unattended PostgreSQL
-authentication remains available without exposing credentials on a command
-line. It does not establish private-beta readiness; the real-server checklist
-must still be completed and recorded on the Debian laptop.
+None. The Debian private-beta readiness work is merged. It does not establish
+private-beta readiness; the real-server checklist must still be completed and
+recorded on the Debian laptop.
 
 ## Next recommended branch-sized task
 
-Review and merge the Debian private-beta readiness branch. Then complete and
-record its real-server acceptance checklist before claiming 24/7 private-beta
-readiness. Keep competition work deferred until the Debian operating path has
-proven reliable.
+Complete and record the Debian real-server acceptance checklist before claiming
+24/7 private-beta readiness. Keep competition work deferred until the Debian
+operating path has proven reliable.
