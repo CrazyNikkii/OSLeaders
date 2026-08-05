@@ -24,13 +24,13 @@ import {
   type OsrsBossActivityName,
 } from '../hiscores/osrs-hiscore-catalog.js';
 import { bossLookupEmbed, bossLookupFailureMessage } from './boss-lookup-command.js';
+import { bossChoiceGroups, bossChoiceMenuRows } from './boss-choice-menu.js';
 
 const COMMAND_NAME = 'one-time-boss';
 const INTERACTION_PREFIX = 'osleaders:one-time-boss';
 const USERNAME_INPUT_ID = 'username';
 const SESSION_LIFETIME_MS = 5 * 60 * 1000;
 const MAX_PENDING_SESSIONS = 1_000;
-const MAX_BOSS_OPTIONS_PER_MENU = 25;
 
 export const oneTimeBossLookupCommandDefinitions = [
   new SlashCommandBuilder()
@@ -197,7 +197,7 @@ export class OneTimeBossLookupCommandHandler {
     if (typeof session !== 'object') return sessionFailure(session);
     return {
       kind: 'boss_selection',
-      customIds: bossOptionGroups.map((_, index) => encodeBoss(index, sessionId)),
+      customIds: bossChoiceGroups.map((_, index) => encodeBoss(index, sessionId)),
     };
   }
 
@@ -359,13 +359,7 @@ function response(result: OneTimeBossLookupCommandResult) {
     case 'boss_selection':
       return {
         content: 'Choose the boss to look up.',
-        components: bossOptionGroups.map((options, index) =>
-          select(
-            result.customIds[index] ?? '',
-            `Choose boss (${bossGroupLabel(options)})`,
-            options,
-          ),
-        ),
+        components: bossChoiceMenuRows((index) => result.customIds[index] ?? ''),
       };
     case 'found':
       return { components: [], embeds: [result.embed] };
@@ -421,34 +415,6 @@ function isOsrsAccountMode(value: string): value is OsrsAccountMode {
 }
 function isOsrsBossActivityName(value: string): value is OsrsBossActivityName {
   return OSRS_BOSS_ACTIVITY_NAMES.includes(value as OsrsBossActivityName);
-}
-const bossOptionGroups = chunkBossOptions(OSRS_BOSS_ACTIVITY_NAMES);
-function chunkBossOptions(
-  bosses: readonly OsrsBossActivityName[],
-): readonly (readonly { label: string; value: string }[])[] {
-  const orderedBosses = [...bosses].sort((left, right) =>
-    bossSortKey(left).localeCompare(bossSortKey(right), 'en'),
-  );
-  const groups: { label: string; value: string }[][] = [];
-  for (let index = 0; index < orderedBosses.length; index += MAX_BOSS_OPTIONS_PER_MENU) {
-    groups.push(
-      orderedBosses
-        .slice(index, index + MAX_BOSS_OPTIONS_PER_MENU)
-        .map((value) => ({ label: value, value })),
-    );
-  }
-  return groups;
-}
-function bossSortKey(name: string): string {
-  return name.replace(/^the\s+/i, '');
-}
-function bossGroupLabel(options: readonly { label: string }[]): string {
-  const first = options[0];
-  const last = options.at(-1);
-  if (first === undefined || last === undefined) return '?';
-  const firstLetter = bossSortKey(first.label).at(0)?.toUpperCase() ?? '?';
-  const lastLetter = bossSortKey(last.label).at(0)?.toUpperCase() ?? '?';
-  return firstLetter === lastLetter ? firstLetter : `${firstLetter}–${lastLetter}`;
 }
 function accountModeLabel(mode: OsrsAccountMode): string {
   return mode

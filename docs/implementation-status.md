@@ -310,6 +310,11 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
+`664b9c8` (2026-08-05) - Record recap configuration fix merge.
+
+This merged the status-record correction for the recap configuration acknowledgement
+fix after its pull request was merged.
+
 `b3b9ee9` (2026-08-05) - Merge recap configuration acknowledgement fix.
 
 This merged the private Discord acknowledgement fix for `/recap configure`:
@@ -321,8 +326,8 @@ run the existing Debian operational-assets test.
 `6fa38a5` (2026-08-05) - Add private beta laptop readiness.
 
 This merged the initial Windows single-server private-beta operating path. Its
-Windows runtime and backup assets are superseded by the current unmerged Debian
-deployment correction below; Windows remains the development environment.
+Windows runtime and backup assets are superseded by the merged Debian
+deployment path below; Windows remains the development environment.
 
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
@@ -336,13 +341,19 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-None. The recap configuration acknowledgement and private-beta CI fixes are
-merged. The Debian private-beta readiness work remains merged; it does not
-establish private-beta readiness because the real-server checklist must still
-be completed and recorded on the Debian laptop.
+The `/boss` bounded boss-menu coverage fix is implemented locally but remains
+unmerged. It centralizes the bounded alphabetical boss choices used by the
+one-time boss lookup flow, applies them to `/boss`, and preserves the existing
+guild-scoped lookup and response handling. It is not completed until merged.
+
+The recap configuration acknowledgement and private-beta CI fixes are merged.
+The Debian private-beta readiness work remains merged; it does not establish
+private-beta readiness because the real-server checklist must still be
+completed and recorded on the Debian laptop.
 
 ## Next recommended branch-sized task
 
-Complete and record the Debian real-server acceptance checklist before claiming
-24/7 private-beta readiness. Keep competition work deferred until the Debian
+Merge the `/boss` bounded boss-menu coverage fix after review. Then complete and
+record the Debian real-server acceptance checklist before claiming 24/7
+private-beta readiness. Keep competition work deferred until the Debian
 operating path has proven reliable.

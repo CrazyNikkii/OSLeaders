@@ -3,123 +3,146 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { TrackedAccount } from '../src/features/accounts/register-account.js';
 import type { BossLookupResult } from '../src/features/lookups/boss-lookup.js';
+import { OSRS_BOSS_ACTIVITY_NAMES } from '../src/infrastructure/hiscores/osrs-hiscore-catalog.js';
 import {
   BossLookupCommandHandler,
   DiscordBossLookupCommandAdapter,
   bossLookupCommandDefinitions,
 } from '../src/infrastructure/discord/boss-lookup-command.js';
+import {
+  bossChoiceGroups,
+  bossChoiceGroupLabel,
+} from '../src/infrastructure/discord/boss-choice-menu.js';
 
 describe('Discord boss lookup command', () => {
-  it('registers a guild-only command with boss and account autocomplete', () => {
+  it('registers a guild-only command with account autocomplete and menu-driven boss selection', () => {
     const definition = bossLookupCommandDefinitions[0];
 
     expect(definition).toMatchObject({
       description: 'Look up an OSRS boss kill count for a tracked account.',
       name: 'boss',
     });
-    expect(JSON.stringify(definition)).toContain('"autocomplete":true');
+    const options = definition.options ?? [];
+    expect(options).toHaveLength(1);
+    expect(options[0]).toMatchObject({ name: 'account' });
   });
 
-  it('autocompletes canonical bosses and only accounts from the interaction guild', async () => {
+  it('autocompletes only accounts from the interaction guild', async () => {
     const services = new LookupServices([
       account(),
       account({ guildId: 'guild-two', id: 'elsewhere' }),
     ]);
     const handler = new BossLookupCommandHandler(services);
 
-    await expect(handler.autocomplete('guild-one', 'boss', 'sire')).resolves.toEqual([
-      { name: 'Abyssal Sire', value: 'Abyssal Sire' },
-    ]);
     await expect(handler.autocomplete('guild-one', 'account', '')).resolves.toEqual([
       { name: 'Rune Scape (ironman)', value: 'account-one' },
     ]);
     await expect(handler.autocomplete(null, 'account', '')).resolves.toEqual([]);
   });
 
-  it('uses the caller default when no account option is supplied', async () => {
-    const services = new LookupServices([]);
-    const handler = new BossLookupCommandHandler(services);
+  it('covers every boss in bounded alphabetical menus and sorts The Gauntlet under G', () => {
+    const choices = bossChoiceGroups.flatMap((group) => group.map((choice) => choice.value));
+    const gauntletGroup = bossChoiceGroups.findIndex((group) =>
+      group.some((choice) => choice.value === 'The Gauntlet'),
+    );
 
-    await handler.lookup('guild-one', 'member-one', 'Abyssal Sire', null);
+    expect(choices).toEqual(expect.arrayContaining([...OSRS_BOSS_ACTIVITY_NAMES]));
+    expect(choices).toHaveLength(OSRS_BOSS_ACTIVITY_NAMES.length);
+    expect(new Set(choices)).toHaveLength(OSRS_BOSS_ACTIVITY_NAMES.length);
+    expect(bossChoiceGroups.every((group) => group.length <= 25)).toBe(true);
+    expect(bossChoiceGroupLabel(bossChoiceGroups[gauntletGroup] ?? [])).toContain('G');
+    expect(choices.indexOf('The Gauntlet')).toBeLessThan(choices.indexOf('Giant Mole'));
+  });
+
+  it('keeps the lookup guild-scoped and public only after a boss menu selection', async () => {
+    const services = new LookupServices([]);
+    const adapter = new DiscordBossLookupCommandAdapter(new BossLookupCommandHandler(services));
+    const command = commandInteraction();
+
+    await adapter.handle(command as never);
+
+    expect(command.reply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: 'Choose the boss to look up.',
+        flags: MessageFlags.Ephemeral,
+      }),
+    );
+    const response = command.reply.mock.calls[0]?.[0];
+    if (response === undefined) throw new Error('Expected boss menu response.');
+    const row = response.components.find((candidate) =>
+      candidate.toJSON().components[0]?.options.some((option) => option.value === 'The Gauntlet'),
+    );
+    const customId = row?.toJSON().components[0]?.custom_id;
+    if (customId === undefined) throw new Error('Expected The Gauntlet selector.');
+
+    const selection = selectInteraction(customId, 'The Gauntlet');
+    await adapter.handle(selection as never);
 
     expect(services.requests).toEqual([
       {
-        boss: 'Abyssal Sire',
+        boss: 'The Gauntlet',
         guildId: 'guild-one',
         requesterDiscordUserId: 'member-one',
         target: { kind: 'default_account' },
       },
     ]);
+    expect(selection.deferUpdate).toHaveBeenCalledOnce();
+    expect(selection.channel.send).toHaveBeenCalledOnce();
+    expect(selection.deleteReply).toHaveBeenCalledOnce();
+    expect(selection.editReply).not.toHaveBeenCalled();
   });
 
-  it('presents found boss data publicly with the account mode label', async () => {
-    const services = new LookupServices([]);
-    const adapter = new DiscordBossLookupCommandAdapter(new BossLookupCommandHandler(services));
-    const interaction = chatInteraction();
-
-    await adapter.handle(interaction as never);
-
-    expect(interaction.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
-    expect(interaction.editReply).not.toHaveBeenCalled();
-    expect(interaction.deleteReply).toHaveBeenCalledOnce();
-    const response = JSON.stringify(interaction.channel.send.mock.calls[0]);
-    expect(response).toContain('Abyssal Sire: Rune Scape');
-    expect(response).toContain('"name":"Kill count","value":"13"');
-    expect(response).toContain('"name":"Rank","value":"42"');
-    expect(response).toContain('"name":"Mode","value":"Ironman"');
-  });
-
-  it('keeps expected lookup failures ephemeral', async () => {
+  it('keeps expected lookup failures private after a selection', async () => {
     const services = new LookupServices([]);
     services.result = { kind: 'default_account_not_found' };
     const adapter = new DiscordBossLookupCommandAdapter(new BossLookupCommandHandler(services));
-    const interaction = chatInteraction();
+    const command = commandInteraction();
+    await adapter.handle(command as never);
+    const response = command.reply.mock.calls[0]?.[0];
+    if (response === undefined) throw new Error('Expected boss menu response.');
+    const customId = response.components[0]?.toJSON().components[0]?.custom_id;
+    if (customId === undefined) throw new Error('Expected boss selector.');
 
-    await adapter.handle(interaction as never);
+    const selection = selectInteraction(customId, 'Abyssal Sire');
+    await adapter.handle(selection as never);
 
-    expect(interaction.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
-    expect(interaction.editReply).toHaveBeenCalledWith({
+    expect(selection.editReply).toHaveBeenCalledWith({
+      components: [],
       content: 'You do not have a default linked account in this server.',
     });
   });
 
-  it('acknowledges before a slow lookup completes, then posts a found result publicly', async () => {
+  it('binds selections to their guild and requester and expires them after five minutes', async () => {
     const services = new LookupServices([]);
-    let resolveLookup: (result: BossLookupResult) => void = () => undefined;
-    services.lookupResult = new Promise((resolve) => {
-      resolveLookup = resolve;
-    });
-    const adapter = new DiscordBossLookupCommandAdapter(new BossLookupCommandHandler(services));
-    const interaction = chatInteraction();
+    const clock = new FakeClock();
+    const handler = new BossLookupCommandHandler(services, clock);
+    const started = handler.start('guild-one', 'member-one', null);
+    if (started.kind !== 'boss_selection') throw new Error('Expected boss selection.');
+    const customId = started.customIds[0];
+    if (customId === undefined) throw new Error('Expected boss selector.');
 
-    const handling = adapter.handle(interaction as never);
-    await vi.waitFor(() => expect(interaction.deferReply).toHaveBeenCalledOnce());
-    expect(interaction.channel.send).not.toHaveBeenCalled();
+    await expect(
+      handler.selectBoss('guild-one', 'member-two', customId, 'Abyssal Sire'),
+    ).resolves.toEqual({ kind: 'forbidden' });
+    await expect(
+      handler.selectBoss('guild-two', 'member-one', customId, 'Abyssal Sire'),
+    ).resolves.toEqual({ kind: 'forbidden' });
 
-    resolveLookup(foundResult());
-    await handling;
+    const expiring = handler.start('guild-one', 'member-one', null);
+    if (expiring.kind !== 'boss_selection') throw new Error('Expected boss selection.');
+    const expiringCustomId = expiring.customIds[0];
+    if (expiringCustomId === undefined) throw new Error('Expected boss selector.');
+    clock.advance(5 * 60 * 1_000);
 
-    expect(interaction.channel.send).toHaveBeenCalledOnce();
-    expect(interaction.deleteReply).toHaveBeenCalledOnce();
-  });
-
-  it('does not confirm public delivery when posting the found result fails', async () => {
-    const services = new LookupServices([]);
-    const adapter = new DiscordBossLookupCommandAdapter(new BossLookupCommandHandler(services));
-    const interaction = chatInteraction();
-    interaction.channel.send.mockRejectedValueOnce(new Error('missing send permission'));
-
-    await expect(adapter.handle(interaction as never)).rejects.toThrow('missing send permission');
-
-    expect(interaction.editReply).toHaveBeenCalledWith({
-      content: 'I could not publish that result publicly. Please try again.',
-    });
+    await expect(
+      handler.selectBoss('guild-one', 'member-one', expiringCustomId, 'Abyssal Sire'),
+    ).resolves.toEqual({ kind: 'expired' });
+    expect(services.requests).toEqual([]);
   });
 });
 
 class LookupServices {
   public readonly requests: unknown[] = [];
-  public lookupResult: Promise<BossLookupResult> | undefined;
   public result: BossLookupResult = foundResult();
 
   public constructor(private readonly accounts: readonly TrackedAccount[]) {}
@@ -132,29 +155,55 @@ class LookupServices {
   public bossLookup = {
     lookup: (request: unknown) => {
       this.requests.push(request);
-      return this.lookupResult ?? Promise.resolve(this.result);
+      return Promise.resolve(this.result);
     },
   };
 }
 
-function chatInteraction() {
+class FakeClock {
+  private current = new Date('2026-08-05T00:00:00.000Z');
+
+  public now(): Date {
+    return this.current;
+  }
+
+  public advance(milliseconds: number): void {
+    this.current = new Date(this.current.getTime() + milliseconds);
+  }
+}
+
+function commandInteraction() {
   return {
     commandName: 'boss',
     guildId: 'guild-one',
     isAutocomplete: () => false,
     isChatInputCommand: () => true,
-    options: {
-      getString: (name: string) => (name === 'boss' ? 'Abyssal Sire' : null),
-    },
-    deferReply: vi.fn(() => Promise.resolve()),
-    editReply: vi.fn(() => Promise.resolve()),
-    deleteReply: vi.fn(() => Promise.resolve()),
-    channel: {
-      isSendable: () => true,
-      send: vi.fn(() => Promise.resolve()),
-    },
+    options: { getString: () => null },
+    reply: vi.fn<(result: MenuResponse) => Promise<void>>(() => Promise.resolve()),
     user: { id: 'member-one' },
   };
+}
+
+function selectInteraction(customId: string, value: string) {
+  return {
+    channel: { isSendable: () => true, send: vi.fn(() => Promise.resolve()) },
+    customId,
+    deferUpdate: vi.fn(() => Promise.resolve()),
+    deleteReply: vi.fn(() => Promise.resolve()),
+    editReply: vi.fn(() => Promise.resolve()),
+    guildId: 'guild-one',
+    isAutocomplete: () => false,
+    isChatInputCommand: () => false,
+    isStringSelectMenu: () => true,
+    user: { id: 'member-one' },
+    values: [value],
+  };
+}
+
+interface MenuResponse {
+  components: { toJSON(): { components: { custom_id: string; options: { value: string }[] }[] } }[];
+  content: string;
+  flags: MessageFlags;
 }
 
 function account(overrides: Partial<TrackedAccount> = {}): TrackedAccount {
