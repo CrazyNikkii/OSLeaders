@@ -32,6 +32,8 @@ describe('development Discord runtime', () => {
     expect(dependencies.deliveryRecoveryScheduler.stop).toHaveBeenCalledOnce();
     expect(dependencies.automaticSchedulingScheduler.start).toHaveBeenCalledOnce();
     expect(dependencies.automaticSchedulingScheduler.stop).toHaveBeenCalledOnce();
+    expect(dependencies.automaticCollectionScheduler.start).toHaveBeenCalledOnce();
+    expect(dependencies.automaticCollectionScheduler.stop).toHaveBeenCalledOnce();
   });
 
   it('does not construct external dependencies outside development', async () => {
@@ -177,6 +179,10 @@ class RuntimeDependencies {
     start: vi.fn(() => Promise.resolve()),
     stop: vi.fn(),
   };
+  public readonly automaticCollectionScheduler = {
+    start: vi.fn(() => Promise.resolve()),
+    stop: vi.fn(),
+  };
   public readonly logger = new RecordingLogger();
   public readonly pool = { query: vi.fn(() => Promise.resolve()) };
 
@@ -186,6 +192,7 @@ class RuntimeDependencies {
       createDatabaseConnection: this.createDatabaseConnection as never,
       createDailyRecapDeliveryRecoveryScheduler: vi.fn(() => this.deliveryRecoveryScheduler),
       createAutomaticDailyRecapSchedulingScheduler: vi.fn(() => this.automaticSchedulingScheduler),
+      createAutomaticDailyRecapCollectionScheduler: vi.fn(() => this.automaticCollectionScheduler),
       createLogger: () => this.logger,
     };
   }

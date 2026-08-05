@@ -13,6 +13,7 @@ import { ManualDailyRecapSendService } from '../../features/recaps/send-daily-re
 import { DailyRecapDeliveryService } from '../../features/recaps/deliver-daily-recap.js';
 import { ConfigureDailyRecapService } from '../../features/recaps/configure-daily-recap.js';
 import { AutomaticDailyRecapSchedulingService } from '../../features/recaps/schedule-automatic-daily-recaps.js';
+import { AutomaticDailyRecapCollectionService } from '../../features/recaps/collect-automatic-daily-recap.js';
 import { createErrorReferenceId } from '../../features/audit/error-reference.js';
 import { GuildConfigurationService } from '../../features/guild-configuration/guild-configuration-service.js';
 import { GuildPermissionService } from '../../features/guild-configuration/guild-permission-service.js';
@@ -24,6 +25,7 @@ import { PostgresDailyRecapCollectionRepository } from '../database/postgres-dai
 import { PostgresManualDailyRecapSendRepository } from '../database/postgres-manual-daily-recap-send-repository.js';
 import { PostgresDailyRecapDeliveryRepository } from '../database/postgres-daily-recap-delivery-repository.js';
 import { PostgresAutomaticDailyRecapScheduleRepository } from '../database/postgres-automatic-daily-recap-schedule-repository.js';
+import { PostgresAutomaticDailyRecapCollectionRepository } from '../database/postgres-automatic-daily-recap-collection-repository.js';
 import { OsrsHiscoreHttpClient } from '../hiscores/osrs-hiscore-http-client.js';
 import { OSRS_MODE_FETCH_STRATEGIES } from '../hiscores/osrs-hiscore-catalog.js';
 import { StdoutStructuredLocalLogger } from '../logging/structured-local-logger.js';
@@ -85,6 +87,10 @@ import {
   type AutomaticDailyRecapSchedulingScheduler,
 } from './automatic-daily-recap-scheduling-scheduler.js';
 import {
+  InProcessAutomaticDailyRecapCollectionScheduler,
+  type AutomaticDailyRecapCollectionScheduler,
+} from './automatic-daily-recap-collection-scheduler.js';
+import {
   bindDiscordDailyRecapConfigurationCommandAdapter,
   DiscordDailyRecapConfigurationCommandAdapter,
 } from './daily-recap-configuration-command.js';
@@ -105,6 +111,10 @@ export interface DevelopmentDiscordRuntimeDependencies {
     schedules: AutomaticDailyRecapSchedulingService,
     logger: StructuredLocalLogger,
   ): AutomaticDailyRecapSchedulingScheduler;
+  createAutomaticDailyRecapCollectionScheduler(
+    collection: AutomaticDailyRecapCollectionService,
+    logger: StructuredLocalLogger,
+  ): AutomaticDailyRecapCollectionScheduler;
 }
 
 const defaultDependencies: DevelopmentDiscordRuntimeDependencies = {
@@ -115,6 +125,8 @@ const defaultDependencies: DevelopmentDiscordRuntimeDependencies = {
     new InProcessDailyRecapDeliveryRecoveryScheduler(delivery, logger),
   createAutomaticDailyRecapSchedulingScheduler: (schedules, logger) =>
     new InProcessAutomaticDailyRecapSchedulingScheduler(schedules, logger),
+  createAutomaticDailyRecapCollectionScheduler: (collection, logger) =>
+    new InProcessAutomaticDailyRecapCollectionScheduler(collection, logger),
 };
 
 export async function startDevelopmentDiscordRuntime(
@@ -223,6 +235,16 @@ export async function startDevelopmentDiscordRuntime(
       ),
       logger,
     );
+    const automaticCollectionScheduler = dependencies.createAutomaticDailyRecapCollectionScheduler(
+      new AutomaticDailyRecapCollectionService(
+        new PostgresAutomaticDailyRecapCollectionRepository(connection.database),
+        new DailyRecapCollectionService(
+          new PostgresDailyRecapCollectionRepository(connection.database),
+          hiscores,
+        ),
+      ),
+      logger,
+    );
     const dailyRecapConfigurationAdapter = new DiscordDailyRecapConfigurationCommandAdapter(
       new ConfigureDailyRecapService(configurationRepository, permissions),
     );
@@ -305,12 +327,14 @@ export async function startDevelopmentDiscordRuntime(
     await client.login(configuration.discord.token);
     await deliveryRecoveryScheduler.start();
     await automaticSchedulingScheduler.start();
+    await automaticCollectionScheduler.start();
     return createRuntime(
       client,
       connection,
       logger,
       deliveryRecoveryScheduler,
       automaticSchedulingScheduler,
+      automaticCollectionScheduler,
     );
   } catch (error) {
     await client.destroy();
@@ -343,9 +367,11 @@ async function closeRuntime(
   logger: StructuredLocalLogger,
   deliveryRecoveryScheduler: DailyRecapDeliveryRecoveryScheduler,
   automaticSchedulingScheduler: AutomaticDailyRecapSchedulingScheduler,
+  automaticCollectionScheduler: AutomaticDailyRecapCollectionScheduler,
 ): Promise<void> {
   deliveryRecoveryScheduler.stop();
   automaticSchedulingScheduler.stop();
+  automaticCollectionScheduler.stop();
   await client.destroy();
   await connection.close();
   logger.write({
@@ -361,6 +387,7 @@ function createRuntime(
   logger: StructuredLocalLogger,
   deliveryRecoveryScheduler: DailyRecapDeliveryRecoveryScheduler,
   automaticSchedulingScheduler: AutomaticDailyRecapSchedulingScheduler,
+  automaticCollectionScheduler: AutomaticDailyRecapCollectionScheduler,
 ): DevelopmentDiscordRuntime {
   let closePromise: Promise<void> | undefined;
   return {
@@ -371,6 +398,7 @@ function createRuntime(
         logger,
         deliveryRecoveryScheduler,
         automaticSchedulingScheduler,
+        automaticCollectionScheduler,
       );
       return closePromise;
     },

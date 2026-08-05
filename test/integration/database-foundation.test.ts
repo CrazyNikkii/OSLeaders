@@ -22,6 +22,7 @@ import { PostgresDailyRecapCollectionRepository } from '../../src/infrastructure
 import { PostgresManualDailyRecapSendRepository } from '../../src/infrastructure/database/postgres-manual-daily-recap-send-repository.js';
 import { PostgresDailyRecapDeliveryRepository } from '../../src/infrastructure/database/postgres-daily-recap-delivery-repository.js';
 import { PostgresAutomaticDailyRecapScheduleRepository } from '../../src/infrastructure/database/postgres-automatic-daily-recap-schedule-repository.js';
+import { PostgresAutomaticDailyRecapCollectionRepository } from '../../src/infrastructure/database/postgres-automatic-daily-recap-collection-repository.js';
 import {
   guildConfigurations,
   guildMemberPresences,
@@ -578,6 +579,164 @@ describe('database foundation', () => {
         scheduledFor,
       ),
     ).resolves.toBe(true);
+  });
+
+  it('claims, finalizes, and durably queues a due automatic recap in its guild', async () => {
+    const accounts = new PostgresAccountRegistrationRepository(connection.database);
+    const configurations = new PostgresGuildConfigurationRepository(connection.database);
+    const now = new Date('2026-08-05T12:00:00.000Z');
+    const repository = new PostgresAutomaticDailyRecapCollectionRepository(
+      connection.database,
+      () => now,
+    );
+    const guildId = 'automatic-collection-guild';
+    const registered = await accounts.register(
+      account({
+        displayUsername: 'Automatic Collection',
+        guildId,
+        id: 'automatic-collection-account',
+        normalizedUsername: 'automatic collection',
+      }),
+      initialRecapBaseline(),
+    );
+    if (registered.kind !== 'registered') {
+      throw new Error('Automatic collection test account was not registered.');
+    }
+    await configurations.update(guildId, {
+      recapChannelId: 'automatic-recap-channel',
+      recapEnabled: true,
+      recapLocalTime: '18:00',
+      timezone: 'Europe/Helsinki',
+    });
+    await connection.database.insert(dailyRecapRuns).values({
+      guildId,
+      id: 'automatic-collection-run',
+      scheduledFor: new Date('2026-07-01T11:00:00.000Z'),
+      trigger: 'automatic',
+    });
+
+    await expect(repository.claimDueRun()).resolves.toEqual({
+      collectionAttemptCount: 1,
+      guildId,
+      recapChannelId: 'automatic-recap-channel',
+      recapRunId: 'automatic-collection-run',
+    });
+    await repository.finalizeRun({
+      collection: {
+        completedAt: new Date('2026-08-05T12:01:00.000Z'),
+        guildId,
+        outcomes: [
+          {
+            account: registered.account,
+            candidateBaseline: {
+              ...initialRecapBaseline(),
+              capturedAt: new Date('2026-08-05T12:00:00.000Z'),
+              skillExperience: { Attack: 9999 },
+            },
+            changes: { bosses: [], skills: [] },
+            kind: 'success',
+            previousBaselineCapturedAt: new Date('2026-07-25T00:00:00.000Z'),
+          },
+        ],
+        startedAt: new Date('2026-08-05T12:00:00.000Z'),
+      },
+      deliveryContent: 'Automatic daily recap.',
+      guildId,
+      recapChannelId: 'automatic-recap-channel',
+      recapRunId: 'automatic-collection-run',
+    });
+    await expect(
+      connection.database
+        .select({
+          comparisonStartedAt: dailyRecapRuns.comparisonStartedAt,
+          status: dailyRecapRuns.status,
+        })
+        .from(dailyRecapRuns)
+        .where(eq(dailyRecapRuns.id, 'automatic-collection-run')),
+    ).resolves.toEqual([
+      { comparisonStartedAt: new Date('2026-08-05T12:00:00.000Z'), status: 'delivery_pending' },
+    ]);
+    await expect(
+      connection.database
+        .select({
+          channelId: dailyRecapDeliveries.channelId,
+          content: dailyRecapDeliveries.content,
+        })
+        .from(dailyRecapDeliveries)
+        .where(eq(dailyRecapDeliveries.recapRunId, 'automatic-collection-run')),
+    ).resolves.toEqual([
+      { channelId: 'automatic-recap-channel', content: 'Automatic daily recap.' },
+    ]);
+    await expect(
+      connection.database
+        .select({
+          capturedAt: recapBaselines.capturedAt,
+          skillExperience: recapBaselines.skillExperience,
+        })
+        .from(recapBaselines)
+        .where(eq(recapBaselines.accountId, 'automatic-collection-account')),
+    ).resolves.toEqual([
+      {
+        capturedAt: new Date('2026-08-05T12:00:00.000Z'),
+        skillExperience: { Attack: 9999 },
+      },
+    ]);
+  });
+
+  it('fails a due automatic recap when its configuration is disabled before collection', async () => {
+    const now = new Date('2026-01-02T12:00:00.000Z');
+    const repository = new PostgresAutomaticDailyRecapCollectionRepository(
+      connection.database,
+      () => now,
+    );
+    const guildId = 'automatic-collection-disabled-guild';
+    const configurations = new PostgresGuildConfigurationRepository(connection.database);
+    await configurations.update(guildId, {
+      recapChannelId: 'disabled-recap-channel',
+      recapEnabled: false,
+      recapLocalTime: '18:00',
+      timezone: 'Europe/Helsinki',
+    });
+    await connection.database.insert(dailyRecapRuns).values({
+      guildId,
+      id: 'automatic-collection-disabled-run',
+      scheduledFor: new Date('2026-01-01T11:00:00.000Z'),
+      trigger: 'automatic',
+    });
+    await configurations.update('automatic-collection-future-guild', {
+      recapChannelId: 'future-recap-channel',
+      recapEnabled: true,
+      recapLocalTime: '18:00',
+      timezone: 'Europe/Helsinki',
+    });
+    await connection.database.insert(dailyRecapRuns).values({
+      guildId: 'automatic-collection-future-guild',
+      id: 'automatic-collection-future-run',
+      scheduledFor: new Date('2026-01-03T11:00:00.000Z'),
+      trigger: 'automatic',
+    });
+
+    await expect(repository.claimDueRun()).resolves.toBeUndefined();
+    await expect(
+      connection.database
+        .select({
+          failure: dailyRecapRuns.lastCollectionFailureSummary,
+          status: dailyRecapRuns.status,
+        })
+        .from(dailyRecapRuns)
+        .where(eq(dailyRecapRuns.id, 'automatic-collection-disabled-run')),
+    ).resolves.toEqual([
+      {
+        failure: 'Automatic daily recap is no longer configured.',
+        status: 'failed',
+      },
+    ]);
+    await expect(
+      connection.database
+        .select({ status: dailyRecapRuns.status })
+        .from(dailyRecapRuns)
+        .where(eq(dailyRecapRuns.id, 'automatic-collection-future-run')),
+    ).resolves.toEqual([{ status: 'pending_collection' }]);
   });
 
   it('keeps account names guild-scoped and selects the first linked account as default', async () => {
