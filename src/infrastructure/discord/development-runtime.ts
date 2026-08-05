@@ -14,6 +14,7 @@ import { DailyRecapDeliveryService } from '../../features/recaps/deliver-daily-r
 import { ConfigureDailyRecapService } from '../../features/recaps/configure-daily-recap.js';
 import { AutomaticDailyRecapSchedulingService } from '../../features/recaps/schedule-automatic-daily-recaps.js';
 import { AutomaticDailyRecapCollectionService } from '../../features/recaps/collect-automatic-daily-recap.js';
+import { DailyRecapFailureAuditService } from '../../features/recaps/report-daily-recap-failures.js';
 import { createErrorReferenceId } from '../../features/audit/error-reference.js';
 import { GuildConfigurationService } from '../../features/guild-configuration/guild-configuration-service.js';
 import { GuildPermissionService } from '../../features/guild-configuration/guild-permission-service.js';
@@ -78,6 +79,7 @@ import {
   DiscordManualDailyRecapSendCommandAdapter,
 } from './manual-daily-recap-send-command.js';
 import { DiscordDailyRecapPublisher } from './daily-recap-discord-publisher.js';
+import { DiscordDailyRecapFailureAuditPublisher } from './daily-recap-failure-audit-publisher.js';
 import {
   InProcessDailyRecapDeliveryRecoveryScheduler,
   type DailyRecapDeliveryRecoveryScheduler,
@@ -214,6 +216,10 @@ export async function startDevelopmentDiscordRuntime(
       new PostgresDailyRecapDeliveryRepository(connection.database),
       new DiscordDailyRecapPublisher(client),
     );
+    const failureAudit = new DailyRecapFailureAuditService(
+      audit,
+      new DiscordDailyRecapFailureAuditPublisher(client, configurationService),
+    );
     const manualDailyRecapSendAdapter = new DiscordManualDailyRecapSendCommandAdapter(
       new ManualDailyRecapSendService(
         new PostgresManualDailyRecapSendRepository(connection.database),
@@ -221,6 +227,8 @@ export async function startDevelopmentDiscordRuntime(
           new PostgresDailyRecapCollectionRepository(connection.database),
           hiscores,
         ),
+        undefined,
+        failureAudit,
       ),
       delivery,
       permissions,
@@ -242,6 +250,8 @@ export async function startDevelopmentDiscordRuntime(
           new PostgresDailyRecapCollectionRepository(connection.database),
           hiscores,
         ),
+        undefined,
+        failureAudit,
       ),
       logger,
     );
