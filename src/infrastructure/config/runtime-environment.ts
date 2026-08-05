@@ -18,7 +18,7 @@ export interface RuntimeConfiguration {
   database: DatabaseConfiguration;
   discord: {
     applicationId: string;
-    developmentGuildId: string | undefined;
+    guildId: string;
     token: string;
   };
   environment: RuntimeEnvironment;
@@ -32,26 +32,37 @@ export function loadRuntimeConfiguration(): RuntimeConfiguration {
 }
 
 export function parseRuntimeConfiguration(environment: NodeJS.ProcessEnv): RuntimeConfiguration {
+  const runtimeEnvironment = parseRuntimeEnvironment(
+    requiredEnvironmentValue(environment, 'NODE_ENV'),
+  );
+
   return {
     database: parseRuntimeDatabaseConfiguration(environment),
     discord: {
       applicationId: parseDiscordApplicationId(
         requiredConfiguredEnvironmentValue(environment, 'DISCORD_APPLICATION_ID'),
       ),
-      developmentGuildId: optionalDiscordGuildId(environment.DISCORD_DEVELOPMENT_GUILD_ID),
+      guildId: parseRuntimeGuildId(environment, runtimeEnvironment),
       token: requiredConfiguredEnvironmentValue(environment, 'DISCORD_TOKEN'),
     },
-    environment: parseRuntimeEnvironment(requiredEnvironmentValue(environment, 'NODE_ENV')),
+    environment: runtimeEnvironment,
     logLevel: parseLogLevel(requiredConfiguredEnvironmentValue(environment, 'LOG_LEVEL')),
   };
 }
 
-function optionalDiscordGuildId(value: string | undefined): string | undefined {
-  if (value === undefined || value.trim().length === 0) {
-    return undefined;
-  }
+function parseRuntimeGuildId(
+  environment: NodeJS.ProcessEnv,
+  runtimeEnvironment: RuntimeEnvironment,
+): string {
+  const environmentVariableName =
+    runtimeEnvironment === 'production'
+      ? 'DISCORD_PRODUCTION_GUILD_ID'
+      : 'DISCORD_DEVELOPMENT_GUILD_ID';
 
-  return parseDiscordSnowflake(value, 'DISCORD_DEVELOPMENT_GUILD_ID');
+  return parseDiscordSnowflake(
+    requiredConfiguredEnvironmentValue(environment, environmentVariableName),
+    environmentVariableName,
+  );
 }
 
 function parseDiscordApplicationId(value: string): string {

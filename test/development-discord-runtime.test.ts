@@ -36,30 +36,19 @@ describe('development Discord runtime', () => {
     expect(dependencies.automaticCollectionScheduler.stop).toHaveBeenCalledOnce();
   });
 
-  it('does not construct external dependencies outside development', async () => {
+  it('starts the production runtime using its separately selected guild', async () => {
     const dependencies = new RuntimeDependencies();
 
-    await expect(
-      startDevelopmentDiscordRuntime(
-        configuration({ environment: 'production' }),
-        dependencies.asDependencies(),
-      ),
-    ).rejects.toThrow('NODE_ENV=development');
-    expect(dependencies.createClient).not.toHaveBeenCalled();
-    expect(dependencies.createDatabaseConnection).not.toHaveBeenCalled();
-  });
+    const runtime = await startDevelopmentDiscordRuntime(
+      configuration({
+        discord: { ...configuration().discord, guildId: 'production-guild-one' },
+        environment: 'production',
+      }),
+      dependencies.asDependencies(),
+    );
 
-  it('requires a configured development guild before constructing external dependencies', async () => {
-    const dependencies = new RuntimeDependencies();
-
-    await expect(
-      startDevelopmentDiscordRuntime(
-        configuration({ discord: { ...configuration().discord, developmentGuildId: undefined } }),
-        dependencies.asDependencies(),
-      ),
-    ).rejects.toThrow('DISCORD_DEVELOPMENT_GUILD_ID must be configured');
-    expect(dependencies.createClient).not.toHaveBeenCalled();
-    expect(dependencies.createDatabaseConnection).not.toHaveBeenCalled();
+    expect(dependencies.client.login).toHaveBeenCalledWith('token-one');
+    await runtime.close();
   });
 
   it('closes allocated resources when PostgreSQL validation fails', async () => {
@@ -211,7 +200,7 @@ function configuration(overrides: Partial<RuntimeConfiguration> = {}): RuntimeCo
     database: { connectionString: 'postgresql://localhost/osleaders_dev', poolMax: 4 },
     discord: {
       applicationId: 'application-one',
-      developmentGuildId: 'development-guild-one',
+      guildId: 'development-guild-one',
       token: 'token-one',
     },
     environment: 'development',

@@ -135,13 +135,6 @@ export async function startDevelopmentDiscordRuntime(
   configuration: RuntimeConfiguration,
   dependencies: DevelopmentDiscordRuntimeDependencies = defaultDependencies,
 ): Promise<DevelopmentDiscordRuntime> {
-  if (configuration.environment !== 'development') {
-    throw new Error('The development Discord runtime requires NODE_ENV=development.');
-  }
-  if (configuration.discord.developmentGuildId === undefined) {
-    throw new Error('DISCORD_DEVELOPMENT_GUILD_ID must be configured for the development runtime.');
-  }
-
   const logger = dependencies.createLogger();
   const auditContextSanitizer = createRuntimeAuditContextSanitizer(configuration);
   const audit = new AuditService(logger, auditContextSanitizer);
@@ -263,61 +256,61 @@ export async function startDevelopmentDiscordRuntime(
       client,
       adapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
-      (interaction) => interaction.guildId === configuration.discord.developmentGuildId,
+      (interaction) => interaction.guildId === configuration.discord.guildId,
     );
     bindDiscordSkillLookupCommandAdapter(
       client,
       skillLookupAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
-      (interaction) => interaction.guildId === configuration.discord.developmentGuildId,
+      (interaction) => interaction.guildId === configuration.discord.guildId,
     );
     bindDiscordOneTimeSkillLookupCommandAdapter(
       client,
       oneTimeSkillLookupAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
-      (interaction) => interaction.guildId === configuration.discord.developmentGuildId,
+      (interaction) => interaction.guildId === configuration.discord.guildId,
     );
     bindDiscordOneTimeBossLookupCommandAdapter(
       client,
       oneTimeBossLookupAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
-      (interaction) => interaction.guildId === configuration.discord.developmentGuildId,
+      (interaction) => interaction.guildId === configuration.discord.guildId,
     );
     bindDiscordSkillLeaderboardCommandAdapter(
       client,
       skillLeaderboardAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
-      (interaction) => interaction.guildId === configuration.discord.developmentGuildId,
+      (interaction) => interaction.guildId === configuration.discord.guildId,
     );
     bindDiscordBossLeaderboardCommandAdapter(
       client,
       bossLeaderboardAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
-      (interaction) => interaction.guildId === configuration.discord.developmentGuildId,
+      (interaction) => interaction.guildId === configuration.discord.guildId,
     );
     bindDiscordBossLookupCommandAdapter(
       client,
       bossLookupAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
-      (interaction) => interaction.guildId === configuration.discord.developmentGuildId,
+      (interaction) => interaction.guildId === configuration.discord.guildId,
     );
     bindDiscordDailyRecapPreviewCommandAdapter(
       client,
       dailyRecapPreviewAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
-      (interaction) => interaction.guildId === configuration.discord.developmentGuildId,
+      (interaction) => interaction.guildId === configuration.discord.guildId,
     );
     bindDiscordManualDailyRecapSendCommandAdapter(
       client,
       manualDailyRecapSendAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
-      (interaction) => interaction.guildId === configuration.discord.developmentGuildId,
+      (interaction) => interaction.guildId === configuration.discord.guildId,
     );
     bindDiscordDailyRecapConfigurationCommandAdapter(
       client,
       dailyRecapConfigurationAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
-      (interaction) => interaction.guildId === configuration.discord.developmentGuildId,
+      (interaction) => interaction.guildId === configuration.discord.guildId,
     );
     client.once(Events.ClientReady, () => {
       logger.write({
@@ -351,6 +344,13 @@ export async function startDevelopmentDiscordRuntime(
     await connection.close();
     throw error;
   }
+}
+
+export async function startDiscordRuntime(
+  configuration: RuntimeConfiguration,
+  dependencies: DevelopmentDiscordRuntimeDependencies = defaultDependencies,
+): Promise<DevelopmentDiscordRuntime> {
+  return startDevelopmentDiscordRuntime(configuration, dependencies);
 }
 
 export function reportDiscordInteractionFailure(

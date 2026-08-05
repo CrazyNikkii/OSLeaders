@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { RuntimeConfiguration } from '../src/infrastructure/config/runtime-environment.js';
 import {
-  registerDevelopmentDiscordCommands,
+  registerDiscordCommands,
   type DevelopmentCommandRegistrar,
 } from '../src/infrastructure/discord/development-command-registration.js';
 
@@ -10,7 +10,7 @@ describe('development Discord command registration', () => {
   it('registers account, lookup, and leaderboard commands in the configured development guild', async () => {
     const registrar = new RecordingRegistrar();
 
-    await registerDevelopmentDiscordCommands(configuration(), registrar);
+    await registerDiscordCommands(configuration(), registrar);
 
     expect(registrar.requests).toEqual([
       expect.objectContaining({
@@ -30,15 +30,20 @@ describe('development Discord command registration', () => {
     ]);
   });
 
-  it('refuses production configuration and a missing development guild', async () => {
-    await expect(
-      registerDevelopmentDiscordCommands(configuration({ environment: 'production' })),
-    ).rejects.toThrow('NODE_ENV=development');
-    await expect(
-      registerDevelopmentDiscordCommands(
-        configuration({ discord: { ...configuration().discord, developmentGuildId: undefined } }),
-      ),
-    ).rejects.toThrow('DISCORD_DEVELOPMENT_GUILD_ID must be configured');
+  it('registers the production command set in its separate configured guild', async () => {
+    const registrar = new RecordingRegistrar();
+
+    await registerDiscordCommands(
+      configuration({
+        discord: { ...configuration().discord, guildId: 'production-guild-one' },
+        environment: 'production',
+      }),
+      registrar,
+    );
+
+    expect(registrar.requests).toEqual([
+      expect.objectContaining({ guildId: 'production-guild-one' }),
+    ]);
   });
 });
 
@@ -60,7 +65,7 @@ function configuration(overrides: Partial<RuntimeConfiguration> = {}): RuntimeCo
     database: { connectionString: 'postgresql://localhost/osleaders_dev', poolMax: 4 },
     discord: {
       applicationId: 'application-one',
-      developmentGuildId: 'development-guild-one',
+      guildId: 'development-guild-one',
       token: 'token-one',
     },
     environment: 'development',

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   assertDevelopmentMigrationEnvironment,
+  assertProductionMigrationEnvironment,
   assertSafeTestDatabaseUrl,
   assertTestResetEnvironment,
   parseRuntimeDatabaseConfiguration,
@@ -125,6 +126,39 @@ describe('database environment safety', () => {
           NODE_ENV: nodeEnvironment,
         });
       }).toThrow('Development migrations require NODE_ENV to be exactly development.');
+    },
+  );
+
+  it('accepts a separate local production migration database', () => {
+    expect(() => {
+      assertProductionMigrationEnvironment({
+        DATABASE_URL: 'postgresql://osleaders:private@localhost:5432/osleaders_production',
+        NODE_ENV: 'production',
+      });
+    }).not.toThrow();
+  });
+
+  it.each(['osleaders_dev', 'osleaders_test'])(
+    'rejects production migrations aimed at %s',
+    (databaseName) => {
+      expect(() => {
+        assertProductionMigrationEnvironment({
+          DATABASE_URL: `postgresql://osleaders:private@localhost:5432/${databaseName}`,
+          NODE_ENV: 'production',
+        });
+      }).toThrow('Production migrations must not target osleaders_dev or osleaders_test.');
+    },
+  );
+
+  it.each([undefined, 'development', 'test'])(
+    'rejects production migrations when NODE_ENV is %s',
+    (nodeEnvironment) => {
+      expect(() => {
+        assertProductionMigrationEnvironment({
+          DATABASE_URL: 'postgresql://osleaders:private@localhost:5432/osleaders_production',
+          NODE_ENV: nodeEnvironment,
+        });
+      }).toThrow('Production migrations require NODE_ENV to be exactly production.');
     },
   );
 

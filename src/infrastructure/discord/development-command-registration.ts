@@ -28,31 +28,20 @@ export class DiscordDevelopmentCommandRegistrar implements DevelopmentCommandReg
   }
 }
 
-export async function registerDevelopmentDiscordCommands(
+export async function registerDiscordCommands(
   configuration: RuntimeConfiguration,
   registrar: DevelopmentCommandRegistrar = new DiscordDevelopmentCommandRegistrar(
     new REST({ version: '10' }).setToken(configuration.discord.token),
   ),
 ): Promise<void> {
-  if (configuration.environment !== 'development') {
-    throw new Error('Development Discord command registration requires NODE_ENV=development.');
-  }
-  if (configuration.discord.developmentGuildId === undefined) {
-    throw new Error('DISCORD_DEVELOPMENT_GUILD_ID must be configured for development commands.');
-  }
-
-  await registrar.put(
-    configuration.discord.applicationId,
-    configuration.discord.developmentGuildId,
-    [
-      ...accountCommandDefinitions,
-      ...skillLookupCommandDefinitions,
-      ...oneTimeSkillLookupCommandDefinitions,
-      ...oneTimeBossLookupCommandDefinitions,
-      ...skillLeaderboardCommandDefinitions,
-      ...bossLeaderboardCommandDefinitions,
-      ...bossLookupCommandDefinitions,
-      ...dailyRecapPreviewCommandDefinitions,
-    ],
-  );
+  await registrar.put(configuration.discord.applicationId, configuration.discord.guildId, [
+    ...accountCommandDefinitions,
+    ...skillLookupCommandDefinitions,
+    ...oneTimeSkillLookupCommandDefinitions,
+    ...oneTimeBossLookupCommandDefinitions,
+    ...skillLeaderboardCommandDefinitions,
+    ...bossLeaderboardCommandDefinitions,
+    ...bossLookupCommandDefinitions,
+    ...dailyRecapPreviewCommandDefinitions,
+  ]);
 }

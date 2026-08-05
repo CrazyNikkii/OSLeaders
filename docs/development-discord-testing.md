@@ -1,9 +1,9 @@
 # Development Discord testing
 
 Use a separate Discord application, bot token, guild, and local
-`osleaders_dev` PostgreSQL database. For the current early private beta, that
-configured guild may be the one real private server. Never point the guarded
-test-database commands at it.
+`osleaders_dev` PostgreSQL database. This is the Windows development setup;
+the real private beta runs separately on the Debian laptop. Never point the
+guarded test-database commands at either database.
 
 1. Copy `.env.example` to `.env` and supply the development application ID,
    bot token, and development guild ID. Keep `NODE_ENV=development` and use a
@@ -13,7 +13,7 @@ test-database commands at it.
 3. Invite the development bot to the development guild with the `bot` and
    `applications.commands` scopes. It needs permission to view the channel,
    send messages, and use application commands.
-4. Run `npm run discord:commands:development`. This registers the current
+4. Run `npm run discord:commands`. This registers the current
    commands in only the configured development guild, so command updates are
    available without waiting for global Discord command propagation.
 5. Run `npm run dev`. Startup verifies PostgreSQL before logging the bot in;

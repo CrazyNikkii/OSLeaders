@@ -10,8 +10,8 @@ skill and boss lookups, one-time lookups, permanent leaderboards, and automatic
 daily recaps. Competitions and several less-used account-management Discord
 flows are still deferred.
 
-For the safe laptop operating procedure, including backups, restart checks, and
-the real-server acceptance checklist, see
+For the Debian 13 private-beta operating procedure, including backups, restart
+checks, and the real-server acceptance checklist, see
 [the private-beta laptop runbook](docs/private-beta-laptop-runbook.md).
 
 ## Prerequisites
@@ -84,31 +84,30 @@ SQL window, command history, or chat.
 
 ## Available commands
 
-| Command                                                           | Purpose                                                          |
-| ----------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `npm run format`                                                  | Format supported project files with Prettier.                    |
-| `npm run format:check`                                            | Check formatting without changing files.                         |
-| `npm run lint`                                                    | Run ESLint and fail on warnings.                                 |
-| `npm run typecheck`                                               | Strictly type-check source code and tests.                       |
-| `npm run db:generate -- --name NAME`                              | Generate SQL migration files without connecting to PostgreSQL.   |
-| `npm run db:migrate`                                              | Apply reviewed migrations to `osleaders_dev`.                    |
-| `npm run db:test:reset -- --confirm osleaders_test`               | Empty the guarded local test schemas only.                       |
-| `npm run db:test:migrate`                                         | Apply reviewed migrations to `osleaders_test`.                   |
-| `npm run discord:commands:development`                            | Register the current slash commands in the one configured guild. |
-| `npm run dev`                                                     | Start the single-guild private-beta runtime.                     |
-| `powershell -File scripts/backup-private-beta-database.ps1 ...`   | Create and verify one private-beta database backup.              |
-| `powershell -File scripts/restore-private-beta-rehearsal.ps1 ...` | Restore and verify a separate rehearsal database.                |
-| `npm run test:unit`                                               | Run tests that do not need PostgreSQL.                           |
-| `npm run test:integration`                                        | Reset, migrate, and test `osleaders_test`.                       |
-| `npm run test`                                                    | Run both unit and PostgreSQL integration tests.                  |
-| `npm run test:watch`                                              | Re-run tests while files change.                                 |
-| `npm run build`                                                   | Compile production source into `dist/`.                          |
-| `npm run check:fast`                                              | Run every check except PostgreSQL integration tests.             |
-| `npm run check`                                                   | Run every CI check, including PostgreSQL integration tests.      |
+| Command                                             | Purpose                                                              |
+| --------------------------------------------------- | -------------------------------------------------------------------- |
+| `npm run format`                                    | Format supported project files with Prettier.                        |
+| `npm run format:check`                              | Check formatting without changing files.                             |
+| `npm run lint`                                      | Run ESLint and fail on warnings.                                     |
+| `npm run typecheck`                                 | Strictly type-check source code and tests.                           |
+| `npm run db:generate -- --name NAME`                | Generate SQL migration files without connecting to PostgreSQL.       |
+| `npm run db:migrate`                                | Apply reviewed migrations to `osleaders_dev`.                        |
+| `npm run db:migrate:production`                     | Apply reviewed migrations to the guarded production database.        |
+| `npm run db:test:reset -- --confirm osleaders_test` | Empty the guarded local test schemas only.                           |
+| `npm run db:test:migrate`                           | Apply reviewed migrations to `osleaders_test`.                       |
+| `npm run discord:commands`                          | Register commands in the configured development or production guild. |
+| `npm run dev`                                       | Start the single-guild private-beta runtime.                         |
+| `npm run test:unit`                                 | Run tests that do not need PostgreSQL.                               |
+| `npm run test:integration`                          | Reset, migrate, and test `osleaders_test`.                           |
+| `npm run test`                                      | Run both unit and PostgreSQL integration tests.                      |
+| `npm run test:watch`                                | Re-run tests while files change.                                     |
+| `npm run build`                                     | Compile production source into `dist/`.                              |
+| `npm run check:fast`                                | Run every check except PostgreSQL integration tests.                 |
+| `npm run check`                                     | Run every CI check, including PostgreSQL integration tests.          |
 
-`npm run dev` is intentionally limited to the guild in
-`DISCORD_DEVELOPMENT_GUILD_ID`. For the current private beta, that must be the
-one real private server; it is not a multi-server production deployment.
+`npm run dev` is intentionally limited to the configured guild. Development
+uses `DISCORD_DEVELOPMENT_GUILD_ID`; the Debian private beta uses its separate
+Discord application and `DISCORD_PRODUCTION_GUILD_ID`.
 
 `npm run db:test:reset` refuses to run unless `NODE_ENV` is exactly `test`, the
 test URL names exactly `osleaders_test`, the host is local, the command includes
