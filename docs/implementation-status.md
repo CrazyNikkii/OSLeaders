@@ -328,12 +328,19 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-None. The Debian private-beta readiness work is merged. It does not establish
-private-beta readiness; the real-server checklist must still be completed and
-recorded on the Debian laptop.
+The current worktree fixes the Discord `/recap configure` interaction timeout.
+The adapter now privately defers before configuration and database work, then
+edits that acknowledgement with the configured, forbidden, or validation
+result. Focused adapter tests cover acknowledgement before slow work and each
+private outcome. It also corrects the CI workflow's private-beta operational
+asset job to invoke the existing Debian test script. This work is not yet
+merged. The Debian private-beta readiness work remains merged; it does not
+establish private-beta readiness because the real-server checklist must still
+be completed and recorded on the Debian laptop.
 
 ## Next recommended branch-sized task
 
-Complete and record the Debian real-server acceptance checklist before claiming
-24/7 private-beta readiness. Keep competition work deferred until the Debian
-operating path has proven reliable.
+Merge the `/recap configure` acknowledgement fix, then complete and record the
+Debian real-server acceptance checklist before claiming 24/7 private-beta
+readiness. Keep competition work deferred until the Debian operating path has
+proven reliable.

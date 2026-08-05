@@ -5,13 +5,14 @@ import type { ConfigureDailyRecapResult } from '../src/features/recaps/configure
 import { DiscordDailyRecapConfigurationCommandAdapter } from '../src/infrastructure/discord/daily-recap-configuration-command.js';
 
 describe('Discord daily recap configuration command', () => {
-  it('passes guild-scoped permission and configuration inputs, then confirms privately', async () => {
+  it('privately defers before configuration work, then confirms the guild-scoped result', async () => {
     const configure = vi.fn(() => Promise.resolve(configured()));
     const adapter = new DiscordDailyRecapConfigurationCommandAdapter({ configure });
-    const reply = vi.fn(() => Promise.resolve());
+    const responses = responseMethods();
 
-    await adapter.handle(interaction(reply) as never);
+    await adapter.handle(interaction(responses) as never);
 
+    expect(responses.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
     expect(configure).toHaveBeenCalledWith({
       enabled: true,
       guildId: 'guild-one',
@@ -21,22 +22,42 @@ describe('Discord daily recap configuration command', () => {
       recapLocalTime: '18:00',
       timezone: 'Europe/Helsinki',
     });
-    expect(reply).toHaveBeenCalledWith({
+    expect(responses.editReply).toHaveBeenCalledWith({
       content:
         'Automatic daily recaps are enabled for <#recap-channel> at 18:00 (Europe/Helsinki).',
-      flags: MessageFlags.Ephemeral,
     });
+  });
+
+  it('acknowledges before slow configuration work begins', async () => {
+    let resolveConfiguration: ((result: ConfigureDailyRecapResult) => void) | undefined;
+    const responses = responseMethods();
+    const configure = vi.fn(() => {
+      expect(responses.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
+      return new Promise<ConfigureDailyRecapResult>((resolve) => {
+        resolveConfiguration = resolve;
+      });
+    });
+    const adapter = new DiscordDailyRecapConfigurationCommandAdapter({ configure });
+
+    const handling = adapter.handle(interaction(responses) as never);
+
+    await vi.waitFor(() => expect(responses.deferReply).toHaveBeenCalledOnce());
+    expect(configure).toHaveBeenCalledOnce();
+    expect(responses.editReply).not.toHaveBeenCalled();
+    resolveConfiguration?.(configured());
+    await handling;
   });
 
   it('keeps direct messages private without calling the configuration service', async () => {
     const configure = vi.fn(() => Promise.resolve(configured()));
     const adapter = new DiscordDailyRecapConfigurationCommandAdapter({ configure });
-    const reply = vi.fn(() => Promise.resolve());
+    const responses = responseMethods();
 
-    await adapter.handle(interaction(reply, { guildId: null }) as never);
+    await adapter.handle(interaction(responses, { guildId: null }) as never);
 
     expect(configure).not.toHaveBeenCalled();
-    expect(reply).toHaveBeenCalledWith({
+    expect(responses.deferReply).not.toHaveBeenCalled();
+    expect(responses.reply).toHaveBeenCalledWith({
       content: 'This command can only be used in a Discord server.',
       flags: MessageFlags.Ephemeral,
     });
@@ -56,15 +77,19 @@ describe('Discord daily recap configuration command', () => {
     ] as const) {
       const configure = vi.fn(() => Promise.resolve(result));
       const adapter = new DiscordDailyRecapConfigurationCommandAdapter({ configure });
-      const reply = vi.fn(() => Promise.resolve());
+      const responses = responseMethods();
 
-      await adapter.handle(interaction(reply) as never);
-      expect(reply).toHaveBeenCalledWith({ content: message, flags: MessageFlags.Ephemeral });
+      await adapter.handle(interaction(responses) as never);
+      expect(responses.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
+      expect(responses.editReply).toHaveBeenCalledWith({ content: message });
     }
   });
 });
 
-function interaction(reply: ReturnType<typeof vi.fn>, overrides: { guildId?: string | null } = {}) {
+function interaction(
+  responses: ReturnType<typeof responseMethods>,
+  overrides: { guildId?: string | null } = {},
+) {
   return {
     commandName: 'recap',
     guildId: 'guild-one',
@@ -78,8 +103,16 @@ function interaction(reply: ReturnType<typeof vi.fn>, overrides: { guildId?: str
       getString: (name: string) => (name === 'time' ? '18:00' : 'Europe/Helsinki'),
       getSubcommand: () => 'configure',
     },
-    reply,
+    ...responses,
     ...overrides,
+  };
+}
+
+function responseMethods() {
+  return {
+    deferReply: vi.fn(() => Promise.resolve()),
+    editReply: vi.fn(() => Promise.resolve()),
+    reply: vi.fn(() => Promise.resolve()),
   };
 }
 

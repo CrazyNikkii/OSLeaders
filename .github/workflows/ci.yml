@@ -26,8 +26,18 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.18.0
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci
+
       - name: Verify private-beta PowerShell safety checks
-        run: npm run test:private-beta-scripts
+        run: npm run test:debian-private-beta-assets
 
   verify:
     runs-on: ubuntu-latest
