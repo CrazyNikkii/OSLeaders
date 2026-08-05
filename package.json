@@ -19,6 +19,7 @@
     "db:test:migrate": "node --env-file-if-exists=.env.test ./node_modules/drizzle-kit/bin.cjs migrate --config=drizzle.test.config.ts",
     "discord:commands:development": "tsx scripts/register-development-discord-commands.ts",
     "dev": "tsx src/main.ts",
+    "test:private-beta-scripts": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-private-beta-operational-scripts.ps1",
     "test:unit": "vitest run --exclude test/integration/**",
     "test:integration": "npm run db:test:reset -- --confirm osleaders_test && npm run db:test:migrate && node --env-file-if-exists=.env.test ./node_modules/vitest/vitest.mjs run --config vitest.integration.config.ts --no-file-parallelism",
     "test": "npm run test:unit && npm run test:integration",

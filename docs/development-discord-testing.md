@@ -1,7 +1,9 @@
 # Development Discord testing
 
-Use a separate development Discord application, bot token, guild, and local
-`osleaders_dev` PostgreSQL database. Never point these commands at production.
+Use a separate Discord application, bot token, guild, and local
+`osleaders_dev` PostgreSQL database. For the current early private beta, that
+configured guild may be the one real private server. Never point the guarded
+test-database commands at it.
 
 1. Copy `.env.example` to `.env` and supply the development application ID,
    bot token, and development guild ID. Keep `NODE_ENV=development` and use a
@@ -46,6 +48,13 @@ Use a separate development Discord application, bot token, guild, and local
    and a boss, then confirm the public result has the expected kill count,
    rank, and text mode label. Restart the bot and confirm no tracked account
    was created.
+10. Run `/recap configure`, choose a text channel, a future local time, and the
+    server timezone. Run `/recap preview` to confirm it is private and leaves
+    baselines unchanged. Then use `/recap send`, confirm it with the button,
+    and confirm the recap appears in the configured channel.
+
+For the full laptop startup, backup, recovery, and restart acceptance procedure,
+use [the private-beta laptop runbook](private-beta-laptop-runbook.md).
 
 Administrative-log configuration does not yet have a Discord configuration
 command, so that optional delivery path remains covered by adapter tests until

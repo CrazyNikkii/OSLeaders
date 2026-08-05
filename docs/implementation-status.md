@@ -325,15 +325,18 @@ authority for the latest repository change.
 
 ## Current unmerged implementation work
 
-None. The working tree was reconciled with `master` after pull request #52
-merged. The next branch should follow the private-beta priority in `AGENTS.md`.
+`codex/private-beta-laptop-readiness` is in progress. It adds the minimum safe
+Windows-laptop operating path for one configured private Discord guild: a
+local continuous-runtime watchdog, scripts that back up and restore the exact
+PostgreSQL runtime connection into a separate rehearsal database, reviewed
+migrations, Discord command registration and permissions, and a real-server
+recap/restart acceptance checklist. This work is not merged and does not by
+itself establish private-beta readiness; the checklist must still be completed
+on the real server.
 
 ## Next recommended branch-sized task
 
-Start `codex/private-beta-laptop-readiness`. Establish the minimum safe
-single-server laptop operating path for the already merged recap, account,
-lookup, and leaderboard features: explicit continuous-runtime operation,
-startup/restart guidance, local PostgreSQL backup/restore guidance, Discord
-permissions and command-registration checks, and a real-server recap/restart
-acceptance checklist. Keep this branch limited to private-beta readiness; defer
-competition work until the bot can be used reliably in the user's server.
+After this branch is reviewed and merged, complete and record the real-server
+acceptance checklist before claiming 24/7 private-beta readiness. Then resume
+the smallest demonstrated post-launch account-management need; keep competition
+work deferred until the private-beta operating path has proven reliable.
