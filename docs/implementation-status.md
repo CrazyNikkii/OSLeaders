@@ -329,13 +329,21 @@ authority for the latest repository change.
 
 ## Current unmerged implementation work
 
-None.
+`codex/daily-recap-automatic-collection` is in review. It adds the missing
+automatic recap execution path: a bounded in-process collector claims one due,
+configured automatic run at a time; uses the existing fresh Hiscores
+collection; atomically advances only successful baselines while creating a
+durable delivery; and returns unexpected whole-run failures to the durable
+collection retry queue. The development runtime starts and stops this collector
+alongside the existing scheduling and delivery-recovery schedulers. Focused
+unit and PostgreSQL integration tests cover collection, retry timing, bounded
+scheduling, durable handoff, and baseline replacement. This work is not merged
+and must not be treated as complete.
 
 ## Next recommended branch-sized task
 
-Start `codex/daily-recap-automatic-collection`.
-Claim due automatic recap runs, collect fresh Hiscores, atomically advance only
-successful baselines, create durable deliveries, and hand them to the existing
-delivery/recovery path. Preserve per-guild serialization with manual recap
-sends, bounded retry/recovery behaviour, and the real comparison period for
-overdue runs. Do not begin competition work in that branch.
+After the current automatic-collection branch is reviewed and merged, start
+`codex/daily-recap-failure-audit-delivery`. Deliver the required technical
+summary of per-account recap-fetch failures to the configured administrative
+log channel without affecting recap collection, durable posting, or baseline
+updates. Do not begin competition work in that branch.
