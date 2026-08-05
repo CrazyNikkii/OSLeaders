@@ -26,6 +26,15 @@ export function loadDevelopmentMigrationConfiguration(): DatabaseConfiguration {
   return configuration;
 }
 
+export function loadProductionMigrationConfiguration(): DatabaseConfiguration {
+  loadEnvironmentFileIfPresent('.env');
+
+  const configuration = parseRuntimeDatabaseConfiguration(process.env);
+  assertProductionMigrationEnvironment(process.env);
+
+  return configuration;
+}
+
 export function parseRuntimeDatabaseConfiguration(
   environment: NodeJS.ProcessEnv,
 ): DatabaseConfiguration {
@@ -71,6 +80,21 @@ export function assertDevelopmentMigrationEnvironment(environment: NodeJS.Proces
     'DATABASE_URL',
     DEVELOPMENT_DATABASE_NAME,
   );
+}
+
+export function assertProductionMigrationEnvironment(environment: NodeJS.ProcessEnv): void {
+  if (environment.NODE_ENV !== 'production') {
+    throw new Error('Production migrations require NODE_ENV to be exactly production.');
+  }
+
+  const connectionString = requiredEnvironmentValue(environment, 'DATABASE_URL');
+  const databaseUrl = assertPostgreSqlUrl(connectionString, 'DATABASE_URL');
+  const databaseName = decodeURIComponent(databaseUrl.pathname.slice(1));
+  assertLocalDatabaseHost(databaseUrl, 'DATABASE_URL');
+
+  if (databaseName === DEVELOPMENT_DATABASE_NAME || databaseName === TEST_DATABASE_NAME) {
+    throw new Error('Production migrations must not target osleaders_dev or osleaders_test.');
+  }
 }
 
 export function assertTestResetEnvironment(environment: NodeJS.ProcessEnv): void {

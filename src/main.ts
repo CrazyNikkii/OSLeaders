@@ -1,8 +1,8 @@
 import { loadRuntimeConfiguration } from './infrastructure/config/runtime-environment.js';
-import { startDevelopmentDiscordRuntime } from './infrastructure/discord/development-runtime.js';
+import { startDiscordRuntime } from './infrastructure/discord/development-runtime.js';
 
 async function main(): Promise<void> {
-  const runtime = await startDevelopmentDiscordRuntime(loadRuntimeConfiguration());
+  const runtime = await startDiscordRuntime(loadRuntimeConfiguration());
   let shuttingDown = false;
 
   const shutdown = () => {

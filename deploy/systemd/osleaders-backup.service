@@ -1,0 +1,18 @@
+[Unit]
+Description=Create and verify an OSLeaders PostgreSQL backup
+After=postgresql.service
+
+[Service]
+Type=oneshot
+User=osleaders
+Group=osleaders
+WorkingDirectory=/opt/osleaders
+EnvironmentFile=/etc/osleaders/osleaders.env
+EnvironmentFile=/etc/osleaders/backup.env
+Environment=PGPASSFILE=/etc/osleaders/postgres.pgpass
+ExecStart=/usr/bin/env bash /opt/osleaders/scripts/backup-private-beta-database.sh
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full

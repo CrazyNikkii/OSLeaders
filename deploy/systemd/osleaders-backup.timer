@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the OSLeaders PostgreSQL backup every day
+
+[Timer]
+OnCalendar=*-*-* 03:15:00
+Persistent=true
+Unit=osleaders-backup.service
+
+[Install]
+WantedBy=timers.target

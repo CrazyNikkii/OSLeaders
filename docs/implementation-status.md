@@ -312,25 +312,29 @@ without discarding successful results.
 
 `6fa38a5` (2026-08-05) - Add private beta laptop readiness.
 
-This merged the Windows single-server private-beta operating path: a continuous
-runtime watchdog; reviewed migration, Discord permission, command-registration,
-and real-server acceptance guidance; credential-safe local PostgreSQL backup;
-and isolated restore rehearsal scripts. The backup and restore tools enforce
-the same local-host boundary as the runtime, avoid passwords on PostgreSQL
-command lines, and have focused Windows CI safety checks.
+This merged the initial Windows single-server private-beta operating path. Its
+Windows runtime and backup assets are superseded by the current unmerged Debian
+deployment correction below; Windows remains the development environment.
 
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
 ## Current unmerged implementation work
 
-None. The private-beta laptop-readiness work is merged. It does not by itself
-establish private-beta readiness; the real-server checklist must still be
-completed and recorded.
+The `codex/debian-private-beta-readiness` branch replaces the Windows-only
+private-beta operating assets with a Debian 13 headless-SSH path. It adds a
+separate production Discord guild configuration and guarded production
+migrations, systemd service and backup-timer units, local-PostgreSQL-only
+backup and isolated restore-rehearsal scripts, Debian-focused documentation,
+and focused asset/configuration tests. The backup service uses an explicit
+`PGPASSFILE` outside its `ProtectHome=true` sandbox so unattended PostgreSQL
+authentication remains available without exposing credentials on a command
+line. It does not establish private-beta readiness; the real-server checklist
+must still be completed and recorded on the Debian laptop.
 
 ## Next recommended branch-sized task
 
-Complete and record the real-server acceptance checklist before claiming 24/7
-private-beta readiness. Then resume the smallest demonstrated post-launch
-account-management need; keep competition work deferred until the private-beta
-operating path has proven reliable.
+Review and merge the Debian private-beta readiness branch. Then complete and
+record its real-server acceptance checklist before claiming 24/7 private-beta
+readiness. Keep competition work deferred until the Debian operating path has
+proven reliable.

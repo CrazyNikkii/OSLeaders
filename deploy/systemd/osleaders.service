@@ -1,0 +1,23 @@
+[Unit]
+Description=OSLeaders private Discord bot
+Wants=network-online.target
+After=network-online.target postgresql.service
+
+[Service]
+Type=simple
+User=osleaders
+Group=osleaders
+WorkingDirectory=/opt/osleaders
+EnvironmentFile=/etc/osleaders/osleaders.env
+ExecStart=/usr/bin/node /opt/osleaders/dist/main.js
+Restart=on-failure
+RestartSec=30s
+TimeoutStopSec=30s
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

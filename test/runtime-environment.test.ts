@@ -54,7 +54,7 @@ describe('runtime environment configuration', () => {
       },
       discord: {
         applicationId: '123456789012345678',
-        developmentGuildId: '987654321098765432',
+        guildId: '987654321098765432',
         token: 'private-development-token',
       },
       environment: 'development',
@@ -66,19 +66,21 @@ describe('runtime environment configuration', () => {
     expect(
       parseRuntimeConfiguration({
         ...VALID_ENVIRONMENT,
+        DISCORD_PRODUCTION_GUILD_ID: '111111111111111111',
         NODE_ENV: 'production',
       }).environment,
     ).toBe('production');
   });
 
-  it('allows production configuration without a development guild', () => {
+  it('uses a separate production guild for production configuration', () => {
     expect(
       parseRuntimeConfiguration({
         ...VALID_ENVIRONMENT,
         DISCORD_DEVELOPMENT_GUILD_ID: undefined,
+        DISCORD_PRODUCTION_GUILD_ID: '111111111111111111',
         NODE_ENV: 'production',
-      }).discord.developmentGuildId,
-    ).toBeUndefined();
+      }).discord.guildId,
+    ).toBe('111111111111111111');
   });
 
   it.each(['debug', 'info', 'warn', 'error'] as const)('accepts the %s log level', (logLevel) => {
@@ -150,15 +152,40 @@ describe('runtime environment configuration', () => {
     },
   );
 
+  it.each([
+    ['development', 'DISCORD_DEVELOPMENT_GUILD_ID'],
+    ['production', 'DISCORD_PRODUCTION_GUILD_ID'],
+  ] as const)(
+    'requires the correct guild ID for %s runtime configuration',
+    (nodeEnvironment, name) => {
+      expect(() => {
+        parseRuntimeConfiguration({
+          ...VALID_ENVIRONMENT,
+          DISCORD_DEVELOPMENT_GUILD_ID:
+            nodeEnvironment === 'development'
+              ? undefined
+              : VALID_ENVIRONMENT.DISCORD_DEVELOPMENT_GUILD_ID,
+          DISCORD_PRODUCTION_GUILD_ID:
+            nodeEnvironment === 'production'
+              ? undefined
+              : VALID_ENVIRONMENT.DISCORD_PRODUCTION_GUILD_ID,
+          NODE_ENV: nodeEnvironment,
+        });
+      }).toThrow(`${name} must be set.`);
+    },
+  );
+
   it.each(['abc', '123.5', '-123'])(
-    'rejects the invalid development guild ID %s without echoing it',
+    'rejects the invalid production guild ID %s without echoing it',
     (guildId) => {
       expect(() => {
         parseRuntimeConfiguration({
           ...VALID_ENVIRONMENT,
-          DISCORD_DEVELOPMENT_GUILD_ID: guildId,
+          DISCORD_DEVELOPMENT_GUILD_ID: undefined,
+          DISCORD_PRODUCTION_GUILD_ID: guildId,
+          NODE_ENV: 'production',
         });
-      }).toThrow('DISCORD_DEVELOPMENT_GUILD_ID must contain decimal digits only.');
+      }).toThrow('DISCORD_PRODUCTION_GUILD_ID must contain decimal digits only.');
     },
   );
 
