@@ -310,6 +310,14 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
+`b3b9ee9` (2026-08-05) - Merge recap configuration acknowledgement fix.
+
+This merged the private Discord acknowledgement fix for `/recap configure`:
+the adapter now defers before configuration or database work and edits that
+private response with configured, forbidden, or validation outcomes. It also
+corrected the Windows private-beta CI job to install locked dependencies and
+run the existing Debian operational-assets test.
+
 `6fa38a5` (2026-08-05) - Add private beta laptop readiness.
 
 This merged the initial Windows single-server private-beta operating path. Its
@@ -328,19 +336,13 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-The current worktree fixes the Discord `/recap configure` interaction timeout.
-The adapter now privately defers before configuration and database work, then
-edits that acknowledgement with the configured, forbidden, or validation
-result. Focused adapter tests cover acknowledgement before slow work and each
-private outcome. It also corrects the CI workflow's private-beta operational
-asset job to invoke the existing Debian test script. This work is not yet
+None. The recap configuration acknowledgement and private-beta CI fixes are
 merged. The Debian private-beta readiness work remains merged; it does not
 establish private-beta readiness because the real-server checklist must still
 be completed and recorded on the Debian laptop.
 
 ## Next recommended branch-sized task
 
-Merge the `/recap configure` acknowledgement fix, then complete and record the
-Debian real-server acceptance checklist before claiming 24/7 private-beta
-readiness. Keep competition work deferred until the Debian operating path has
-proven reliable.
+Complete and record the Debian real-server acceptance checklist before claiming
+24/7 private-beta readiness. Keep competition work deferred until the Debian
+operating path has proven reliable.
