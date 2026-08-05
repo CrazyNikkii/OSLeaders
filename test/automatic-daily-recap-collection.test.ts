@@ -9,6 +9,7 @@ import {
   type FinalizeAutomaticDailyRecapRunRequest,
 } from '../src/features/recaps/collect-automatic-daily-recap.js';
 import type { DailyRecapCollectionResult } from '../src/features/recaps/daily-recap-collection.js';
+import type { DailyRecapFailureReporter } from '../src/features/recaps/report-daily-recap-failures.js';
 
 describe('automatic daily recap collection service', () => {
   it('finalizes a due run with a durable delivery payload', async () => {
@@ -45,6 +46,21 @@ describe('automatic daily recap collection service', () => {
     expect(repository.finalized).toEqual([]);
   });
 
+  it('reports failed account fetches only after the run is durably finalized', async () => {
+    const repository = new RepositoryStub(claimedRun());
+    const reporter = new RecordingFailureReporter(repository);
+    const service = new AutomaticDailyRecapCollectionService(
+      repository,
+      new CollectorStub(collectionWithFailure()),
+      undefined,
+      reporter,
+    );
+
+    await expect(service.collectDue()).resolves.toMatchObject({ kind: 'ready_for_delivery' });
+    expect(reporter.collections).toHaveLength(1);
+    expect(reporter.finalizedBeforeReport).toBe(true);
+  });
+
   it('returns the run to the retry queue when collection fails', async () => {
     const repository = new RepositoryStub({ ...claimedRun(), collectionAttemptCount: 2 });
     const now = new Date('2026-08-05T12:00:00.000Z');
@@ -67,6 +83,19 @@ describe('automatic daily recap collection service', () => {
         recapRunId: 'automatic-run-one',
       },
     ]);
+  });
+
+  it('does not retry a finalized recap when failure audit reporting fails', async () => {
+    const repository = new RepositoryStub(claimedRun());
+    const service = new AutomaticDailyRecapCollectionService(
+      repository,
+      new CollectorStub(collectionWithFailure()),
+      undefined,
+      { report: () => Promise.reject(new Error('audit channel unavailable')) },
+    );
+
+    await expect(service.collectDue()).resolves.toMatchObject({ kind: 'ready_for_delivery' });
+    expect(repository.failed).toEqual([]);
   });
 
   it('uses restrained retry delays', () => {
@@ -121,6 +150,19 @@ class ThrowingCollector {
   }
 }
 
+class RecordingFailureReporter implements DailyRecapFailureReporter {
+  public readonly collections: DailyRecapCollectionResult[] = [];
+  public finalizedBeforeReport = false;
+
+  public constructor(private readonly repository: RepositoryStub) {}
+
+  public report(collectionResult: DailyRecapCollectionResult): Promise<void> {
+    this.finalizedBeforeReport = this.repository.finalized.length === 1;
+    this.collections.push(collectionResult);
+    return Promise.resolve();
+  }
+}
+
 function claimedRun(): ClaimedAutomaticDailyRecapRun {
   return {
     collectionAttemptCount: 1,
@@ -161,5 +203,24 @@ function collection(): DailyRecapCollectionResult {
       },
     ],
     startedAt: new Date('2026-08-05T12:00:00.000Z'),
+  };
+}
+
+function collectionWithFailure(): DailyRecapCollectionResult {
+  const result = collection();
+  return {
+    ...result,
+    outcomes: [
+      ...result.outcomes,
+      {
+        account: {
+          ...result.outcomes[0]!.account,
+          id: 'account-two',
+          displayUsername: 'Unavailable',
+        },
+        failure: { kind: 'timeout' as const },
+        kind: 'failure' as const,
+      },
+    ],
   };
 }

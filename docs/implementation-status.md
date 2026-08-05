@@ -310,40 +310,34 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
-`064cbe7` (2026-07-31) - Merge automatic daily recap scheduling.
+`3d0e395` (2026-08-05) - Merge automatic daily recap collection.
 
-This merged the first automatic-recap scheduling slice. Guild administrators
-and bot managers can configure the recap channel, enabled state, local time,
-and IANA timezone through `/recap configure`. It rejects malformed values and
-recurring local times that would be missing or ambiguous at an upcoming
-daylight-saving transition. A restrained in-process scheduler creates one
-durable, guild-scoped `pending_collection` automatic recap run for a due local
-time, safely catches up the most recent overdue occurrence at startup, and
-does not schedule future recaps early. PostgreSQL uniqueness makes repeated
-polling and restart attempts safe. Focused service, scheduler, command,
-adapter, repository, runtime, and PostgreSQL integration tests cover the work.
-Automatic collection and delivery of scheduled runs remain deferred.
+This merged the automatic recap execution path. A bounded in-process collector
+claims one due, configured automatic run at a time; uses the existing fresh
+Hiscores collection; atomically advances only successful baselines while
+creating a durable delivery; and returns unexpected whole-run failures to the
+durable collection retry queue. The development runtime starts and stops this
+collector alongside the existing scheduling and delivery-recovery schedulers.
+Focused unit and PostgreSQL integration tests cover collection, retry timing,
+bounded scheduling, durable handoff, and baseline replacement.
 
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
 ## Current unmerged implementation work
 
-`codex/daily-recap-automatic-collection` is in review. It adds the missing
-automatic recap execution path: a bounded in-process collector claims one due,
-configured automatic run at a time; uses the existing fresh Hiscores
-collection; atomically advances only successful baselines while creating a
-durable delivery; and returns unexpected whole-run failures to the durable
-collection retry queue. The development runtime starts and stops this collector
-alongside the existing scheduling and delivery-recovery schedulers. Focused
-unit and PostgreSQL integration tests cover collection, retry timing, bounded
-scheduling, durable handoff, and baseline replacement. This work is not merged
-and must not be treated as complete.
+`codex/daily-recap-failure-audit-delivery` is in review. It adds a
+Discord-independent per-account recap-failure reporter and a configured
+administrative-log publisher. Automatic and confirmed manual recap sends report
+typed, sanitized account-fetch failures only after their recap run and durable
+delivery are finalized. Missing configuration and administrative-channel
+delivery failures do not affect collection, baseline advancement, or durable
+recap posting. This work is not merged and must not be treated as complete.
 
 ## Next recommended branch-sized task
 
-After the current automatic-collection branch is reviewed and merged, start
-`codex/daily-recap-failure-audit-delivery`. Deliver the required technical
-summary of per-account recap-fetch failures to the configured administrative
-log channel without affecting recap collection, durable posting, or baseline
-updates. Do not begin competition work in that branch.
+After the current failure-audit-delivery branch is reviewed and merged, start
+`codex/competition-draft-foundation`. Establish the guild-scoped competition
+schema and Discord-independent draft lifecycle only; defer snapshots,
+participation, claims, scheduling, roles, standings, and recap competition
+summaries to later focused branches.

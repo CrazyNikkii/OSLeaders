@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { TrackedAccount } from '../src/features/accounts/register-account.js';
 import type { DailyRecapCollectionResult } from '../src/features/recaps/daily-recap-collection.js';
+import type { DailyRecapFailureReporter } from '../src/features/recaps/report-daily-recap-failures.js';
 import {
   ManualDailyRecapSendService,
   renderDailyRecapDeliveryContent,
@@ -59,6 +60,24 @@ describe('manual daily recap send service', () => {
       expect(collector.guildIds).toEqual([]);
       expect(repository.finalized).toEqual([]);
     }
+  });
+
+  it('reports per-account failures after durable finalization without failing the manual recap', async () => {
+    const repository = new RepositoryStub({
+      kind: 'started',
+      run: { recapChannelId: 'recap-channel', recapRunId: 'run-one' },
+    });
+    const reporter = new RecordingFailureReporter(repository);
+    const service = new ManualDailyRecapSendService(
+      repository,
+      new CollectorStub(recapCollection()),
+      () => 'run-one',
+      reporter,
+    );
+
+    await expect(service.send('guild-one')).resolves.toMatchObject({ kind: 'ready_for_delivery' });
+    expect(reporter.collections).toHaveLength(1);
+    expect(reporter.finalizedBeforeReport).toBe(true);
   });
 
   it('marks a claimed run failed without changing baselines when collection throws', async () => {
@@ -169,6 +188,19 @@ class CollectorStub {
 class ThrowingCollector {
   public collect(): Promise<DailyRecapCollectionResult> {
     return Promise.reject(new Error('Hiscores crashed.'));
+  }
+}
+
+class RecordingFailureReporter implements DailyRecapFailureReporter {
+  public readonly collections: DailyRecapCollectionResult[] = [];
+  public finalizedBeforeReport = false;
+
+  public constructor(private readonly repository: RepositoryStub) {}
+
+  public report(collection: DailyRecapCollectionResult): Promise<void> {
+    this.finalizedBeforeReport = this.repository.finalized.length === 1;
+    this.collections.push(collection);
+    return Promise.resolve();
   }
 }
 

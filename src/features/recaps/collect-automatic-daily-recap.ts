@@ -4,6 +4,7 @@ import {
   renderDailyRecapDeliveryContent,
 } from './send-daily-recap.js';
 import { presentDailyRecap } from './daily-recap-presentation.js';
+import type { DailyRecapFailureReporter } from './report-daily-recap-failures.js';
 
 export interface ClaimedAutomaticDailyRecapRun {
   collectionAttemptCount: number;
@@ -45,6 +46,9 @@ export class AutomaticDailyRecapCollectionService {
     private readonly repository: AutomaticDailyRecapCollectionRepository,
     private readonly collector: AutomaticDailyRecapCollector,
     private readonly now: () => Date = () => new Date(),
+    private readonly failureReporter: DailyRecapFailureReporter = {
+      report: () => Promise.resolve(),
+    },
   ) {}
 
   public async collectDue(): Promise<AutomaticDailyRecapCollectionResult> {
@@ -63,6 +67,11 @@ export class AutomaticDailyRecapCollectionService {
         recapChannelId: run.recapChannelId,
         recapRunId: run.recapRunId,
       });
+      try {
+        await this.failureReporter.report(collection);
+      } catch {
+        // Audit delivery is optional and must not return a finalized recap to collection retry.
+      }
       return { guildId: run.guildId, kind: 'ready_for_delivery', recapRunId: run.recapRunId };
     } catch (error) {
       await this.repository.failRun(

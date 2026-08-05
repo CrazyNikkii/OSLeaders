@@ -11,6 +11,7 @@ import {
   type DailyRecapPresentation,
   presentDailyRecap,
 } from './daily-recap-presentation.js';
+import type { DailyRecapFailureReporter } from './report-daily-recap-failures.js';
 
 export interface PendingDailyRecapRun {
   recapChannelId: string;
@@ -56,6 +57,9 @@ export class ManualDailyRecapSendService {
     private readonly repository: ManualDailyRecapSendRepository,
     private readonly collector: ManualDailyRecapCollector,
     private readonly createId: () => string = randomUUID,
+    private readonly failureReporter: DailyRecapFailureReporter = {
+      report: () => Promise.resolve(),
+    },
   ) {}
 
   public async send(guildId: string): Promise<ManualDailyRecapSendResult> {
@@ -75,6 +79,11 @@ export class ManualDailyRecapSendService {
         recapChannelId: started.run.recapChannelId,
         recapRunId: started.run.recapRunId,
       });
+      try {
+        await this.failureReporter.report(collection);
+      } catch {
+        // Audit delivery is optional and must not fail a finalized recap send.
+      }
       return {
         collection,
         kind: 'ready_for_delivery',
