@@ -51,3 +51,21 @@ history.
 - Do not add a dependency unless the current stage needs it.
 - Run `npm run check` and `git diff --check` before handing work back.
 - Do not commit, push, deploy, or modify GitHub state unless explicitly asked.
+
+## Private beta priority
+
+The near-term product priority is to make OSLeaders safe and practical to run
+continuously on the user's laptop for one private Discord server as soon as the
+already implemented recap and read-only features can support it. This is an
+early private beta, not a claim that the complete v1 feature set is finished.
+
+- Prioritize the smallest operational-readiness work that enables the single
+  configured server to use automatic daily recaps, account management, lookups,
+  and leaderboards while competition and other v1 development continues.
+- Keep the existing single-process Node.js plus local PostgreSQL architecture;
+  do not introduce hosted services or production Docker for this goal.
+- Before saying the bot is ready for this 24/7 private-beta use, verify and
+  explicitly report the required laptop startup/restart path, PostgreSQL
+  migration and backup/restore procedure, Discord command registration and
+  permissions, and a successful real-server recap/restart acceptance checklist.
+- Tell the user explicitly when that private-beta readiness point is reached.

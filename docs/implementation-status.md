@@ -310,34 +310,30 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
-`3d0e395` (2026-08-05) - Merge automatic daily recap collection.
+`34b7150` (2026-08-05) - Merge daily recap failure audit delivery.
 
-This merged the automatic recap execution path. A bounded in-process collector
-claims one due, configured automatic run at a time; uses the existing fresh
-Hiscores collection; atomically advances only successful baselines while
-creating a durable delivery; and returns unexpected whole-run failures to the
-durable collection retry queue. The development runtime starts and stops this
-collector alongside the existing scheduling and delivery-recovery schedulers.
-Focused unit and PostgreSQL integration tests cover collection, retry timing,
-bounded scheduling, durable handoff, and baseline replacement.
+This merged the per-account recap-failure audit delivery. Automatic and
+confirmed manual recap sends now report typed, sanitized account-fetch failures
+after their recap run and durable delivery are finalized. The configured
+administrative-log publisher resolves channels within the owning guild, splits
+oversized summaries into Discord-safe messages, and includes a traceable error
+reference. Missing configuration and administrative-channel delivery failures
+do not affect collection, baseline advancement, or durable recap posting.
 
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
 ## Current unmerged implementation work
 
-`codex/daily-recap-failure-audit-delivery` is in review. It adds a
-Discord-independent per-account recap-failure reporter and a configured
-administrative-log publisher. Automatic and confirmed manual recap sends report
-typed, sanitized account-fetch failures only after their recap run and durable
-delivery are finalized. Missing configuration and administrative-channel
-delivery failures do not affect collection, baseline advancement, or durable
-recap posting. This work is not merged and must not be treated as complete.
+None. The working tree was reconciled with `master` after pull request #52
+merged. The next branch should follow the private-beta priority in `AGENTS.md`.
 
 ## Next recommended branch-sized task
 
-After the current failure-audit-delivery branch is reviewed and merged, start
-`codex/competition-draft-foundation`. Establish the guild-scoped competition
-schema and Discord-independent draft lifecycle only; defer snapshots,
-participation, claims, scheduling, roles, standings, and recap competition
-summaries to later focused branches.
+Start `codex/private-beta-laptop-readiness`. Establish the minimum safe
+single-server laptop operating path for the already merged recap, account,
+lookup, and leaderboard features: explicit continuous-runtime operation,
+startup/restart guidance, local PostgreSQL backup/restore guidance, Discord
+permissions and command-registration checks, and a real-server recap/restart
+acceptance checklist. Keep this branch limited to private-beta readiness; defer
+competition work until the bot can be used reliably in the user's server.
