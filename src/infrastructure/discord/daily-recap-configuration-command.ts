@@ -28,6 +28,7 @@ export class DiscordDailyRecapConfigurationCommandAdapter {
       });
       return;
     }
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const result = await this.configuration.configure({
       enabled: interaction.options.getBoolean('enabled', true),
       guildId: interaction.guildId,
@@ -38,7 +39,7 @@ export class DiscordDailyRecapConfigurationCommandAdapter {
       recapLocalTime: interaction.options.getString('time', true),
       timezone: interaction.options.getString('timezone', true),
     });
-    await interaction.reply({ content: resultMessage(result), flags: MessageFlags.Ephemeral });
+    await interaction.editReply({ content: resultMessage(result) });
   }
 }
 
