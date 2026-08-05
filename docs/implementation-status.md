@@ -310,33 +310,27 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
-`34b7150` (2026-08-05) - Merge daily recap failure audit delivery.
+`6fa38a5` (2026-08-05) - Add private beta laptop readiness.
 
-This merged the per-account recap-failure audit delivery. Automatic and
-confirmed manual recap sends now report typed, sanitized account-fetch failures
-after their recap run and durable delivery are finalized. The configured
-administrative-log publisher resolves channels within the owning guild, splits
-oversized summaries into Discord-safe messages, and includes a traceable error
-reference. Missing configuration and administrative-channel delivery failures
-do not affect collection, baseline advancement, or durable recap posting.
+This merged the Windows single-server private-beta operating path: a continuous
+runtime watchdog; reviewed migration, Discord permission, command-registration,
+and real-server acceptance guidance; credential-safe local PostgreSQL backup;
+and isolated restore rehearsal scripts. The backup and restore tools enforce
+the same local-host boundary as the runtime, avoid passwords on PostgreSQL
+command lines, and have focused Windows CI safety checks.
 
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
 
 ## Current unmerged implementation work
 
-`codex/private-beta-laptop-readiness` is in progress. It adds the minimum safe
-Windows-laptop operating path for one configured private Discord guild: a
-local continuous-runtime watchdog, scripts that back up and restore the exact
-PostgreSQL runtime connection into a separate rehearsal database, reviewed
-migrations, Discord command registration and permissions, and a real-server
-recap/restart acceptance checklist. This work is not merged and does not by
-itself establish private-beta readiness; the checklist must still be completed
-on the real server.
+None. The private-beta laptop-readiness work is merged. It does not by itself
+establish private-beta readiness; the real-server checklist must still be
+completed and recorded.
 
 ## Next recommended branch-sized task
 
-After this branch is reviewed and merged, complete and record the real-server
-acceptance checklist before claiming 24/7 private-beta readiness. Then resume
-the smallest demonstrated post-launch account-management need; keep competition
-work deferred until the private-beta operating path has proven reliable.
+Complete and record the real-server acceptance checklist before claiming 24/7
+private-beta readiness. Then resume the smallest demonstrated post-launch
+account-management need; keep competition work deferred until the private-beta
+operating path has proven reliable.
