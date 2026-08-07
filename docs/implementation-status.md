@@ -26,12 +26,12 @@ merged.
 
 ## Current implementation stage
 
-Stage 7 - Daily recap presentation refinement. The merged `/account mode`
-adapter and member-presence Discord event work complete the current edit and
-presence workflows. The current unmerged recap branch improves the private-beta
-recap presentation while keeping collection, durable delivery, and baseline
-replacement intact. Stage 8 remains deferred while the narrower
-account-management slices are completed.
+Stage 8 - Competition draft foundation. The merged `/account mode` adapter,
+member-presence Discord event work, and daily-recap readability improvements
+complete the current edit, presence, and recap-presentation workflows. The
+current unmerged competition branch adds only draft competition creation and
+its durable guild-scoped data foundation; it does not yet expose a Discord
+command, participation, snapshots, scheduling, or standings.
 
 The merged skill-lookup foundation begins the lookup module with a
 Discord-independent, guild-scoped skill lookup service. It resolves a
@@ -256,11 +256,13 @@ guild isolation, autocomplete, response translation, and factory construction.
 Stage 5 is not complete. The remaining deferred account-management Discord
 adapters remain post-launch priorities.
 
-The remaining Discord adapters for account-association conversion and
-linked-account reassignment remain deliberately deferred until post-launch use
-demonstrates a need. Their Discord-independent services are merged and remain
-available; this is an implementation-priority decision, not a removal of the
-approved product behaviour.
+The remaining Discord adapter for account-association conversion remains
+deliberately deferred until post-launch use demonstrates a need. Its
+Discord-independent service is merged and remains available; this is an
+implementation-priority decision, not a removal of the approved product
+behaviour. A Discord adapter for linked-account reassignment is not planned:
+the existing Discord-independent service remains available for future review,
+but it is not a private-beta or v1 implementation priority.
 
 The merged development Discord runtime foundation adds explicit development-guild
 command registration and a runnable local bot composition for the merged
@@ -296,15 +298,14 @@ enables the required Discord Guild Members gateway intent, documents the
 Developer Portal setting, and adds focused adapter and runtime-binding tests.
 Focused adapter and runtime-binding tests cover this work.
 
-The current unmerged recap-caption and readable-layout cleanup removes the
-technical account-specific-baselines caption from public and preview recap
-summaries. It renders one boss or skill gain per line, gives positive level
-gains their own native Discord blockquote, and separates player blocks with a
-literal text divider. The compact totals remain unchanged, and each account
-continues to be measured against its own durable rolling baseline without
-exposing that implementation detail to Discord users. Focused unit tests cover
-the caption's absence and the readable delivery and preview layout. This work
-is not complete until merged.
+The merged daily-recap readability improvements remove the technical
+account-specific-baselines caption from public and preview recap summaries. It
+renders one boss or skill gain per line, gives positive level gains their own
+native Discord blockquote, and separates player blocks with a literal text
+divider. The compact totals remain unchanged, and each account continues to be
+measured against its own durable rolling baseline without exposing that
+implementation detail to Discord users. Focused unit tests cover the caption's
+absence and the readable delivery and preview layout.
 
 ## Deferred and later planned stages
 
@@ -336,6 +337,13 @@ entries by XP with deterministic tie-breakers, and retains per-account failures
 without discarding successful results.
 
 ## Latest merged implementation work
+
+`88f0ec3` (2026-08-07) - Merge daily recap readability improvements.
+
+This merged the recap caption and readable-layout cleanup. Public and preview
+recaps no longer expose technical baseline terminology; player gains are
+rendered in a more readable line-based layout without changing collection,
+durable delivery, or baseline replacement.
 
 `18c0844` (2026-08-07) - Merge recap embed presentation.
 
@@ -404,11 +412,17 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-`codex/remove-recap-baseline-caption` - Remove the technical recap baseline
-caption from user-facing recap summaries; this work is awaiting review.
+`codex/competition-foundation` - Add the Stage 8 competition draft foundation.
+The branch adds the four approved individual competition definitions, durable
+draft state, per-guild normalized-name uniqueness, manager authorization, and
+focused unit and PostgreSQL integration coverage. It does not yet make the
+feature available through Discord.
 
 ## Next recommended branch-sized task
 
-After this branch merges, select the smallest observed account-management need
-between the association-conversion and linked-account-reassignment Discord
-adapters before beginning Stage 8 competitions.
+After this branch merges, add the smallest Discord `/competition create` flow
+over the draft-creation service. Keep it limited to manager-authorized draft
+creation and canonical skill or boss selection; participation, snapshots,
+scheduling, and standings remain later Stage 8 slices. Do not begin another
+account-management adapter without a demonstrated private-beta need.
+Reassignment has been removed from the implementation plan.

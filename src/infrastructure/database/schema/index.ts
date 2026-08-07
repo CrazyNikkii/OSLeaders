@@ -1,4 +1,13 @@
 export { guilds } from './guilds.js';
+export {
+  competitionMetricKind,
+  competitionMetricKinds,
+  competitionState,
+  competitionStates,
+  competitions,
+  competitionType,
+  competitionTypes,
+} from './competitions.js';
 export { guildMemberPresences } from './guild-member-presences.js';
 export { recapBaselines } from './recap-baselines.js';
 export {
