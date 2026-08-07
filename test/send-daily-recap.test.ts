@@ -38,9 +38,11 @@ describe('manual daily recap send service', () => {
         collection,
       }),
     ]);
-    expect(repository.finalized[0]?.deliveryContent).toContain('• Zulrah: +3 KC');
-    expect(repository.finalized[0]?.deliveryContent).toContain('**Rune Scape · Main**');
-    expect(repository.finalized[0]?.deliveryContent).toContain('Since <t:1785405600:R>');
+    expect(repository.finalized[0]?.deliveryContent).toContain('**+3 KC** · Zulrah +3');
+    expect(repository.finalized[0]?.deliveryContent).toContain('**Rune Scape** · Main');
+    expect(repository.finalized[0]?.deliveryContent).toContain(
+      '1 active account · compared with account-specific baselines',
+    );
     expect(repository.finalized[0]?.deliveryContent).toContain('Unavailable accounts');
     expect(repository.finalized[0]?.deliveryContent).toContain('Hiscores timed out');
     expect(repository.failed).toEqual([]);

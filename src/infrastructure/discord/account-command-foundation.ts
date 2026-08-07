@@ -2,6 +2,7 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  EmbedBuilder,
   Events,
   MessageFlags,
   ModalBuilder,
@@ -68,6 +69,7 @@ import {
 } from '../../features/guild-configuration/guild-configuration-service.js';
 import { shouldDeliverAdministrativeAuditEvent } from '../../features/audit/administrative-audit-policy.js';
 import type { AuditService } from '../../features/audit/audit-service.js';
+import { OSLEADERS_SUCCESS_EMBED_COLOR } from './discord-embed-presentation.js';
 import {
   OSRS_ACCOUNT_MODES,
   type OsrsAccountMode,
@@ -991,7 +993,15 @@ export class DiscordRegistrationAnnouncementPublisher implements RegistrationAnn
     if (!channel?.isSendable()) {
       throw new Error('The registration channel is not available for public announcements.');
     }
-    await channel.send({ content: message });
+    await channel.send({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(OSLEADERS_SUCCESS_EMBED_COLOR)
+          .setDescription(message)
+          .setFooter({ text: 'OSLeaders' })
+          .setTitle('Account registered'),
+      ],
+    });
   }
 }
 

@@ -46,15 +46,15 @@ describe('Discord daily recap preview command', () => {
     expect(responses.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
     const response = JSON.stringify(responses.editReply.mock.calls[0]);
     expect(response).toContain('<@member-one>');
-    expect(response).toContain('**Linked · Ironman**');
-    expect(response).toContain('Since <t:1785405600:R>');
-    expect(response).toContain('**Skills**');
-    expect(response).toContain('+100,000 XP');
-    expect(response).toContain('**Boss activities**');
-    expect(response).toContain('**Watchlisted · Ironman**');
+    expect(response).toContain('**Linked** · Ironman');
+    expect(response).toContain('2 active accounts · compared with account-specific baselines');
+    expect(response).toContain('**600K XP gained**');
+    expect(response).toContain('**+100K XP** · Magic +100K → 88');
+    expect(response).toContain('**+4 KC** · Zulrah +4');
+    expect(response).toContain('**Watchlisted** · Ironman');
     expect(response).toContain('Showing XP gains of 10,000+');
     expect(response).toContain('Unavailable accounts');
-    expect(response.indexOf('**Boss activities**')).toBeLessThan(response.indexOf('**Skills**'));
+    expect(response.indexOf('**+4 KC**')).toBeLessThan(response.indexOf('**+100K XP**'));
     expect(responses.followUp).not.toHaveBeenCalled();
   });
 

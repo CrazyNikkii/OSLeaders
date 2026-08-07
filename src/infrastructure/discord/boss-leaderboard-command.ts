@@ -17,9 +17,9 @@ import {
 } from '../../features/leaderboards/boss-leaderboard.js';
 import {
   OSRS_BOSS_ACTIVITY_NAMES,
-  type OsrsAccountMode,
   type OsrsBossActivityName,
 } from '../hiscores/osrs-hiscore-catalog.js';
+import { accountModeLabel, OSLEADERS_EMBED_COLOR } from './discord-embed-presentation.js';
 
 const BOSS_LEADERBOARD_COMMAND_NAME = 'boss-leaderboard';
 const BOSS_OPTION_NAME = 'boss';
@@ -155,6 +155,8 @@ export function bossLeaderboardEmbeds(
   const pages = splitSections(sections);
   return pages.map((page, index) =>
     new EmbedBuilder()
+      .setColor(OSLEADERS_EMBED_COLOR)
+      .setFooter({ text: `${entries.length} ranked account${entries.length === 1 ? '' : 's'}` })
       .setTitle(
         `${result.boss} leaderboard${pages.length > 1 ? ` (${index + 1}/${pages.length})` : ''}`,
       )
@@ -213,13 +215,6 @@ function failureMessage(failure: BossLeaderboardFailure): string {
     case 'incomplete_response':
       return 'Hiscores returned incomplete data';
   }
-}
-
-function accountModeLabel(mode: OsrsAccountMode): string {
-  return mode
-    .split('_')
-    .map((word) => `${word[0]?.toUpperCase()}${word.slice(1)}`)
-    .join(' ');
 }
 
 function isOsrsBossActivityName(value: string): value is OsrsBossActivityName {

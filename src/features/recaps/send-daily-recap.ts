@@ -122,66 +122,99 @@ export function assertCollectionBelongsToGuild(
 }
 
 export function renderDailyRecapDeliveryContent(presentation: DailyRecapPresentation): string {
+  const accounts = [
+    ...presentation.linkedMembers.flatMap((member) => member.accounts),
+    ...presentation.watchlistAccounts,
+  ];
   const sections = [
-    ...presentation.linkedMembers.map((member) => ({
-      heading: `<@${member.discordUserId}>`,
-      lines: member.accounts.flatMap(accountLines),
-    })),
+    ...(accounts.length === 0 ? [] : summaryLines(accounts)),
+    ...presentation.linkedMembers.flatMap((member) => [
+      `**<@${member.discordUserId}>**`,
+      ...member.accounts.flatMap(accountLines),
+    ]),
     ...(presentation.watchlistAccounts.length === 0
       ? []
-      : [
-          {
-            heading: 'Watchlist accounts',
-            lines: presentation.watchlistAccounts.flatMap(accountLines),
-          },
-        ]),
-    ...(presentation.noActivity
-      ? [
-          {
-            heading: 'Activity',
-            lines: ['No notable activity today.'],
-          },
-        ]
-      : []),
+      : ['**Watchlist accounts**', ...presentation.watchlistAccounts.flatMap(accountLines)]),
+    ...(presentation.noActivity ? ['**Activity**', 'No notable activity today.'] : []),
     ...(presentation.failures.length === 0
       ? []
-      : [{ heading: 'Unavailable accounts', lines: presentation.failures.map(formatFailure) }]),
+      : ['**Unavailable accounts**', ...presentation.failures.map(formatFailure)]),
   ];
-  return sections.flatMap((section) => [`**${section.heading}**`, ...section.lines]).join('\n');
+  return sections.join('\n');
 }
 
 function accountLines(entry: DailyRecapAccountPresentation): string[] {
-  const lines = [
-    `**${entry.account.displayUsername} · ${accountModeLabel(entry.account)}**`,
-    `*Since <t:${Math.floor(entry.previousBaselineCapturedAt.getTime() / 1_000)}:R>*`,
-  ];
+  const lines = [`**${entry.account.displayUsername}** · ${accountModeLabel(entry.account)}`];
   if (entry.changes.bosses.length > 0) {
     lines.push(
-      '**Boss activities**',
-      ...entry.changes.bosses.map(
-        (change) => `• ${change.boss}: +${change.killCountGained.toLocaleString('en-US')} KC`,
-      ),
+      `**+${formatNumber(totalBossKillCount(entry))} KC** · ${entry.changes.bosses
+        .map((change) => `${change.boss} +${formatNumber(change.killCountGained)}`)
+        .join(' · ')}`,
     );
   }
   if (entry.changes.skills.length > 0) {
-    lines.push('**Skills**', ...entry.changes.skills.map(formatSkillChange));
+    lines.push(
+      `**+${formatCompactNumber(totalExperience(entry))} XP** · ${entry.changes.skills
+        .map(formatSkillChange)
+        .join(' · ')}`,
+    );
   }
   return lines;
+}
+
+function summaryLines(accounts: readonly DailyRecapAccountPresentation[]): string[] {
+  const totalXp = accounts.reduce((total, account) => total + totalExperience(account), 0);
+  const totalBossKills = accounts.reduce(
+    (total, account) => total + totalBossKillCount(account),
+    0,
+  );
+  const totalLevels = accounts.reduce(
+    (total, account) =>
+      total +
+      account.changes.skills.reduce((skillTotal, skill) => skillTotal + skill.levelGained, 0),
+    0,
+  );
+  const gains = [
+    ...(totalXp === 0 ? [] : [`**${formatCompactNumber(totalXp)} XP gained**`]),
+    ...(totalBossKills === 0 ? [] : [`**${formatNumber(totalBossKills)} boss KC**`]),
+    ...(totalLevels === 0
+      ? []
+      : [`**${formatNumber(totalLevels)} ${totalLevels === 1 ? 'level' : 'levels'}**`]),
+  ];
+  return [
+    `*${accounts.length} active ${accounts.length === 1 ? 'account' : 'accounts'} · compared with account-specific baselines*`,
+    ...gains,
+  ];
+}
+
+function totalExperience(entry: DailyRecapAccountPresentation): number {
+  return entry.changes.skills.reduce((total, change) => total + change.experienceGained, 0);
+}
+
+function totalBossKillCount(entry: DailyRecapAccountPresentation): number {
+  return entry.changes.bosses.reduce((total, change) => total + change.killCountGained, 0);
 }
 
 function formatSkillChange(
   change: DailyRecapAccountPresentation['changes']['skills'][number],
 ): string {
-  const gains: string[] = [];
-  if (change.experienceGained > 0) {
-    gains.push(`+${change.experienceGained.toLocaleString('en-US')} XP`);
-  }
-  if (change.levelGained > 0) {
-    gains.push(
-      `+${change.levelGained} ${change.levelGained === 1 ? 'level' : 'levels'} → ${change.currentLevel}`,
-    );
-  }
-  return `• ${change.skill}: ${gains.join(', ')}`;
+  const experience =
+    change.experienceGained === 0 ? '' : ` +${formatCompactNumber(change.experienceGained)}`;
+  const level = change.levelGained === 0 ? '' : ` → ${change.currentLevel}`;
+  return `${change.skill}${experience}${level}`;
+}
+
+function formatCompactNumber(value: number): string {
+  if (value < 1_000) return formatNumber(value);
+  const divisor = value >= 1_000_000 ? 1_000_000 : 1_000;
+  const suffix = divisor === 1_000_000 ? 'M' : 'K';
+  const scaled = value / divisor;
+  const fractionDigits = scaled >= 100 ? 0 : scaled >= 10 ? 1 : 2;
+  return `${Number(scaled.toFixed(fractionDigits))}${suffix}`;
+}
+
+function formatNumber(value: number): string {
+  return value.toLocaleString('en-US');
 }
 
 export const dailyRecapEmbedFooter = `Showing XP gains of ${MINIMUM_VISIBLE_DAILY_RECAP_XP.toLocaleString('en-US')}+`;

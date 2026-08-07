@@ -1,8 +1,7 @@
 import { EmbedBuilder } from 'discord.js';
 
 import { dailyRecapEmbedFooter } from '../../features/recaps/send-daily-recap.js';
-
-const DAILY_RECAP_EMBED_COLOR = 0xd99b36;
+import { OSLEADERS_EMBED_COLOR } from './discord-embed-presentation.js';
 
 export interface DailyRecapEmbedPresentation {
   footerDetails?: readonly string[];
@@ -15,7 +14,7 @@ export function createDailyRecapEmbeds(
 ): readonly EmbedBuilder[] {
   return presentation.pages.map((page, index) =>
     new EmbedBuilder()
-      .setColor(DAILY_RECAP_EMBED_COLOR)
+      .setColor(OSLEADERS_EMBED_COLOR)
       .setDescription(page)
       .setFooter({
         text: [dailyRecapEmbedFooter, ...(presentation.footerDetails ?? [])].join(' · '),

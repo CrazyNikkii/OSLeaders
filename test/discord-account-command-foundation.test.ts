@@ -87,9 +87,11 @@ describe('Discord account command foundation', () => {
       '**Rune Scape** has been registered as a Main linked account.',
     );
 
-    expect(messages).toEqual([
-      { content: '**Rune Scape** has been registered as a Main linked account.' },
-    ]);
+    expect(JSON.stringify(messages)).toContain('Account registered');
+    expect(JSON.stringify(messages)).toContain(
+      '**Rune Scape** has been registered as a Main linked account.',
+    );
+    expect(JSON.stringify(messages)).toContain('"color":5744499');
     await expect(
       publisher.publish({ channel: null } as never, 'registration announcement'),
     ).rejects.toThrow('not available for public announcements');

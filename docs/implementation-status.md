@@ -296,16 +296,22 @@ enables the required Discord Guild Members gateway intent, documents the
 Developer Portal setting, and adds focused adapter and runtime-binding tests.
 Focused adapter and runtime-binding tests cover this work.
 
-The current unmerged daily-recap presentation work replaces the public
-plain-text recap with Discord embeds and makes the preview match that
+The current unmerged daily-recap and response-presentation work replaces the
+public plain-text recap with Discord embeds and makes the preview match that
 presentation. Delivered embeds retain a compact stable recap identifier and
 retry indication in their footer, while the preview shows only the XP threshold
 note. Boss activity appears before skills. XP-only skill gains below 10,000 are
 hidden, while positive level gains and boss KC always remain visible; every
 successful collection still advances its recap baseline regardless of display
-filtering. Focused unit tests cover the threshold boundary, hidden-gain
-baseline update, embed delivery, page splitting, retry identity, and preview
-output. This work is not complete until merged.
+filtering. The same gold embed treatment now formats tracked and one-time
+skill/boss lookups, both permanent leaderboards, and public successful
+registration announcements (with a restrained success accent). Shared
+presentation helpers preserve consistent account-mode labels and Hiscores rank
+formatting without changing lookup, leaderboard, registration, or guild
+isolation behaviour. Focused unit tests cover the threshold boundary,
+hidden-gain baseline update, embed delivery, page splitting, retry identity,
+preview output, and the shared response treatment. This work is not complete
+until merged.
 
 ## Deferred and later planned stages
 

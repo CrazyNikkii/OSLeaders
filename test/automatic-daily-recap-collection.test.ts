@@ -31,7 +31,7 @@ describe('automatic daily recap collection service', () => {
         recapRunId: 'automatic-run-one',
       }),
     ]);
-    expect(repository.finalized[0]?.deliveryContent).toContain('\u2022 Zulrah: +3 KC');
+    expect(repository.finalized[0]?.deliveryContent).toContain('**+3 KC** · Zulrah +3');
     expect(repository.failed).toEqual([]);
   });
 

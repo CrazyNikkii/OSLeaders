@@ -13,11 +13,8 @@ import {
   type SkillLeaderboardFailure,
   type SkillLeaderboardResult,
 } from '../../features/leaderboards/skill-leaderboard.js';
-import {
-  OSRS_SKILL_NAMES,
-  type OsrsAccountMode,
-  type OsrsSkillName,
-} from '../hiscores/osrs-hiscore-catalog.js';
+import { OSRS_SKILL_NAMES, type OsrsSkillName } from '../hiscores/osrs-hiscore-catalog.js';
+import { accountModeLabel, OSLEADERS_EMBED_COLOR } from './discord-embed-presentation.js';
 
 const SKILL_LEADERBOARD_COMMAND_NAME = 'skill-leaderboard';
 const SKILL_OPTION_NAME = 'skill';
@@ -132,6 +129,8 @@ export function skillLeaderboardEmbeds(
   const pages = splitSections(sections);
   return pages.map((page, index) =>
     new EmbedBuilder()
+      .setColor(OSLEADERS_EMBED_COLOR)
+      .setFooter({ text: `${entries.length} ranked account${entries.length === 1 ? '' : 's'}` })
       .setTitle(
         `${result.skill} leaderboard${pages.length > 1 ? ` (${index + 1}/${pages.length})` : ''}`,
       )
@@ -190,13 +189,6 @@ function failureMessage(failure: SkillLeaderboardFailure): string {
     case 'incomplete_response':
       return 'Hiscores returned incomplete data';
   }
-}
-
-function accountModeLabel(mode: OsrsAccountMode): string {
-  return mode
-    .split('_')
-    .map((word) => `${word[0]?.toUpperCase()}${word.slice(1)}`)
-    .join(' ');
 }
 
 interface RenderSection {
