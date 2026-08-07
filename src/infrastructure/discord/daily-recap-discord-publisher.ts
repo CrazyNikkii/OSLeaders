@@ -1,11 +1,12 @@
-import type { Client } from 'discord.js';
+import { type EmbedBuilder, type Client } from 'discord.js';
 
 import type {
   DailyRecapPublisher,
   PendingDailyRecapDelivery,
 } from '../../features/recaps/deliver-daily-recap.js';
+import { createDailyRecapEmbeds } from './daily-recap-embed-presentation.js';
 
-const CHUNK_LENGTH = 1_900;
+const MAXIMUM_EMBED_DESCRIPTION_LENGTH = 4_000;
 
 export class DiscordDailyRecapPublisher implements DailyRecapPublisher {
   public constructor(private readonly client: Pick<Client, 'guilds'>) {}
@@ -17,12 +18,12 @@ export class DiscordDailyRecapPublisher implements DailyRecapPublisher {
       throw new Error('The configured daily recap channel is not available for delivery.');
     }
     let message: { id: string } | undefined;
-    for (const content of splitDailyRecapContent(
+    for (const embed of dailyRecapDeliveryEmbeds(
       delivery.content,
       delivery.attemptCount,
       delivery.recapRunId,
     )) {
-      const sent = await channel.send({ content });
+      const sent = await channel.send({ embeds: [embed] });
       message ??= sent;
     }
     if (message === undefined) {
@@ -32,16 +33,24 @@ export class DiscordDailyRecapPublisher implements DailyRecapPublisher {
   }
 }
 
-export function splitDailyRecapContent(
+export function splitDailyRecapContent(content: string): readonly string[] {
+  return splitAtLineBoundaries(content, MAXIMUM_EMBED_DESCRIPTION_LENGTH);
+}
+
+export function dailyRecapDeliveryEmbeds(
   content: string,
   attemptCount: number,
   recapRunId: string,
-): readonly string[] {
-  const chunks = splitAtLineBoundaries(content, CHUNK_LENGTH);
-  return chunks.map(
-    (chunk, index) =>
-      `**Daily recap - delivery ${recapRunId}, part ${index + 1}/${chunks.length}${attemptCount > 1 ? `, retry ${attemptCount}` : ''}**\n${chunk}`,
-  );
+): readonly EmbedBuilder[] {
+  const pages = splitDailyRecapContent(content);
+  return createDailyRecapEmbeds({
+    footerDetails: [
+      `Recap ${recapRunId.slice(0, 8)}`,
+      ...(attemptCount > 1 ? [`Retry ${attemptCount}`] : []),
+    ],
+    pages,
+    title: 'Daily recap',
+  });
 }
 
 function splitAtLineBoundaries(content: string, maximumLength: number): readonly string[] {

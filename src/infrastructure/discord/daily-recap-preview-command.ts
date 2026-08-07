@@ -1,6 +1,5 @@
 import {
   ChannelType,
-  EmbedBuilder,
   Events,
   MessageFlags,
   SlashCommandBuilder,
@@ -8,6 +7,7 @@ import {
   type Client,
   type Interaction,
 } from 'discord.js';
+import type { EmbedBuilder } from 'discord.js';
 
 import type { TrackedAccount } from '../../features/accounts/register-account.js';
 import {
@@ -16,6 +16,7 @@ import {
   type DailyRecapPreview,
 } from '../../features/recaps/daily-recap-presentation.js';
 import { PreviewDailyRecapService } from '../../features/recaps/preview-daily-recap.js';
+import { createDailyRecapEmbeds } from './daily-recap-embed-presentation.js';
 
 const RECAP_COMMAND_NAME = 'recap';
 const PREVIEW_SUBCOMMAND_NAME = 'preview';
@@ -116,7 +117,7 @@ export function bindDiscordDailyRecapPreviewCommandAdapter(
   });
 }
 
-export function dailyRecapPreviewEmbeds(preview: DailyRecapPreview): EmbedBuilder[] {
+export function dailyRecapPreviewEmbeds(preview: DailyRecapPreview): readonly EmbedBuilder[] {
   const sections = [
     ...linkedMemberSections(preview),
     ...watchlistSections(preview),
@@ -125,11 +126,7 @@ export function dailyRecapPreviewEmbeds(preview: DailyRecapPreview): EmbedBuilde
   ];
   const pages = splitSections(sections);
 
-  return pages.map((page, index) =>
-    new EmbedBuilder()
-      .setTitle(`Daily recap preview${pages.length > 1 ? ` (${index + 1}/${pages.length})` : ''}`)
-      .setDescription(page),
-  );
+  return createDailyRecapEmbeds({ pages, title: 'Daily recap preview' });
 }
 
 function linkedMemberSections(preview: DailyRecapPreview): RenderSection[] {
@@ -153,7 +150,7 @@ function watchlistSections(preview: DailyRecapPreview): RenderSection[] {
 
 function noActivitySections(preview: DailyRecapPreview): RenderSection[] {
   return preview.presentation.noActivity
-    ? [{ heading: 'Activity', lines: ['No tracked XP or boss KC gains since the previous recap.'] }]
+    ? [{ heading: 'Activity', lines: ['No notable activity today.'] }]
     : [];
 }
 
@@ -171,8 +168,8 @@ function failureSections(preview: DailyRecapPreview): RenderSection[] {
 
 function accountLines(entry: DailyRecapAccountPresentation): string[] {
   const lines = [
-    `## ${entry.account.displayUsername} (${accountModeLabel(entry.account)})`,
-    `*Compared with the last successful snapshot: <t:${Math.floor(entry.previousBaselineCapturedAt.getTime() / 1_000)}:f>*`,
+    `**${entry.account.displayUsername} · ${accountModeLabel(entry.account)}**`,
+    `*Since <t:${Math.floor(entry.previousBaselineCapturedAt.getTime() / 1_000)}:R>*`,
   ];
   if (entry.changes.bosses.length > 0) {
     lines.push(

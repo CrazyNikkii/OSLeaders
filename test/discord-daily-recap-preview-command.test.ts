@@ -46,11 +46,13 @@ describe('Discord daily recap preview command', () => {
     expect(responses.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
     const response = JSON.stringify(responses.editReply.mock.calls[0]);
     expect(response).toContain('<@member-one>');
-    expect(response).toContain('## Linked (Ironman)');
+    expect(response).toContain('**Linked · Ironman**');
+    expect(response).toContain('Since <t:1785405600:R>');
     expect(response).toContain('**Skills**');
     expect(response).toContain('+100,000 XP');
     expect(response).toContain('**Boss activities**');
-    expect(response).toContain('## Watchlisted (Ironman)');
+    expect(response).toContain('**Watchlisted · Ironman**');
+    expect(response).toContain('Showing XP gains of 10,000+');
     expect(response).toContain('Unavailable accounts');
     expect(response.indexOf('**Boss activities**')).toBeLessThan(response.indexOf('**Skills**'));
     expect(responses.followUp).not.toHaveBeenCalled();
@@ -73,7 +75,7 @@ describe('Discord daily recap preview command', () => {
     await adapter.handle(interaction(responses) as never);
 
     const response = JSON.stringify(responses.editReply.mock.calls[0]);
-    expect(response).toContain('No tracked XP or boss KC gains since the previous recap.');
+    expect(response).toContain('No notable activity today.');
     expect(response).toContain('Missing');
     expect(response).toContain('Hiscores timed out');
   });

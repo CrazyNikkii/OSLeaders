@@ -72,6 +72,42 @@ describe('daily recap presentation', () => {
     });
   });
 
+  it('omits XP-only gains below 10,000 while retaining level gains and boss KC', () => {
+    const presentation = presentDailyRecap(
+      result([
+        success(linkedAccount(), {
+          bosses: [{ boss: 'Zulrah', killCountGained: 1 }],
+          skills: [
+            { currentLevel: 80, experienceGained: 9_999, levelGained: 0, skill: 'Agility' },
+            { currentLevel: 81, experienceGained: 5, levelGained: 1, skill: 'Cooking' },
+            { currentLevel: 90, experienceGained: 10_000, levelGained: 0, skill: 'Fishing' },
+          ],
+        }),
+      ]),
+    );
+
+    expect(presentation.linkedMembers[0]?.accounts[0]?.changes).toEqual({
+      bosses: [{ boss: 'Zulrah', killCountGained: 1 }],
+      skills: [
+        { currentLevel: 81, experienceGained: 5, levelGained: 1, skill: 'Cooking' },
+        { currentLevel: 90, experienceGained: 10_000, levelGained: 0, skill: 'Fishing' },
+      ],
+    });
+  });
+
+  it('treats only sub-threshold XP-only changes as no notable activity', () => {
+    const presentation = presentDailyRecap(
+      result([
+        success(linkedAccount(), {
+          bosses: [],
+          skills: [{ currentLevel: 80, experienceGained: 9_999, levelGained: 0, skill: 'Agility' }],
+        }),
+      ]),
+    );
+
+    expect(presentation).toMatchObject({ linkedMembers: [], noActivity: true });
+  });
+
   it('collects a preview without any baseline-advancing or delivery dependency', async () => {
     const collector = new CollectorStub(result([]));
     const service = new DailyRecapPreviewService(collector);

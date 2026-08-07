@@ -39,9 +39,8 @@ describe('manual daily recap send service', () => {
       }),
     ]);
     expect(repository.finalized[0]?.deliveryContent).toContain('• Zulrah: +3 KC');
-    expect(repository.finalized[0]?.deliveryContent).toContain(
-      'Compared with the last successful snapshot: <t:1785405600:f>',
-    );
+    expect(repository.finalized[0]?.deliveryContent).toContain('**Rune Scape · Main**');
+    expect(repository.finalized[0]?.deliveryContent).toContain('Since <t:1785405600:R>');
     expect(repository.finalized[0]?.deliveryContent).toContain('Unavailable accounts');
     expect(repository.finalized[0]?.deliveryContent).toContain('Hiscores timed out');
     expect(repository.failed).toEqual([]);
@@ -78,6 +77,43 @@ describe('manual daily recap send service', () => {
     await expect(service.send('guild-one')).resolves.toMatchObject({ kind: 'ready_for_delivery' });
     expect(reporter.collections).toHaveLength(1);
     expect(reporter.finalizedBeforeReport).toBe(true);
+  });
+
+  it('updates successful baselines for XP gains hidden by the recap display threshold', async () => {
+    const repository = new RepositoryStub({
+      kind: 'started',
+      run: { recapChannelId: 'recap-channel', recapRunId: 'run-one' },
+    });
+    const collection = recapCollection();
+    const visibleOutcome = collection.outcomes[0];
+    if (visibleOutcome?.kind !== 'success') {
+      throw new Error('Expected a successful recap collection outcome.');
+    }
+    const hiddenGainCollection = {
+      ...collection,
+      outcomes: [
+        {
+          ...visibleOutcome,
+          changes: {
+            bosses: [],
+            skills: [
+              { currentLevel: 11, experienceGained: 9_999, levelGained: 0, skill: 'Attack' },
+            ],
+          },
+        },
+      ],
+    };
+    const service = new ManualDailyRecapSendService(
+      repository,
+      new CollectorStub(hiddenGainCollection),
+      () => 'run-one',
+    );
+
+    await service.send('guild-one');
+
+    expect(repository.finalized[0]?.collection).toBe(hiddenGainCollection);
+    expect(repository.finalized[0]?.deliveryContent).toContain('No notable activity today.');
+    expect(repository.finalized[0]?.deliveryContent).not.toContain('Attack');
   });
 
   it('marks a claimed run failed without changing baselines when collection throws', async () => {
@@ -143,7 +179,7 @@ describe('manual daily recap send service', () => {
         watchlistAccounts: [],
       }),
     ).toBe(
-      '# Daily recap\n## Activity\nNo tracked XP or boss KC gains since the previous recap.\n## Unavailable accounts\n**Rune Scape** (Main) — Hiscores timed out',
+      '**Activity**\nNo notable activity today.\n**Unavailable accounts**\n**Rune Scape** (Main) — Hiscores timed out',
     );
   });
 });

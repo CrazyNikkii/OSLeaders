@@ -6,6 +6,7 @@ import type {
   DailyRecapCollectionResult,
 } from './daily-recap-collection.js';
 import {
+  MINIMUM_VISIBLE_DAILY_RECAP_XP,
   type DailyRecapAccountPresentation,
   type DailyRecapFailurePresentation,
   type DailyRecapPresentation,
@@ -138,7 +139,7 @@ export function renderDailyRecapDeliveryContent(presentation: DailyRecapPresenta
       ? [
           {
             heading: 'Activity',
-            lines: ['No tracked XP or boss KC gains since the previous recap.'],
+            lines: ['No notable activity today.'],
           },
         ]
       : []),
@@ -146,16 +147,13 @@ export function renderDailyRecapDeliveryContent(presentation: DailyRecapPresenta
       ? []
       : [{ heading: 'Unavailable accounts', lines: presentation.failures.map(formatFailure) }]),
   ];
-  return [
-    '# Daily recap',
-    ...sections.flatMap((section) => [`## ${section.heading}`, ...section.lines]),
-  ].join('\n');
+  return sections.flatMap((section) => [`**${section.heading}**`, ...section.lines]).join('\n');
 }
 
 function accountLines(entry: DailyRecapAccountPresentation): string[] {
   const lines = [
-    `### ${entry.account.displayUsername} (${accountModeLabel(entry.account)})`,
-    `*Compared with the last successful snapshot: <t:${Math.floor(entry.previousBaselineCapturedAt.getTime() / 1_000)}:f>*`,
+    `**${entry.account.displayUsername} · ${accountModeLabel(entry.account)}**`,
+    `*Since <t:${Math.floor(entry.previousBaselineCapturedAt.getTime() / 1_000)}:R>*`,
   ];
   if (entry.changes.bosses.length > 0) {
     lines.push(
@@ -185,6 +183,8 @@ function formatSkillChange(
   }
   return `• ${change.skill}: ${gains.join(', ')}`;
 }
+
+export const dailyRecapEmbedFooter = `Showing XP gains of ${MINIMUM_VISIBLE_DAILY_RECAP_XP.toLocaleString('en-US')}+`;
 
 function formatFailure(entry: DailyRecapFailurePresentation): string {
   return `**${entry.account.displayUsername}** (${accountModeLabel(entry.account)}) — ${failureMessage(entry)}`;
