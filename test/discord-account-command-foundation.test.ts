@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   AccountDefaultSelectionCommandHandler,
+  AccountModeCommandHandler,
   AccountRenameCommandHandler,
   AccountRemovalCommandHandler,
   AccountRegistrationCommandHandler,
@@ -15,10 +16,12 @@ import {
   accountCommandDefinitions,
   bindDiscordAccountCommandAdapter,
   createAccountDefaultSelectionCommandHandler,
+  createAccountModeCommandHandler,
   createAccountRenameCommandHandler,
   createDiscordAccountCommandAdapter,
   type AccountCommandPermissionEvaluator,
   type AccountDefaultSelectionCommandServices,
+  type AccountModeCommandServices,
   type AccountRenameCommandServices,
   type AccountRegistrationCommandServices,
   type AccountRemovalCommandServices,
@@ -26,6 +29,7 @@ import {
   type RegistrationAnnouncementPublisher,
   type RegistrationAdministrativeLogPublisher,
   type RenameAdministrativeLogPublisher,
+  type ModeAdministrativeLogPublisher,
 } from '../src/infrastructure/discord/account-command-foundation.js';
 import type {
   AccountRegistrationResult,
@@ -33,6 +37,7 @@ import type {
   TrackedAccount,
 } from '../src/features/accounts/register-account.js';
 import type { RenameAccountResult } from '../src/features/accounts/rename-account.js';
+import type { ChangeAccountModeResult } from '../src/features/accounts/change-account-mode.js';
 import type { AuditService } from '../src/features/audit/audit-service.js';
 import type { StructuredLogEntry } from '../src/shared/structured-logging.js';
 
@@ -157,6 +162,10 @@ describe('Discord account command foundation', () => {
             name: 'rename',
             options: [{ autocomplete: true, name: 'account', required: true }],
           },
+          {
+            name: 'mode',
+            options: [{ autocomplete: true, name: 'account', required: true }],
+          },
         ],
       },
     ]);
@@ -182,6 +191,7 @@ describe('Discord account command foundation', () => {
         defaultSelectionHandler(),
         registrationHandler,
         new AccountRenameCommandHandler(new RenameStubServices([])),
+        new AccountModeCommandHandler(new ModeStubServices([])),
         new AdministrativeLogConfigurationStub({
           administrativeLogChannelId: null,
           administrativeLogMode: 'standard',
@@ -361,6 +371,177 @@ describe('Discord account command foundation', () => {
         services,
       ),
     ).toBeInstanceOf(AccountRenameCommandHandler);
+  });
+
+  it('changes only eligible guild accounts, validates the selected mode, and audits the edit', async () => {
+    const services = new ModeStubServices([
+      account(),
+      account({ association: { discordUserId: 'member-two', type: 'linked' }, id: 'other' }),
+      account({ guildId: 'guild-two', id: 'elsewhere' }),
+    ]);
+    const handler = new AccountModeCommandHandler(services);
+
+    await expect(handler.autocomplete(context(), '')).resolves.toEqual([
+      { name: 'Account One (main)', value: 'account-one' },
+    ]);
+    await expect(handler.change(context(), 'account-one', 'ironman')).resolves.toMatchObject({
+      kind: 'mode_changed',
+      message: 'Changed **Account One** to Ironman.',
+    });
+    expect(services.changeRequests).toEqual([
+      {
+        accountId: 'account-one',
+        accountMode: 'ironman',
+        canManageAccounts: false,
+        guildId: 'guild-one',
+        requesterDiscordUserId: 'member-one',
+      },
+    ]);
+    expect(services.auditEvents[0]).toMatchObject({
+      operation: 'account.mode_change',
+      type: 'account-edit-or-deletion',
+    });
+    expect(services.auditEvents[0]?.context).toMatchObject({
+      accountMode: 'ironman',
+      displayUsername: 'Account One',
+    });
+    await expect(
+      handler.change(context({ guildId: null }), 'account-one', 'ironman'),
+    ).resolves.toMatchObject({
+      kind: 'not_in_guild',
+    });
+  });
+
+  it('opens a text-labelled mode selection, applies the change privately, and logs it', async () => {
+    const services = new ModeStubServices([account()]);
+    const logs = new RecordingModeAdministrativeLogPublisher();
+    const adapter = new DiscordAccountCommandAdapter(
+      new AccountRemovalCommandHandler(new StubServices([])),
+      defaultSelectionHandler(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      new AccountModeCommandHandler(services),
+      logs,
+    );
+    const replies: ComponentResponse[] = [];
+    await adapter.handle({
+      commandName: 'account',
+      guildId: 'guild-one',
+      isAutocomplete: () => false,
+      isButton: () => false,
+      isChatInputCommand: () => true,
+      member: { roles: [] },
+      memberPermissions: { has: () => false },
+      options: { getString: () => 'account-one', getSubcommand: () => 'mode' },
+      reply: (response: ComponentResponse) => {
+        replies.push(response);
+        return Promise.resolve();
+      },
+      user: { id: 'member-one' },
+    } as never);
+    const customId = replies[0]?.components[0]?.toJSON().components[0]?.custom_id;
+    expect(replies[0]?.components[0]?.toJSON().components[0]?.options).toContainEqual(
+      expect.objectContaining({ label: 'Ironman', value: 'ironman' }),
+    );
+    const edits: unknown[] = [];
+    await adapter.handle({
+      customId,
+      guildId: 'guild-one',
+      isAutocomplete: () => false,
+      isButton: () => false,
+      isChatInputCommand: () => false,
+      isStringSelectMenu: () => true,
+      member: { roles: [] },
+      memberPermissions: { has: () => false },
+      values: ['ironman'],
+      deferUpdate: () => Promise.resolve(),
+      editReply: (response: unknown) => {
+        edits.push(response);
+        return Promise.resolve();
+      },
+      user: { id: 'member-one' },
+    } as never);
+    expect(edits).toEqual([{ components: [], content: 'Changed **Account One** to Ironman.' }]);
+    expect(logs.operations).toEqual(['account.mode_change']);
+  });
+
+  it('keeps invalid, forbidden, and failed mode selections private without logging an edit', async () => {
+    const services = new ModeStubServices([account()]);
+    const logs = new RecordingModeAdministrativeLogPublisher();
+    const adapter = new DiscordAccountCommandAdapter(
+      new AccountRemovalCommandHandler(new StubServices([])),
+      defaultSelectionHandler(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      new AccountModeCommandHandler(services),
+      logs,
+    );
+    const replies: unknown[] = [];
+    const edits: unknown[] = [];
+    let deferredUpdates = 0;
+    const interaction = (value: string) =>
+      ({
+        customId: 'osleaders:account-mode:account-one',
+        guildId: 'guild-one',
+        isAutocomplete: () => false,
+        isButton: () => false,
+        isChatInputCommand: () => false,
+        isStringSelectMenu: () => true,
+        member: { roles: [] },
+        memberPermissions: { has: () => false },
+        values: [value],
+        deferUpdate: () => {
+          deferredUpdates += 1;
+          return Promise.resolve();
+        },
+        editReply: (response: unknown) => {
+          edits.push(response);
+          return Promise.resolve();
+        },
+        reply: (response: unknown) => {
+          replies.push(response);
+          return Promise.resolve();
+        },
+        user: { id: 'member-one' },
+      }) as never;
+
+    await adapter.handle(interaction('not-a-mode'));
+    services.modeResult = { kind: 'forbidden' };
+    await adapter.handle(interaction('ironman'));
+    services.modeResult = { kind: 'hiscores_failure', failure: { kind: 'not_found' } };
+    await adapter.handle(interaction('ironman'));
+
+    expect(replies).toEqual([
+      { content: 'That account mode is invalid.', flags: MessageFlags.Ephemeral },
+    ]);
+    expect(deferredUpdates).toBe(2);
+    expect(edits).toEqual([
+      { components: [], content: 'You are not allowed to change that account mode.' },
+      {
+        components: [],
+        content: 'That OSRS account could not be found for the selected mode.',
+      },
+    ]);
+    expect(logs.operations).toEqual([]);
+  });
+
+  it('creates the mode-change handler from shared account repositories', () => {
+    const validator = { validate: () => Promise.resolve({ kind: 'not_found' as const }) };
+    const services = new ModeStubServices([]);
+    expect(
+      createAccountModeCommandHandler(
+        new DefaultSelectionRepositoryStub([]) as never,
+        validator,
+        services.audit,
+        services,
+      ),
+    ).toBeInstanceOf(AccountModeCommandHandler);
   });
 
   it('opens a rename modal, delegates its submission, and logs successful edits', async () => {
@@ -1131,6 +1312,48 @@ class RenameStubServices
   }
 }
 
+class ModeStubServices implements AccountModeCommandServices, AccountCommandPermissionEvaluator {
+  public readonly auditEvents: Parameters<AuditService['record']>[0][] = [];
+  public canManageAccounts = false;
+  public readonly permissions = this;
+  public readonly changeRequests: object[] = [];
+  public modeResult: ChangeAccountModeResult = {
+    account: account({ accountMode: 'ironman' }),
+    kind: 'mode_changed',
+  };
+  public readonly audit = {
+    record: (event: Parameters<AuditService['record']>[0]): StructuredLogEntry => {
+      this.auditEvents.push(event);
+      return {
+        ...(event.context === undefined ? {} : { context: event.context }),
+        ...(event.guildId === undefined ? {} : { guildId: event.guildId }),
+        operation: event.operation,
+        severity: event.severity,
+        timestamp: event.occurredAt.toISOString(),
+      };
+    },
+  };
+  public readonly accountRetrieval = {
+    listForGuild: (guildId: string) =>
+      Promise.resolve(this.accounts.filter((account) => account.guildId === guildId)),
+  };
+  public readonly accountModeChange = {
+    change: (request: object) => {
+      this.changeRequests.push(request);
+      return Promise.resolve(this.modeResult);
+    },
+  };
+
+  public constructor(private readonly accounts: TrackedAccount[]) {}
+
+  public evaluate(): Promise<{ canManageAccounts: boolean; canManageCompetitions: boolean }> {
+    return Promise.resolve({
+      canManageAccounts: this.canManageAccounts,
+      canManageCompetitions: false,
+    });
+  }
+}
+
 class DefaultSelectionRepositoryStub extends DefaultSelectionStubServices {
   public getById(guildId: string, accountId: string) {
     return Promise.resolve(
@@ -1219,6 +1442,15 @@ class RecordingRenameAdministrativeLogPublisher implements RenameAdministrativeL
 class FailingRenameAdministrativeLogPublisher implements RenameAdministrativeLogPublisher {
   public publish(): Promise<void> {
     return Promise.reject(new Error('Discord administrative channel unavailable'));
+  }
+}
+
+class RecordingModeAdministrativeLogPublisher implements ModeAdministrativeLogPublisher {
+  public readonly operations: string[] = [];
+
+  public publish(_interaction: unknown, auditEntry: StructuredLogEntry): Promise<void> {
+    this.operations.push(auditEntry.operation);
+    return Promise.resolve();
   }
 }
 
