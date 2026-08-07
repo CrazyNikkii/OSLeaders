@@ -1037,16 +1037,22 @@ For an active competition account, only the starting value, latest successfully 
 
 ## 43. Production backups
 
-Production deployment must create automatic rotating PostgreSQL backups.
+Automatic rotating PostgreSQL backups are deferred for the current small,
+private beta. The operator explicitly accepts that database data may be lost
+if the laptop or its database fails. A backup or restore rehearsal is not a
+condition of continuing the current private beta.
 
-Backups must protect:
+If OSLeaders is ever prepared for public distribution, paid use, or a larger
+community, production deployment must add automatic rotating PostgreSQL
+backups that protect:
 
 - Account registrations.
 - Server configuration.
 - Recap baselines.
 - Competition history.
 
-The retention schedule and backup location will be defined during deployment architecture.
+The retention schedule and backup location will be defined as part of that
+future production-readiness work.
 
 ## 44. Development and deployment environments
 

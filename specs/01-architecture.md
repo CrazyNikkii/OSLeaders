@@ -712,8 +712,10 @@ The deployment design uses:
 - Minimal filesystem permissions for secrets and backups.
 - Graceful shutdown that stops accepting work, closes Discord, and closes the
   database pool.
-- Database migrations as an explicit deployment step with a verified backup,
-  not an uncontrolled side effect of every application startup.
+- Database migrations as an explicit deployment step, not an uncontrolled side
+  effect of every application startup. The current private beta accepts the
+  documented risk of operating without a backup; backup verification becomes
+  required only for a future public, paid, or larger-community deployment.
 
 The exact Linux distribution, release, Node.js LTS release, PostgreSQL release,
 and installation method are recorded in the deployment specification after
@@ -721,15 +723,19 @@ hardware testing.
 
 ## 25. Backups and restoration
 
-Production creates automatic PostgreSQL logical backups sufficient to restore
-all persistent product data. Backup files are validated, rotated, and copied
-outside the laptop's internal disk.
+Automatic PostgreSQL backups and restoration are deferred for the current
+small, private beta. The operator accepts possible permanent loss of the
+database, and the deployment does not require an external backup device or a
+restore rehearsal to continue operating.
 
-The external destination and retention schedule are intentionally deferred to
-deployment planning. The chosen destination must use already-owned storage or
+If the product is prepared for public distribution, paid use, or a larger
+community, its production-readiness work must provide PostgreSQL logical
+backups sufficient to restore all persistent product data. Backup files must
+be validated, rotated, and copied outside the laptop's internal disk. The
+external destination and retention schedule must use already-owned storage or
 another zero-recurring-cost option.
 
-A backup architecture is not complete until it includes:
+That future backup architecture is not complete until it includes:
 
 - Scheduled backup creation.
 - Failure visibility in local logs and, while the bot is online, the
@@ -739,8 +745,8 @@ A backup architecture is not complete until it includes:
 - At least one successful restore rehearsal before production acceptance.
 - Protection against the external destination silently remaining unavailable.
 
-A second directory on the same internal disk does not satisfy the external
-backup requirement.
+A second directory on the same internal disk does not satisfy that future
+external-backup requirement.
 
 ## 26. Testing strategy
 

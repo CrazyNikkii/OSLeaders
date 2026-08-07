@@ -80,11 +80,17 @@ reviewed version, run `npm ci` and `npm run build`, apply reviewed migrations,
 re-register commands if they changed, start the service, and repeat the restart
 checks below. Never run `db:test:reset` on the Debian laptop.
 
-## External backups and restore rehearsal
+## Deferred backups and restore rehearsal
 
-Choose already-owned storage mounted outside the laptop's internal disk, such
-as an encrypted USB drive. Its mount point and retention period are an operator
-decision; do not select a normal internal directory as a substitute.
+Backups and restore rehearsal are intentionally deferred for this small,
+private beta. The operator accepts that a laptop or database failure can lose
+the bot's stored data. Do not install or enable the backup system merely to
+operate the current bot.
+
+The reviewed backup assets remain in the repository for possible future public,
+paid, or larger-community deployment. At that point, choose already-owned
+storage mounted outside the laptop's internal disk, such as an encrypted USB
+drive, then follow the retained procedure below.
 
 Create `/etc/osleaders/backup.env`, owned by `root:osleaders` with mode `0640`:
 
@@ -142,28 +148,29 @@ confirmed failure with a current verified backup.
 
 ## Real-server acceptance checklist
 
-Complete and record all checks on the Debian laptop before describing the bot
-as ready for continuous private-beta use:
+Complete and record the applicable checks on the Debian laptop before
+describing the bot as ready for continuous private-beta use without backup or
+restore guarantees:
 
-1. Record the external backup mount and create a verified backup.
-2. Register one linked and one watchlist account with fetchable Hiscores.
-3. Confirm `/skill`, `/boss`, `/one-time-skill`, `/one-time-boss`,
+1. Confirm the existing linked and watchlist accounts have fetchable Hiscores;
+   do not create synthetic accounts in the live guild solely for this check.
+2. Confirm `/skill`, `/boss`, `/one-time-skill`, `/one-time-boss`,
    `/skill-leaderboard`, and `/boss-leaderboard` work in the production guild.
-4. Configure a near-future recap using `/recap configure`; confirm `/recap
+3. Configure a near-future recap using `/recap configure`; confirm `/recap
 preview` remains private, then use the confirmed `/recap send` flow and
    confirm delivery to the configured channel.
-5. With `osleaders.service` running, stop only the Node process. Confirm
+4. With `osleaders.service` running, stop only the Node process. Confirm
    systemd restarts it after 30 seconds, commands still work, and data remains.
-6. Let an automatic recap become due after the restart. Confirm one recap is
+5. Let an automatic recap become due after the restart. Confirm one recap is
    posted, its comparison wording uses the saved baseline, and a retry or
    restart does not corrupt that baseline.
-7. Complete the isolated restore rehearsal and confirm the production
-   environment file still names the live database before restarting the bot.
-8. Safely make one tracked account unavailable, then confirm others still
-   appear and the configured administrative log receives the failure summary.
-9. Record dates, restart behavior, recap duration, backup result, restore
-   result, and any Hiscores failures in private operator notes.
+6. Do not deliberately make a live tracked account unavailable. When a natural
+   Hiscores failure occurs, confirm other accounts still appear and the
+   configured administrative log receives the failure summary.
+7. Record dates, restart behavior, recap duration, and any observed Hiscores
+   failures in private operator notes.
 
-The private beta is ready only after all nine checks succeed on the real Debian
-laptop. Passing automated tests or installing these units does not replace this
-checklist.
+The private beta is ready for continuous use only after the applicable checks
+succeed on the real Debian laptop. This readiness deliberately excludes backup
+and restore guarantees. Passing automated tests or installing these units does
+not replace the checklist.
