@@ -17,6 +17,35 @@ import {
 export class PostgresCompetitionDraftParticipationRepository implements CompetitionDraftParticipationRepository {
   public constructor(private readonly database: Database) {}
 
+  public async listDrafts(
+    guildId: string,
+  ): Promise<readonly { id: string; displayName: string }[]> {
+    return this.database
+      .select({ displayName: competitions.displayName, id: competitions.id })
+      .from(competitions)
+      .where(and(eq(competitions.guildId, guildId), eq(competitions.state, 'draft')))
+      .orderBy(competitions.createdAt, competitions.id);
+  }
+
+  public async listEntrants(
+    guildId: string,
+    competitionId: string,
+  ): Promise<readonly CompetitionEntrant[]> {
+    return this.database.transaction(async (transaction) => {
+      const stored = await transaction
+        .select()
+        .from(competitionEntrants)
+        .where(
+          and(
+            eq(competitionEntrants.guildId, guildId),
+            eq(competitionEntrants.competitionId, competitionId),
+          ),
+        )
+        .orderBy(competitionEntrants.createdAt, competitionEntrants.id);
+      return Promise.all(stored.map((entrant) => this.toEntrant(transaction, entrant)));
+    });
+  }
+
   public join(request: {
     competitionId: string;
     contributingAccountIds: readonly string[];

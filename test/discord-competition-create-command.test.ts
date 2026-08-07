@@ -15,12 +15,20 @@ import {
 } from '../src/infrastructure/discord/competition-create-command.js';
 
 describe('Discord competition create command', () => {
-  it('registers a guild-only competition command with a create subcommand', () => {
-    expect(competitionCommandDefinitions[0]).toMatchObject({
+  it('registers guild-only competition creation and participation subcommands', () => {
+    const command = competitionCommandDefinitions[0];
+    if (command === undefined) throw new Error('Expected competition command definition.');
+    expect(command).toMatchObject({
       description: 'Create and manage competitions.',
       name: 'competition',
-      options: [expect.objectContaining({ name: 'create', type: 1 })],
     });
+    expect((command.options ?? []).map((option) => option.name)).toEqual([
+      'create',
+      'join',
+      'leave',
+      'add',
+      'remove',
+    ]);
   });
 
   it('collects a timed skill competition draft and uses the configured guild timezone', async () => {

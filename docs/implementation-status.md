@@ -26,14 +26,15 @@ merged.
 
 ## Current implementation stage
 
-Stage 8 - Competition draft creation and participation foundation. The merged
+Stage 8 - Competition draft creation and participation. The merged
 `/account mode` adapter, member-presence Discord event work, daily-recap
 readability improvements, and `/competition create` flow complete the current
 edit, presence, recap-presentation, and competition-draft creation workflows.
-The current unmerged branch adds the durable, Discord-independent draft
-participant and selected-contributing-account foundation. It does not add a
-participation Discord adapter, snapshots, scheduling, claims, standings, roles,
-or lifecycle transitions.
+The current unmerged branch adds the guild-only Discord draft-participation
+adapter. It exposes join, leave, creator-or-manager add, and creator-or-manager
+remove through bounded, initiator- and guild-bound five-minute selection flows.
+It does not add snapshots, scheduling, claims, standings, roles, or lifecycle
+transitions.
 
 The merged skill-lookup foundation begins the lookup module with a
 Discord-independent, guild-scoped skill lookup service. It resolves a
@@ -340,6 +341,13 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
+`ab3e01e` (2026-08-07) - Merge competition draft participation foundation.
+
+This merged the durable, Discord-independent guild-scoped entrant and selected
+contributing-account foundation. It supports draft-only self join and leave,
+plus creator-or-manager add and remove operations; Discord entrants select only
+their linked accounts and watchlist accounts remain standalone entrants.
+
 `f20f472` (2026-08-07) - Merge Discord competition draft creation.
 
 This merged the manager-authorized guild-only `/competition create` guided
@@ -433,20 +441,17 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-`codex/competition-draft-participation` - Add the Discord-independent
-draft-participation foundation. The branch adds durable guild-scoped entrants
-and selected-contributing-account records, composite foreign keys that prevent
-cross-guild relationships, and draft-only self-join/self-leave and
-creator-or-manager add/remove operations. Discord entrants may select only
-their linked accounts; watchlist accounts are standalone entrants; and all
-membership changes lock outside the draft state. It deliberately does not add
-a Discord participation adapter, snapshots, scheduling, claims, standings,
-roles, or lifecycle transitions.
+`codex/discord-competition-draft-participation` - Add the guild-only
+Discord draft-participation adapter. The branch supplies the required
+guild-scoped draft and entrant choices and routes draft-only join, leave,
+creator-or-manager add, and creator-or-manager remove operations through
+initiator- and guild-bound five-minute account-selection interactions. It
+deliberately does not add snapshots, scheduling, claims, standings, roles, or
+lifecycle transitions.
 
 ## Next recommended branch-sized task
 
-After this branch merges, add the guild-only Discord draft-participation
-adapter. It should expose the existing join, leave, manager/creator add, and
-manager/creator remove operations with bounded, initiator- and guild-bound
-account selection. Do not add snapshots, scheduling, claims, standings, roles,
-or lifecycle transitions in that slice.
+After this branch merges, add the competition-start foundation: manual start
+of a draft, durable starting-value snapshots, and the `start_pending` retry
+path for failed Hiscores fetches. Do not add scheduling, claims, standings,
+roles, or finish lifecycle work in that slice.
