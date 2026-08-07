@@ -315,6 +315,13 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
+`4ae4d79` (2026-08-07) - Merge account mode command.
+
+This merged the guild-only `/account mode` flow. Authorized account owners and
+account managers can select a corrected stored game mode; OSLeaders validates
+the selected mode before saving it, keeps the response private, and records
+the successful edit through the administrative-log policy.
+
 `9967972` (2026-08-07) - Merge private-beta backup deferral.
 
 This recorded the approved decision that the small private beta may continue
@@ -359,16 +366,10 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-`codex/account-mode-command` adds the guild-only `/account mode` adapter. It
-uses account autocomplete scoped by the existing service authorization rules,
-requires a text-labelled Discord mode selection, delegates validation and the
-guild-scoped update to the existing Account Mode service, gives a private
-outcome, and records successful edits through the established audit and
-administrative-log policy. This work is implemented locally but is not merged.
+None.
 
 ## Next recommended branch-sized task
 
-Review and merge `codex/account-mode-command`. After it is merged, select the
-smallest observed account-management need between the association-conversion
-and linked-account-reassignment Discord adapters before beginning Stage 8
-competitions.
+Select the smallest observed account-management need between the
+association-conversion and linked-account-reassignment Discord adapters before
+beginning Stage 8 competitions.
