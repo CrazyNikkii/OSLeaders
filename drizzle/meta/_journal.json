@@ -50,6 +50,13 @@
       "when": 1786115836393,
       "tag": "0006_competition-foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786126486756,
+      "tag": "0007_foamy_invaders",
+      "breakpoints": true
     }
   ]
 }

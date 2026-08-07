@@ -25,7 +25,10 @@ import { PostgresDailyRecapDeliveryRepository } from '../../src/infrastructure/d
 import { PostgresAutomaticDailyRecapScheduleRepository } from '../../src/infrastructure/database/postgres-automatic-daily-recap-schedule-repository.js';
 import { PostgresAutomaticDailyRecapCollectionRepository } from '../../src/infrastructure/database/postgres-automatic-daily-recap-collection-repository.js';
 import { PostgresCompetitionCreationRepository } from '../../src/infrastructure/database/postgres-competition-creation-repository.js';
+import { PostgresCompetitionDraftParticipationRepository } from '../../src/infrastructure/database/postgres-competition-draft-participation-repository.js';
 import {
+  competitionContributingAccounts,
+  competitionEntrants,
   competitions,
   guildConfigurations,
   guildMemberPresences,
@@ -66,7 +69,7 @@ describe('database foundation', () => {
   it('applies the committed database migrations to an empty test database', async () => {
     const committedMigrations = await readCommittedMigrations();
     const applicationTables = await connection.pool.query<{ table_name: string }>(
-      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('competitions', 'daily_recap_deliveries', 'daily_recap_runs', 'guild_configurations', 'guild_member_presences', 'guilds', 'recap_baselines', 'tracked_accounts') ORDER BY table_name",
+      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('competition_contributing_accounts', 'competition_entrants', 'competitions', 'daily_recap_deliveries', 'daily_recap_runs', 'guild_configurations', 'guild_member_presences', 'guilds', 'recap_baselines', 'tracked_accounts') ORDER BY table_name",
     );
     const migrationTables = await connection.pool.query<{ table_name: string }>(
       "SELECT table_name FROM information_schema.tables WHERE table_schema = 'drizzle' AND table_name = '__drizzle_migrations'",
@@ -76,6 +79,8 @@ describe('database foundation', () => {
     );
 
     expect(applicationTables.rows).toEqual([
+      { table_name: 'competition_contributing_accounts' },
+      { table_name: 'competition_entrants' },
       { table_name: 'competitions' },
       { table_name: 'daily_recap_deliveries' },
       { table_name: 'daily_recap_runs' },
@@ -114,6 +119,190 @@ describe('database foundation', () => {
       targetValue: null,
       type: 'most_skill_xp',
     });
+  });
+
+  it('persists draft entrants and contributing accounts with guild and association isolation', async () => {
+    const competitionsRepository = new PostgresCompetitionCreationRepository(connection.database);
+    const accountsRepository = new PostgresAccountRegistrationRepository(connection.database);
+    const repository = new PostgresCompetitionDraftParticipationRepository(connection.database);
+    const guildId = 'competition-participation-guild';
+    const competitionId = 'competition-participation';
+    await competitionsRepository.create(
+      competitionDraft({
+        guildId,
+        id: competitionId,
+        displayName: 'Participation competition',
+        normalizedName: 'participation competition',
+      }),
+    );
+    await accountsRepository.register(
+      account({ id: 'participant-linked-one', guildId }),
+      initialRecapBaseline(),
+    );
+    await accountsRepository.register(
+      account({
+        id: 'participant-linked-two',
+        guildId,
+        association: { type: 'linked', discordUserId: 'absent-member' },
+        displayUsername: 'Absent Member',
+        normalizedUsername: 'absent member',
+        quotaOwnerDiscordUserId: 'absent-member',
+        registeredByDiscordUserId: 'absent-member',
+      }),
+      initialRecapBaseline(),
+    );
+    await accountsRepository.register(
+      account({
+        id: 'participant-watchlist',
+        guildId,
+        association: { type: 'watchlist' },
+        displayUsername: 'Watchlist Player',
+        normalizedUsername: 'watchlist player',
+      }),
+      initialRecapBaseline(),
+    );
+
+    await expect(
+      repository.join({
+        competitionId,
+        contributingAccountIds: ['participant-linked-one'],
+        entrantId: 'entrant-one',
+        guildId,
+        requesterDiscordUserId: 'member-one',
+      }),
+    ).resolves.toMatchObject({ kind: 'joined', entrant: { type: 'discord_member' } });
+    await expect(
+      repository.join({
+        competitionId,
+        contributingAccountIds: ['participant-linked-one'],
+        entrantId: 'duplicate-entrant',
+        guildId,
+        requesterDiscordUserId: 'member-one',
+      }),
+    ).resolves.toEqual({ kind: 'already_joined' });
+    await expect(
+      repository.join({
+        competitionId,
+        contributingAccountIds: ['participant-linked-one'],
+        entrantId: 'cross-guild-entrant',
+        guildId: 'competition-participation-other-guild',
+        requesterDiscordUserId: 'member-one',
+      }),
+    ).resolves.toEqual({ kind: 'competition_not_found' });
+    await expect(
+      repository.add({
+        canManageCompetitions: false,
+        competitionId,
+        entrant: {
+          type: 'discord_member',
+          discordUserId: 'absent-member',
+          contributingAccountIds: ['participant-linked-two'],
+        },
+        entrantId: 'forbidden-entrant',
+        guildId,
+        requesterDiscordUserId: 'ordinary-member',
+      }),
+    ).resolves.toEqual({ kind: 'forbidden' });
+    await expect(
+      repository.add({
+        canManageCompetitions: false,
+        competitionId,
+        entrant: {
+          type: 'discord_member',
+          discordUserId: 'absent-member',
+          contributingAccountIds: ['participant-linked-two'],
+        },
+        entrantId: 'entrant-two',
+        guildId,
+        requesterDiscordUserId: 'competition-manager-one',
+      }),
+    ).resolves.toMatchObject({ kind: 'added', entrant: { discordUserId: 'absent-member' } });
+    await expect(
+      repository.add({
+        canManageCompetitions: true,
+        competitionId,
+        entrant: { type: 'watchlist', watchlistAccountId: 'participant-watchlist' },
+        entrantId: 'entrant-watchlist',
+        guildId,
+        requesterDiscordUserId: 'another-manager',
+      }),
+    ).resolves.toMatchObject({ kind: 'added', entrant: { type: 'watchlist' } });
+    await expect(
+      repository.add({
+        canManageCompetitions: true,
+        competitionId,
+        entrant: { type: 'watchlist', watchlistAccountId: 'participant-watchlist' },
+        entrantId: 'duplicate-watchlist-entrant',
+        guildId,
+        requesterDiscordUserId: 'another-manager',
+      }),
+    ).resolves.toEqual({ kind: 'already_joined' });
+    await expect(
+      repository.join({
+        competitionId,
+        contributingAccountIds: ['participant-watchlist'],
+        entrantId: 'invalid-entrant',
+        guildId,
+        requesterDiscordUserId: 'member-one',
+      }),
+    ).resolves.toEqual({ kind: 'invalid_accounts' });
+    await expect(
+      connection.database.transaction(async (transaction) => {
+        await transaction.insert(competitionEntrants).values({
+          competitionId,
+          discordUserId: 'database-duplicate-member',
+          entrantType: 'discord_member',
+          guildId,
+          id: 'database-duplicate-entrant',
+          watchlistAccountId: null,
+        });
+        await transaction.insert(competitionContributingAccounts).values({
+          competitionEntrantId: 'database-duplicate-entrant',
+          competitionId,
+          guildId,
+          trackedAccountId: 'participant-linked-one',
+        });
+      }),
+    ).rejects.toThrow();
+
+    await expect(
+      connection.database
+        .select()
+        .from(competitionEntrants)
+        .where(eq(competitionEntrants.competitionId, competitionId)),
+    ).resolves.toHaveLength(3);
+    await expect(
+      connection.database
+        .select()
+        .from(competitionContributingAccounts)
+        .where(eq(competitionContributingAccounts.competitionId, competitionId)),
+    ).resolves.toHaveLength(3);
+    await expect(
+      repository.remove({
+        canManageCompetitions: true,
+        competitionId,
+        entrantId: 'entrant-watchlist',
+        guildId,
+        requesterDiscordUserId: 'another-manager',
+      }),
+    ).resolves.toMatchObject({ kind: 'removed', entrant: { id: 'entrant-watchlist' } });
+    await expect(
+      repository.leave({ competitionId, guildId, requesterDiscordUserId: 'member-one' }),
+    ).resolves.toMatchObject({ kind: 'left', entrant: { id: 'entrant-one' } });
+
+    await connection.database
+      .update(competitions)
+      .set({ state: 'active' })
+      .where(and(eq(competitions.guildId, guildId), eq(competitions.id, competitionId)));
+    await expect(
+      repository.remove({
+        canManageCompetitions: true,
+        competitionId,
+        entrantId: 'entrant-two',
+        guildId,
+        requesterDiscordUserId: 'another-manager',
+      }),
+    ).resolves.toEqual({ kind: 'membership_locked' });
   });
 
   it('commits a successful transaction', async () => {
