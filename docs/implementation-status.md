@@ -23,7 +23,9 @@ Stage 7 - Daily recaps. Stage 6 - Lookups and permanent leaderboards is
 complete for the approved slash-command-only v1 scope. Daily recaps have been
 intentionally reprioritized ahead of competitions so the bot can provide useful
 automatic activity posts to a private server while competition development
-continues afterward.
+continues afterward. The Stage 7 implementation is merged; the remaining work
+is real-server operational acceptance, with backup and restore guarantees
+explicitly deferred for the current small private beta.
 
 The merged skill-lookup foundation begins the lookup module with a
 Discord-independent, guild-scoped skill lookup service. It resolves a
@@ -283,14 +285,13 @@ audit context, audit delivery, and delivery failure.
 - Stage 5 - Remaining deferred account-management Discord adapters.
 - Post-v1 - Prefix-command convenience interface, including any prefix
   configuration, Message Content intent, aliases, and free-text parsing.
-- Stage 7 - Daily recap configuration, collection, preview, durable send, and
-  automatic scheduling. Active-competition summaries follow once competition
-  read models exist.
 - Stage 8 - Competition lifecycle, snapshots, claims, scheduling, roles, and
   history.
 - Stage 9 - Full acceptance, failure-recovery, resource, and deployment
   testing.
-- Stage 10 - Deployment and backup specification based on the actual laptop.
+- Future production-readiness - External backups, restore rehearsal, and
+  retention policy if the product is prepared for public distribution, paid
+  use, or a larger community.
 
 ## Previous merged implementation work
 
@@ -350,12 +351,14 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 None. The `/boss` bounded boss-menu coverage fix, recap configuration
 acknowledgement, and private-beta CI fixes are merged. The Debian private-beta
-readiness work remains merged; it does not establish private-beta readiness
-because the real-server checklist must still be completed and recorded on the
-Debian laptop.
+operating path remains merged. Its real-server checklist still needs to be
+completed and recorded; backup and restore checks are deliberately deferred for
+the current small private beta, and live Hiscores-failure coverage should be
+observed naturally rather than manufactured in the friend's guild.
 
 ## Next recommended branch-sized task
 
-Complete and record the Debian real-server acceptance checklist before claiming
-24/7 private-beta readiness. Keep competition work deferred until the Debian
-operating path has proven reliable.
+Complete and record the non-disruptive Debian real-server acceptance checklist
+before claiming private-beta readiness without backup or restore guarantees.
+Keep competition work deferred until the Debian operating path has proven
+reliable.
