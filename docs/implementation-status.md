@@ -26,12 +26,12 @@ merged.
 
 ## Current implementation stage
 
-Stage 8 - Competition draft foundation. The merged `/account mode` adapter,
+Stage 8 - Competition draft creation. The merged `/account mode` adapter,
 member-presence Discord event work, and daily-recap readability improvements
 complete the current edit, presence, and recap-presentation workflows. The
-current unmerged competition branch adds only draft competition creation and
-its durable guild-scoped data foundation; it does not yet expose a Discord
-command, participation, snapshots, scheduling, or standings.
+merged competition foundation provides durable guild-scoped draft creation;
+the current unmerged adapter branch exposes that narrow slice through Discord.
+It does not add participation, snapshots, scheduling, or standings.
 
 The merged skill-lookup foundation begins the lookup module with a
 Discord-independent, guild-scoped skill lookup service. It resolves a
@@ -338,6 +338,15 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
+`6dd9f50` (2026-08-07) - Merge competition draft foundation.
+
+This merged the Stage 8 Discord-independent competition creation foundation:
+the four approved individual definitions, durable draft state, per-guild
+normalized-name uniqueness, competition-manager authorization, reviewed
+PostgreSQL migration and repository, and focused unit and integration coverage.
+It deliberately does not expose a Discord command or add entrants, snapshots,
+scheduling, claims, standings, roles, or lifecycle transitions.
+
 `88f0ec3` (2026-08-07) - Merge daily recap readability improvements.
 
 This merged the recap caption and readable-layout cleanup. Public and preview
@@ -412,17 +421,20 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-`codex/competition-foundation` - Add the Stage 8 competition draft foundation.
-The branch adds the four approved individual competition definitions, durable
-draft state, per-guild normalized-name uniqueness, manager authorization, and
-focused unit and PostgreSQL integration coverage. It does not yet make the
-feature available through Discord.
+`codex/discord-competition-create` - Add the manager-authorized Discord
+`/competition create` draft flow. The branch collects a name, approved type,
+canonical skill or bounded boss selection, and the required duration or target
+value through guild- and initiator-bound five-minute interactions. It uses the
+configured guild timezone, delegates validation and authorization to the
+merged competition service, keeps results private, and wires the command into
+the runtime and development-guild registration. Participation, snapshots,
+scheduling, claims, standings, roles, and lifecycle transitions remain later
+Stage 8 slices.
 
 ## Next recommended branch-sized task
 
-After this branch merges, add the smallest Discord `/competition create` flow
-over the draft-creation service. Keep it limited to manager-authorized draft
-creation and canonical skill or boss selection; participation, snapshots,
-scheduling, and standings remain later Stage 8 slices. Do not begin another
-account-management adapter without a demonstrated private-beta need.
-Reassignment has been removed from the implementation plan.
+After this branch merges, add the Discord-independent draft-participation
+foundation: durable entrant and selected-contributing-account records with
+guild-consistent constraints and the approved draft-only join, leave, add, and
+remove authorization rules. Do not add snapshots, scheduling, claims,
+standings, roles, or another account-management adapter in that slice.

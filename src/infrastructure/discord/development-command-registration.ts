@@ -9,6 +9,7 @@ import { skillLeaderboardCommandDefinitions } from './skill-leaderboard-command.
 import { bossLeaderboardCommandDefinitions } from './boss-leaderboard-command.js';
 import { bossLookupCommandDefinitions } from './boss-lookup-command.js';
 import { dailyRecapPreviewCommandDefinitions } from './daily-recap-preview-command.js';
+import { competitionCommandDefinitions } from './competition-create-command.js';
 
 export interface DevelopmentCommandRegistrar {
   put(applicationId: string, guildId: string, commands: readonly object[]): Promise<void>;
@@ -43,5 +44,6 @@ export async function registerDiscordCommands(
     ...bossLeaderboardCommandDefinitions,
     ...bossLookupCommandDefinitions,
     ...dailyRecapPreviewCommandDefinitions,
+    ...competitionCommandDefinitions,
   ]);
 }

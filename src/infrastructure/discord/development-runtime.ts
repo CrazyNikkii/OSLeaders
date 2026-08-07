@@ -1,4 +1,5 @@
 import { Client, Events, GatewayIntentBits } from 'discord.js';
+import { randomUUID } from 'node:crypto';
 
 import { AccountModeValidator } from '../../features/accounts/validate-account-mode.js';
 import { MemberPresenceService } from '../../features/accounts/member-presence.js';
@@ -16,6 +17,7 @@ import { ConfigureDailyRecapService } from '../../features/recaps/configure-dail
 import { AutomaticDailyRecapSchedulingService } from '../../features/recaps/schedule-automatic-daily-recaps.js';
 import { AutomaticDailyRecapCollectionService } from '../../features/recaps/collect-automatic-daily-recap.js';
 import { DailyRecapFailureAuditService } from '../../features/recaps/report-daily-recap-failures.js';
+import { CompetitionCreationService } from '../../features/competitions/create-competition.js';
 import { createErrorReferenceId } from '../../features/audit/error-reference.js';
 import { GuildConfigurationService } from '../../features/guild-configuration/guild-configuration-service.js';
 import { GuildPermissionService } from '../../features/guild-configuration/guild-permission-service.js';
@@ -28,6 +30,7 @@ import { PostgresManualDailyRecapSendRepository } from '../database/postgres-man
 import { PostgresDailyRecapDeliveryRepository } from '../database/postgres-daily-recap-delivery-repository.js';
 import { PostgresAutomaticDailyRecapScheduleRepository } from '../database/postgres-automatic-daily-recap-schedule-repository.js';
 import { PostgresAutomaticDailyRecapCollectionRepository } from '../database/postgres-automatic-daily-recap-collection-repository.js';
+import { PostgresCompetitionCreationRepository } from '../database/postgres-competition-creation-repository.js';
 import { OsrsHiscoreHttpClient } from '../hiscores/osrs-hiscore-http-client.js';
 import { OSRS_MODE_FETCH_STRATEGIES } from '../hiscores/osrs-hiscore-catalog.js';
 import { StdoutStructuredLocalLogger } from '../logging/structured-local-logger.js';
@@ -102,6 +105,11 @@ import {
   bindDiscordMemberPresenceEventAdapter,
   DiscordMemberPresenceEventAdapter,
 } from './member-presence-events.js';
+import {
+  bindDiscordCompetitionCreateCommandAdapter,
+  CompetitionCreateCommandHandler,
+  DiscordCompetitionCreateCommandAdapter,
+} from './competition-create-command.js';
 
 export interface DevelopmentDiscordRuntime {
   close(): Promise<void>;
@@ -262,6 +270,16 @@ export async function startDevelopmentDiscordRuntime(
     const dailyRecapConfigurationAdapter = new DiscordDailyRecapConfigurationCommandAdapter(
       new ConfigureDailyRecapService(configurationRepository, permissions),
     );
+    const competitionCreateAdapter = new DiscordCompetitionCreateCommandAdapter(
+      new CompetitionCreateCommandHandler(
+        new CompetitionCreationService(
+          new PostgresCompetitionCreationRepository(connection.database),
+          permissions,
+          randomUUID,
+        ),
+        configurationService,
+      ),
+    );
 
     bindDiscordAccountCommandAdapter(
       client,
@@ -320,6 +338,12 @@ export async function startDevelopmentDiscordRuntime(
     bindDiscordDailyRecapConfigurationCommandAdapter(
       client,
       dailyRecapConfigurationAdapter,
+      (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
+      (interaction) => interaction.guildId === configuration.discord.guildId,
+    );
+    bindDiscordCompetitionCreateCommandAdapter(
+      client,
+      competitionCreateAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.guildId,
     );
