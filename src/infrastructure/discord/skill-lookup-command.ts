@@ -11,11 +11,12 @@ import {
 
 import { AccountRetrievalService } from '../../features/accounts/account-retrieval.js';
 import { SkillLookupService, type SkillLookupResult } from '../../features/lookups/skill-lookup.js';
+import { OSRS_SKILL_NAMES, type OsrsSkillName } from '../hiscores/osrs-hiscore-catalog.js';
 import {
-  OSRS_SKILL_NAMES,
-  type OsrsAccountMode,
-  type OsrsSkillName,
-} from '../hiscores/osrs-hiscore-catalog.js';
+  accountModeLabel,
+  formatHiscoreRank,
+  OSLEADERS_EMBED_COLOR,
+} from './discord-embed-presentation.js';
 
 const SKILL_COMMAND_NAME = 'skill';
 const SKILL_OPTION_NAME = 'skill';
@@ -167,12 +168,18 @@ export function skillLookupEmbed(
 ): EmbedBuilder {
   const target = result.target.kind === 'tracked_account' ? result.target.account : result.target;
   return new EmbedBuilder()
-    .setTitle(`${result.skill.name}: ${target.displayUsername}`)
+    .setColor(OSLEADERS_EMBED_COLOR)
+    .setDescription(lookupTargetDescription(result))
+    .setFooter({ text: 'OSRS Hiscores' })
+    .setTitle(`${result.skill.name} · ${target.displayUsername}`)
     .addFields(
       { inline: true, name: 'Level', value: String(result.skill.level) },
-      { inline: true, name: 'Experience', value: result.skill.experience.toLocaleString('en-US') },
-      { inline: true, name: 'Rank', value: formatRank(result.skill.rank) },
-      { inline: true, name: 'Mode', value: accountModeLabel(target.accountMode) },
+      {
+        inline: true,
+        name: 'Experience',
+        value: `${result.skill.experience.toLocaleString('en-US')} XP`,
+      },
+      { inline: true, name: 'Rank', value: formatHiscoreRank(result.skill.rank) },
     );
 }
 
@@ -189,13 +196,14 @@ export function skillLookupFailureMessage(
   }
 }
 
-function formatRank(rank: number): string {
-  return rank === -1 ? 'Unranked' : rank.toLocaleString('en-US');
-}
-
-function accountModeLabel(mode: OsrsAccountMode): string {
-  return mode
-    .split('_')
-    .map((word) => `${word[0]?.toUpperCase()}${word.slice(1)}`)
-    .join(' ');
+function lookupTargetDescription(result: Extract<SkillLookupResult, { kind: 'found' }>): string {
+  if (result.target.kind === 'one_time_account') {
+    return `**${accountModeLabel(result.target.accountMode)}** · One-time lookup`;
+  }
+  const account = result.target.account;
+  const association =
+    account.association.type === 'linked'
+      ? `<@${account.association.discordUserId}>`
+      : 'Watchlist account';
+  return `**${accountModeLabel(account.accountMode)}** · ${association}`;
 }

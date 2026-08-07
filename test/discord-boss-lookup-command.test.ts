@@ -88,6 +88,13 @@ describe('Discord boss lookup command', () => {
     ]);
     expect(selection.deferUpdate).toHaveBeenCalledOnce();
     expect(selection.channel.send).toHaveBeenCalledOnce();
+    expect(JSON.stringify(selection.channel.send.mock.calls[0])).toContain(
+      'Abyssal Sire · Rune Scape',
+    );
+    expect(JSON.stringify(selection.channel.send.mock.calls[0])).toContain(
+      '**Ironman** · <@member-one>',
+    );
+    expect(JSON.stringify(selection.channel.send.mock.calls[0])).toContain('OSRS Hiscores');
     expect(selection.deleteReply).toHaveBeenCalledOnce();
     expect(selection.editReply).not.toHaveBeenCalled();
   });

@@ -26,11 +26,12 @@ merged.
 
 ## Current implementation stage
 
-Stage 5 - Account-management Discord adapters. The merged `/account mode`
+Stage 7 - Daily recap presentation refinement. The merged `/account mode`
 adapter and member-presence Discord event work complete the current edit and
-presence workflows. Daily recaps were intentionally delivered before
-competitions so the bot could support the private beta first; Stage 8 remains
-deferred while the narrower account-management slices are completed.
+presence workflows. The current unmerged recap branch improves the private-beta
+recap presentation while keeping collection, durable delivery, and baseline
+replacement intact. Stage 8 remains deferred while the narrower
+account-management slices are completed.
 
 The merged skill-lookup foundation begins the lookup module with a
 Discord-independent, guild-scoped skill lookup service. It resolves a
@@ -295,6 +296,23 @@ enables the required Discord Guild Members gateway intent, documents the
 Developer Portal setting, and adds focused adapter and runtime-binding tests.
 Focused adapter and runtime-binding tests cover this work.
 
+The current unmerged daily-recap and response-presentation work replaces the
+public plain-text recap with Discord embeds and makes the preview match that
+presentation. Delivered embeds retain a compact stable recap identifier and
+retry indication in their footer, while the preview shows only the XP threshold
+note. Boss activity appears before skills. XP-only skill gains below 10,000 are
+hidden, while positive level gains and boss KC always remain visible; every
+successful collection still advances its recap baseline regardless of display
+filtering. The same gold embed treatment now formats tracked and one-time
+skill/boss lookups, both permanent leaderboards, and public successful
+registration announcements (with a restrained success accent). Shared
+presentation helpers preserve consistent account-mode labels and Hiscores rank
+formatting without changing lookup, leaderboard, registration, or guild
+isolation behaviour. Focused unit tests cover the threshold boundary,
+hidden-gain baseline update, embed delivery, page splitting, retry identity,
+preview output, and the shared response treatment. This work is not complete
+until merged.
+
 ## Deferred and later planned stages
 
 - Stage 5 - Remaining deferred account-management Discord adapters.
@@ -383,10 +401,11 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-None.
+`codex/recap-embed-presentation` - Refine daily recap embeds and thresholded
+presentation; this work is awaiting review.
 
 ## Next recommended branch-sized task
 
-Select the smallest observed account-management need between the
-association-conversion and linked-account-reassignment Discord adapters before
-beginning Stage 8 competitions.
+After this branch merges, select the smallest observed account-management need
+between the association-conversion and linked-account-reassignment Discord
+adapters before beginning Stage 8 competitions.

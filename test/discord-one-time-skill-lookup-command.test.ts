@@ -125,7 +125,8 @@ describe('Discord one-time skill lookup command', () => {
     );
 
     expect(deferUpdate).toHaveBeenCalledOnce();
-    expect(JSON.stringify(responses)).toContain('Strength: Unregistered Player');
+    expect(JSON.stringify(responses)).toContain('Strength · Unregistered Player');
+    expect(JSON.stringify(responses)).toContain('One-time lookup');
   });
 });
 

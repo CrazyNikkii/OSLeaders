@@ -50,7 +50,7 @@ describe('Discord skill lookup command', () => {
     ]);
   });
 
-  it('presents found skill data publicly with the account mode label', async () => {
+  it('presents found skill data publicly in the shared embed style', async () => {
     const services = new LookupServices([]);
     services.result = foundResult();
     const adapter = new DiscordSkillLookupCommandAdapter(new SkillLookupCommandHandler(services));
@@ -59,11 +59,13 @@ describe('Discord skill lookup command', () => {
     await adapter.handle(chatInteraction(reply) as never);
 
     const response = JSON.stringify(reply.mock.calls[0]);
-    expect(response).toContain('Strength: Rune Scape');
+    expect(response).toContain('Strength · Rune Scape');
+    expect(response).toContain('OSRS Hiscores');
+    expect(response).toContain('**Ironman** · <@member-one>');
     expect(response).toContain('"name":"Level","value":"99"');
-    expect(response).toContain('"name":"Experience","value":"13,034,431"');
-    expect(response).toContain('"name":"Rank","value":"42"');
-    expect(response).toContain('"name":"Mode","value":"Ironman"');
+    expect(response).toContain('"name":"Experience","value":"13,034,431 XP"');
+    expect(response).toContain('"name":"Rank","value":"#42"');
+    expect(response).toContain('"color":14261046');
   });
 
   it('keeps expected lookup failures ephemeral', async () => {

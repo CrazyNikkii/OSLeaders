@@ -14,11 +14,13 @@ import {
 
 import { AccountRetrievalService } from '../../features/accounts/account-retrieval.js';
 import { BossLookupService, type BossLookupResult } from '../../features/lookups/boss-lookup.js';
-import {
-  type OsrsAccountMode,
-  type OsrsBossActivityName,
-} from '../hiscores/osrs-hiscore-catalog.js';
+import { type OsrsBossActivityName } from '../hiscores/osrs-hiscore-catalog.js';
 import { bossChoiceGroups, bossChoiceMenuRows } from './boss-choice-menu.js';
+import {
+  accountModeLabel,
+  formatHiscoreRank,
+  OSLEADERS_EMBED_COLOR,
+} from './discord-embed-presentation.js';
 
 const BOSS_COMMAND_NAME = 'boss';
 const ACCOUNT_OPTION_NAME = 'account';
@@ -267,11 +269,13 @@ export function bossLookupEmbed(
 ): EmbedBuilder {
   const target = result.target.kind === 'tracked_account' ? result.target.account : result.target;
   return new EmbedBuilder()
-    .setTitle(`${result.boss.name}: ${target.displayUsername}`)
+    .setColor(OSLEADERS_EMBED_COLOR)
+    .setDescription(lookupTargetDescription(result))
+    .setFooter({ text: 'OSRS Hiscores' })
+    .setTitle(`${result.boss.name} · ${target.displayUsername}`)
     .addFields(
       { inline: true, name: 'Kill count', value: result.boss.score.toLocaleString('en-US') },
-      { inline: true, name: 'Rank', value: formatRank(result.boss.rank) },
-      { inline: true, name: 'Mode', value: accountModeLabel(target.accountMode) },
+      { inline: true, name: 'Rank', value: formatHiscoreRank(result.boss.rank) },
     );
 }
 
@@ -315,13 +319,14 @@ function decodeBossSelection(customId: string): string | undefined {
     : undefined;
 }
 
-function formatRank(rank: number): string {
-  return rank === -1 ? 'Unranked' : rank.toLocaleString('en-US');
-}
-
-function accountModeLabel(mode: OsrsAccountMode): string {
-  return mode
-    .split('_')
-    .map((word) => `${word[0]?.toUpperCase()}${word.slice(1)}`)
-    .join(' ');
+function lookupTargetDescription(result: Extract<BossLookupResult, { kind: 'found' }>): string {
+  if (result.target.kind === 'one_time_account') {
+    return `**${accountModeLabel(result.target.accountMode)}** · One-time lookup`;
+  }
+  const account = result.target.account;
+  const association =
+    account.association.type === 'linked'
+      ? `<@${account.association.discordUserId}>`
+      : 'Watchlist account';
+  return `**${accountModeLabel(account.accountMode)}** · ${association}`;
 }

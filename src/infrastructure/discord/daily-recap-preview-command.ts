@@ -1,6 +1,5 @@
 import {
   ChannelType,
-  EmbedBuilder,
   Events,
   MessageFlags,
   SlashCommandBuilder,
@@ -8,14 +7,12 @@ import {
   type Client,
   type Interaction,
 } from 'discord.js';
+import type { EmbedBuilder } from 'discord.js';
 
-import type { TrackedAccount } from '../../features/accounts/register-account.js';
-import {
-  type DailyRecapAccountPresentation,
-  type DailyRecapFailurePresentation,
-  type DailyRecapPreview,
-} from '../../features/recaps/daily-recap-presentation.js';
+import type { DailyRecapPreview } from '../../features/recaps/daily-recap-presentation.js';
 import { PreviewDailyRecapService } from '../../features/recaps/preview-daily-recap.js';
+import { renderDailyRecapDeliveryContent } from '../../features/recaps/send-daily-recap.js';
+import { createDailyRecapEmbeds } from './daily-recap-embed-presentation.js';
 
 const RECAP_COMMAND_NAME = 'recap';
 const PREVIEW_SUBCOMMAND_NAME = 'preview';
@@ -116,140 +113,23 @@ export function bindDiscordDailyRecapPreviewCommandAdapter(
   });
 }
 
-export function dailyRecapPreviewEmbeds(preview: DailyRecapPreview): EmbedBuilder[] {
-  const sections = [
-    ...linkedMemberSections(preview),
-    ...watchlistSections(preview),
-    ...noActivitySections(preview),
-    ...failureSections(preview),
-  ];
-  const pages = splitSections(sections);
-
-  return pages.map((page, index) =>
-    new EmbedBuilder()
-      .setTitle(`Daily recap preview${pages.length > 1 ? ` (${index + 1}/${pages.length})` : ''}`)
-      .setDescription(page),
-  );
+export function dailyRecapPreviewEmbeds(preview: DailyRecapPreview): readonly EmbedBuilder[] {
+  return createDailyRecapEmbeds({
+    pages: splitPreviewContent(renderDailyRecapDeliveryContent(preview.presentation)),
+    title: 'Daily recap preview',
+  });
 }
 
-function linkedMemberSections(preview: DailyRecapPreview): RenderSection[] {
-  return preview.presentation.linkedMembers.map((member) => ({
-    heading: `<@${member.discordUserId}>`,
-    lines: member.accounts.flatMap(accountLines),
-  }));
-}
-
-function watchlistSections(preview: DailyRecapPreview): RenderSection[] {
-  if (preview.presentation.watchlistAccounts.length === 0) {
-    return [];
-  }
-  return [
-    {
-      heading: 'Watchlist accounts',
-      lines: preview.presentation.watchlistAccounts.flatMap(accountLines),
-    },
-  ];
-}
-
-function noActivitySections(preview: DailyRecapPreview): RenderSection[] {
-  return preview.presentation.noActivity
-    ? [{ heading: 'Activity', lines: ['No tracked XP or boss KC gains since the previous recap.'] }]
-    : [];
-}
-
-function failureSections(preview: DailyRecapPreview): RenderSection[] {
-  if (preview.presentation.failures.length === 0) {
-    return [];
-  }
-  return [
-    {
-      heading: 'Unavailable accounts',
-      lines: preview.presentation.failures.map(formatFailure),
-    },
-  ];
-}
-
-function accountLines(entry: DailyRecapAccountPresentation): string[] {
-  const lines = [
-    `## ${entry.account.displayUsername} (${accountModeLabel(entry.account)})`,
-    `*Compared with the last successful snapshot: <t:${Math.floor(entry.previousBaselineCapturedAt.getTime() / 1_000)}:f>*`,
-  ];
-  if (entry.changes.bosses.length > 0) {
-    lines.push(
-      '**Boss activities**',
-      ...entry.changes.bosses.map(
-        (change) => `• ${change.boss}: +${change.killCountGained.toLocaleString('en-US')} KC`,
-      ),
-    );
-  }
-  if (entry.changes.skills.length > 0) {
-    lines.push('**Skills**', ...entry.changes.skills.map(formatSkillChange));
-  }
-  return lines;
-}
-
-function formatSkillChange(
-  change: DailyRecapAccountPresentation['changes']['skills'][number],
-): string {
-  const gains: string[] = [];
-  if (change.experienceGained > 0) {
-    gains.push(`+${change.experienceGained.toLocaleString('en-US')} XP`);
-  }
-  if (change.levelGained > 0) {
-    gains.push(
-      `+${change.levelGained} ${change.levelGained === 1 ? 'level' : 'levels'} → ${change.currentLevel}`,
-    );
-  }
-  return `• ${change.skill}: ${gains.join(', ')}`;
-}
-
-function formatFailure(entry: DailyRecapFailurePresentation): string {
-  return `**${entry.account.displayUsername}** (${accountModeLabel(entry.account)}) — ${failureMessage(entry)}`;
-}
-
-function failureMessage(entry: DailyRecapFailurePresentation): string {
-  switch (entry.failure.kind) {
-    case 'not_found':
-      return 'not found on Hiscores';
-    case 'timeout':
-      return 'Hiscores timed out';
-    case 'temporary_upstream_failure':
-      return 'Hiscores is temporarily unavailable';
-    case 'mode_incompatible':
-      return 'the selected mode is incompatible with Hiscores';
-    case 'malformed_response':
-      return 'Hiscores returned malformed data';
-    case 'incomplete_response':
-      return 'Hiscores returned incomplete data';
-    case 'baseline_incomplete':
-      return 'its stored recap baseline is incomplete';
-  }
-}
-
-function accountModeLabel(account: TrackedAccount): string {
-  return account.accountMode
-    .split('_')
-    .map((word) => `${word[0]?.toUpperCase()}${word.slice(1)}`)
-    .join(' ');
-}
-
-interface RenderSection {
-  heading: string;
-  lines: readonly string[];
-}
-
-function splitSections(sections: readonly RenderSection[]): string[] {
+function splitPreviewContent(content: string): string[] {
   const pages: string[] = [];
   let page = '';
-  for (const section of sections) {
-    for (const line of [`**${section.heading}**`, ...section.lines.flatMap(splitLongLine)]) {
-      const candidate = page === '' ? line : `${page}\n${line}`;
-      if (candidate.length > MAX_EMBED_DESCRIPTION_LENGTH && page !== '') {
-        pages.push(page);
-        page = line;
-      } else {
-        page = candidate;
-      }
+  for (const line of content.split('\n').flatMap(splitLongLine)) {
+    const candidate = page === '' ? line : `${page}\n${line}`;
+    if (candidate.length > MAX_EMBED_DESCRIPTION_LENGTH && page !== '') {
+      pages.push(page);
+      page = line;
+    } else {
+      page = candidate;
     }
   }
   if (page !== '') {

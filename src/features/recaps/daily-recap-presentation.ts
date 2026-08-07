@@ -33,6 +33,8 @@ export interface DailyRecapPreview {
   presentation: DailyRecapPresentation;
 }
 
+export const MINIMUM_VISIBLE_DAILY_RECAP_XP = 10_000;
+
 export interface DailyRecapPreviewCollector {
   collect(guildId: string): Promise<DailyRecapCollectionResult>;
 }
@@ -58,13 +60,14 @@ export function presentDailyRecap(collection: DailyRecapCollectionResult): Daily
       continue;
     }
 
-    if (!hasChanges(outcome.changes)) {
+    const changes = visibleChanges(outcome.changes);
+    if (!hasChanges(changes)) {
       continue;
     }
 
     const account = {
       account: outcome.account,
-      changes: outcome.changes,
+      changes,
       previousBaselineCapturedAt: outcome.previousBaselineCapturedAt,
     };
     if (outcome.account.association.type === 'watchlist') {
@@ -86,6 +89,15 @@ export function presentDailyRecap(collection: DailyRecapCollectionResult): Daily
     linkedMembers: members,
     noActivity: members.length === 0 && watchlistAccounts.length === 0,
     watchlistAccounts,
+  };
+}
+
+function visibleChanges(changes: DailyRecapAccountChanges): DailyRecapAccountChanges {
+  return {
+    bosses: changes.bosses,
+    skills: changes.skills.filter(
+      (skill) => skill.levelGained > 0 || skill.experienceGained >= MINIMUM_VISIBLE_DAILY_RECAP_XP,
+    ),
   };
 }
 

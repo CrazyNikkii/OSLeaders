@@ -53,6 +53,8 @@ describe('Discord boss leaderboard command', () => {
     expect(response).toContain('1. **Account 1**');
     expect(response).toContain('10. **Account 10**');
     expect(response).not.toContain('11. **Account 11**');
+    expect(response).toContain('"color":14261046');
+    expect(response).toContain('10 ranked accounts');
   });
 
   it('rejects a boss outside the canonical catalog before calling the leaderboard service', async () => {

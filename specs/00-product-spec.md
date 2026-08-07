@@ -725,7 +725,8 @@ Watchlist accounts appear in a separate watchlist section.
 
 The recap displays only:
 
-- Positive skill XP gains.
+- Positive skill XP gains of at least 10,000 XP, except that a positive level
+  gain is always displayed even when its XP gain is lower.
 - Positive level gains.
 - Positive boss KC gains.
 
@@ -736,6 +737,11 @@ It never displays:
 - Zero KC gain.
 - Unchanged accounts.
 - Unchanged Discord users.
+
+All successful account snapshots still advance their rolling baselines,
+including when every XP-only gain is below the display threshold. If nothing
+meets the display threshold and no level or boss-KC gain occurred, the recap
+posts a short no-notable-activity message.
 
 Example:
 
