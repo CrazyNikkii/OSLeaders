@@ -296,22 +296,15 @@ enables the required Discord Guild Members gateway intent, documents the
 Developer Portal setting, and adds focused adapter and runtime-binding tests.
 Focused adapter and runtime-binding tests cover this work.
 
-The current unmerged daily-recap and response-presentation work replaces the
-public plain-text recap with Discord embeds and makes the preview match that
-presentation. Delivered embeds retain a compact stable recap identifier and
-retry indication in their footer, while the preview shows only the XP threshold
-note. Boss activity appears before skills. XP-only skill gains below 10,000 are
-hidden, while positive level gains and boss KC always remain visible; every
-successful collection still advances its recap baseline regardless of display
-filtering. The same gold embed treatment now formats tracked and one-time
-skill/boss lookups, both permanent leaderboards, and public successful
-registration announcements (with a restrained success accent). Shared
-presentation helpers preserve consistent account-mode labels and Hiscores rank
-formatting without changing lookup, leaderboard, registration, or guild
-isolation behaviour. Focused unit tests cover the threshold boundary,
-hidden-gain baseline update, embed delivery, page splitting, retry identity,
-preview output, and the shared response treatment. This work is not complete
-until merged.
+The current unmerged recap-caption and readable-layout cleanup removes the
+technical account-specific-baselines caption from public and preview recap
+summaries. It renders one boss or skill gain per line, gives positive level
+gains their own native Discord blockquote, and separates player blocks with a
+literal text divider. The compact totals remain unchanged, and each account
+continues to be measured against its own durable rolling baseline without
+exposing that implementation detail to Discord users. Focused unit tests cover
+the caption's absence and the readable delivery and preview layout. This work
+is not complete until merged.
 
 ## Deferred and later planned stages
 
@@ -343,6 +336,16 @@ entries by XP with deterministic tie-breakers, and retains per-account failures
 without discarding successful results.
 
 ## Latest merged implementation work
+
+`18c0844` (2026-08-07) - Merge recap embed presentation.
+
+This merged the gold Discord-embed presentation for automatic and manual daily
+recaps, private recap previews, skill and boss lookups, both permanent
+leaderboards, and public registration confirmations. Recap previews and
+delivered recaps share one compact rendering path; XP-only gains below 10,000
+are hidden while positive level gains and boss KC remain visible, and every
+successful collection still advances its baseline. The merge also retains
+compact recap run and retry identity for duplicate-prone delivery.
 
 `a35d071` (2026-08-07) - Merge Discord member-presence events.
 
@@ -401,8 +404,8 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-`codex/recap-embed-presentation` - Refine daily recap embeds and thresholded
-presentation; this work is awaiting review.
+`codex/remove-recap-baseline-caption` - Remove the technical recap baseline
+caption from user-facing recap summaries; this work is awaiting review.
 
 ## Next recommended branch-sized task
 

@@ -47,11 +47,14 @@ describe('Discord daily recap preview command', () => {
     const response = JSON.stringify(responses.editReply.mock.calls[0]);
     expect(response).toContain('<@member-one>');
     expect(response).toContain('**Linked** · Ironman');
-    expect(response).toContain('2 active accounts · compared with account-specific baselines');
+    expect(response).not.toContain('account-specific baselines');
     expect(response).toContain('**600K XP gained**');
-    expect(response).toContain('**+100K XP** · Magic +100K → 88');
-    expect(response).toContain('**+4 KC** · Zulrah +4');
+    expect(response).toContain('**+100K XP**');
+    expect(response).toContain('• Magic: +100K XP');
+    expect(response).toContain('> **Magic: +1 level → 88**');
+    expect(response).toContain('• Zulrah: +4 KC');
     expect(response).toContain('**Watchlisted** · Ironman');
+    expect(response).toContain('──────────────');
     expect(response).toContain('Showing XP gains of 10,000+');
     expect(response).toContain('Unavailable accounts');
     expect(response.indexOf('**+4 KC**')).toBeLessThan(response.indexOf('**+100K XP**'));
