@@ -43,6 +43,18 @@ export const competitionCommandDefinitions = [
     .addSubcommand((subcommand) =>
       subcommand.setName('create').setDescription('Create a competition draft.'),
     )
+    .addSubcommand((subcommand) =>
+      subcommand.setName('join').setDescription('Join a competition draft.'),
+    )
+    .addSubcommand((subcommand) =>
+      subcommand.setName('leave').setDescription('Leave a competition draft.'),
+    )
+    .addSubcommand((subcommand) =>
+      subcommand.setName('add').setDescription('Add a participant to a competition draft.'),
+    )
+    .addSubcommand((subcommand) =>
+      subcommand.setName('remove').setDescription('Remove a participant from a competition draft.'),
+    )
     .toJSON(),
 ] as const;
 

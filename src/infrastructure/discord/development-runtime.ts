@@ -18,6 +18,7 @@ import { AutomaticDailyRecapSchedulingService } from '../../features/recaps/sche
 import { AutomaticDailyRecapCollectionService } from '../../features/recaps/collect-automatic-daily-recap.js';
 import { DailyRecapFailureAuditService } from '../../features/recaps/report-daily-recap-failures.js';
 import { CompetitionCreationService } from '../../features/competitions/create-competition.js';
+import { CompetitionDraftParticipationService } from '../../features/competitions/manage-draft-participation.js';
 import { createErrorReferenceId } from '../../features/audit/error-reference.js';
 import { GuildConfigurationService } from '../../features/guild-configuration/guild-configuration-service.js';
 import { GuildPermissionService } from '../../features/guild-configuration/guild-permission-service.js';
@@ -31,6 +32,7 @@ import { PostgresDailyRecapDeliveryRepository } from '../database/postgres-daily
 import { PostgresAutomaticDailyRecapScheduleRepository } from '../database/postgres-automatic-daily-recap-schedule-repository.js';
 import { PostgresAutomaticDailyRecapCollectionRepository } from '../database/postgres-automatic-daily-recap-collection-repository.js';
 import { PostgresCompetitionCreationRepository } from '../database/postgres-competition-creation-repository.js';
+import { PostgresCompetitionDraftParticipationRepository } from '../database/postgres-competition-draft-participation-repository.js';
 import { OsrsHiscoreHttpClient } from '../hiscores/osrs-hiscore-http-client.js';
 import { OSRS_MODE_FETCH_STRATEGIES } from '../hiscores/osrs-hiscore-catalog.js';
 import { StdoutStructuredLocalLogger } from '../logging/structured-local-logger.js';
@@ -110,6 +112,11 @@ import {
   CompetitionCreateCommandHandler,
   DiscordCompetitionCreateCommandAdapter,
 } from './competition-create-command.js';
+import {
+  bindDiscordCompetitionDraftParticipationCommandAdapter,
+  CompetitionDraftParticipationCommandHandler,
+  DiscordCompetitionDraftParticipationCommandAdapter,
+} from './competition-draft-participation-command.js';
 
 export interface DevelopmentDiscordRuntime {
   close(): Promise<void>;
@@ -280,6 +287,21 @@ export async function startDevelopmentDiscordRuntime(
         configurationService,
       ),
     );
+    const competitionParticipationRepository = new PostgresCompetitionDraftParticipationRepository(
+      connection.database,
+    );
+    const competitionDraftParticipationAdapter =
+      new DiscordCompetitionDraftParticipationCommandAdapter(
+        new CompetitionDraftParticipationCommandHandler(
+          new CompetitionDraftParticipationService(
+            competitionParticipationRepository,
+            permissions,
+            randomUUID,
+          ),
+          competitionParticipationRepository,
+          accountRepository,
+        ),
+      );
 
     bindDiscordAccountCommandAdapter(
       client,
@@ -344,6 +366,12 @@ export async function startDevelopmentDiscordRuntime(
     bindDiscordCompetitionCreateCommandAdapter(
       client,
       competitionCreateAdapter,
+      (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
+      (interaction) => interaction.guildId === configuration.discord.guildId,
+    );
+    bindDiscordCompetitionDraftParticipationCommandAdapter(
+      client,
+      competitionDraftParticipationAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.guildId,
     );
