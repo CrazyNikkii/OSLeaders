@@ -35,6 +35,7 @@ import type { StructuredLocalLogger } from '../../shared/structured-logging.js';
 import {
   bindDiscordAccountCommandAdapter,
   createAccountDefaultSelectionCommandHandler,
+  createAccountModeCommandHandler,
   createAccountRenameCommandHandler,
   createAccountRegistrationCommandHandler,
   createAccountRemovalCommandHandler,
@@ -165,6 +166,7 @@ export async function startDevelopmentDiscordRuntime(
         audit,
         permissions,
       ),
+      createAccountModeCommandHandler(accountRepository, accountModeValidator, audit, permissions),
       configurationService,
     );
     const skillLookupAdapter = new DiscordSkillLookupCommandAdapter(

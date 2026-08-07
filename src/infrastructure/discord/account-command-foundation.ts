@@ -52,6 +52,12 @@ import {
   type RenameAccountResult,
 } from '../../features/accounts/rename-account.js';
 import {
+  AccountModeChangeService,
+  canChangeMode,
+  type AccountModeChangeRepository,
+  type ChangeAccountModeResult,
+} from '../../features/accounts/change-account-mode.js';
+import {
   GuildPermissionService,
   type GuildPermissionRequest,
   type GuildPermissions,
@@ -73,6 +79,7 @@ const REGISTER_SUBCOMMAND_NAME = 'register';
 const REMOVE_SUBCOMMAND_NAME = 'remove';
 const DEFAULT_SUBCOMMAND_NAME = 'default';
 const RENAME_SUBCOMMAND_NAME = 'rename';
+const MODE_SUBCOMMAND_NAME = 'mode';
 const ACCOUNT_OPTION_NAME = 'account';
 const REMOVAL_CONFIRMATION_PREFIX = 'osleaders:account-remove';
 const MAX_AUTOCOMPLETE_CHOICES = 25;
@@ -82,6 +89,7 @@ const REGISTRATION_INTERACTION_PREFIX = 'osleaders:account-register';
 const REGISTRATION_INTERACTION_LIFETIME_MS = 5 * 60 * 1000;
 const USERNAME_INPUT_ID = 'username';
 const RENAME_INTERACTION_PREFIX = 'osleaders:account-rename';
+const MODE_INTERACTION_PREFIX = 'osleaders:account-mode';
 
 export const accountCommandDefinitions = [
   new SlashCommandBuilder()
@@ -125,6 +133,18 @@ export const accountCommandDefinitions = [
           option
             .setName(ACCOUNT_OPTION_NAME)
             .setDescription('The account to rename.')
+            .setRequired(true)
+            .setAutocomplete(true),
+        ),
+    )
+    .addSubcommand((subcommand) =>
+      subcommand
+        .setName(MODE_SUBCOMMAND_NAME)
+        .setDescription('Change a tracked OSRS account game mode after validation.')
+        .addStringOption((option) =>
+          option
+            .setName(ACCOUNT_OPTION_NAME)
+            .setDescription('The account whose game mode should change.')
             .setRequired(true)
             .setAutocomplete(true),
         ),
@@ -571,6 +591,93 @@ export class AccountRenameCommandHandler {
   }
 }
 
+export interface AccountModeCommandServices {
+  accountModeChange: Pick<AccountModeChangeService, 'change'>;
+  accountRetrieval: Pick<AccountRetrievalService, 'listForGuild'>;
+  audit: Pick<AuditService, 'record'>;
+  permissions: AccountCommandPermissionEvaluator;
+}
+
+export type AccountModeCommandResult =
+  | { kind: 'mode_changed'; message: string; auditEntry: StructuredLogEntry }
+  | { kind: 'forbidden'; message: string }
+  | { kind: 'account_not_found'; message: string }
+  | { kind: 'hiscores_failure'; message: string }
+  | { kind: 'not_in_guild'; message: string };
+
+export class AccountModeCommandHandler {
+  public constructor(private readonly services: AccountModeCommandServices) {}
+
+  public async change(
+    context: GuildInteractionContext,
+    accountId: string,
+    accountMode: OsrsAccountMode,
+  ): Promise<AccountModeCommandResult> {
+    const authorization = await this.authorize(context);
+    if (authorization === undefined) {
+      return {
+        kind: 'not_in_guild',
+        message: 'This command can only be used in a Discord server.',
+      };
+    }
+    const result = await this.services.accountModeChange.change({
+      accountId,
+      accountMode,
+      canManageAccounts: authorization.canManageAccounts,
+      guildId: authorization.guildId,
+      requesterDiscordUserId: authorization.requesterDiscordUserId,
+    });
+    return modeCommandResult(result, (event) => this.services.audit.record(event), {
+      guildId: authorization.guildId,
+      requesterDiscordUserId: authorization.requesterDiscordUserId,
+    });
+  }
+
+  public async autocomplete(
+    context: GuildInteractionContext,
+    query: string,
+  ): Promise<{ name: string; value: string }[]> {
+    const authorization = await this.authorize(context);
+    if (authorization === undefined) return [];
+    const normalizedQuery = query.trim().toLocaleLowerCase('en-US');
+    return (await this.services.accountRetrieval.listForGuild(authorization.guildId))
+      .filter((account) =>
+        canChangeMode(account, {
+          ...authorization,
+          accountId: account.id,
+          accountMode: account.accountMode,
+        }),
+      )
+      .filter((account) =>
+        account.displayUsername.toLocaleLowerCase('en-US').includes(normalizedQuery),
+      )
+      .slice(0, MAX_AUTOCOMPLETE_CHOICES)
+      .map((account) => ({
+        name: `${account.displayUsername} (${account.accountMode})`,
+        value: account.id,
+      }));
+  }
+
+  private async authorize(
+    context: GuildInteractionContext,
+  ): Promise<
+    | (GuildPermissionRequest & { canManageAccounts: boolean; requesterDiscordUserId: string })
+    | undefined
+  > {
+    if (context.guildId === null) return undefined;
+    const permissions = await this.services.permissions.evaluate({
+      guildId: context.guildId,
+      hasAdministratorPermission: context.hasAdministratorPermission,
+      memberRoleIds: context.memberRoleIds,
+    });
+    return {
+      ...context,
+      canManageAccounts: permissions.canManageAccounts,
+      guildId: context.guildId,
+    };
+  }
+}
+
 export interface AccountRegistrationCommandServices {
   accountRegistration: Pick<AccountRegistrationService, 'register'>;
   clock: Clock;
@@ -939,6 +1046,51 @@ export interface RenameAdministrativeLogPublisher {
   publish(interaction: ModalSubmitInteraction, auditEntry: StructuredLogEntry): Promise<void>;
 }
 
+export interface ModeAdministrativeLogPublisher {
+  publish(interaction: StringSelectMenuInteraction, auditEntry: StructuredLogEntry): Promise<void>;
+}
+
+export class DiscordModeAdministrativeLogPublisher implements ModeAdministrativeLogPublisher {
+  public constructor(
+    private readonly configuration: Pick<GuildConfigurationService, 'getOrCreate'>,
+  ) {}
+
+  public async publish(
+    interaction: StringSelectMenuInteraction,
+    auditEntry: StructuredLogEntry,
+  ): Promise<void> {
+    if (interaction.guildId === null) return;
+    const configuration = await this.configuration.getOrCreate(interaction.guildId);
+    if (
+      configuration.administrativeLogChannelId === null ||
+      !shouldDeliverAdministrativeAuditEvent(
+        {
+          guildId: interaction.guildId,
+          occurredAt: new Date(),
+          operation: auditEntry.operation,
+          severity: auditEntry.severity,
+          type: 'account-edit-or-deletion',
+        },
+        configuration.administrativeLogMode,
+      )
+    )
+      return;
+    const channel = await interaction.guild?.channels.fetch(
+      configuration.administrativeLogChannelId,
+    );
+    if (!channel?.isSendable()) {
+      throw new Error('The configured administrative log channel is not available.');
+    }
+    await channel.send({ content: renderModeAuditEntry(auditEntry) });
+  }
+}
+
+class NoopModeAdministrativeLogPublisher implements ModeAdministrativeLogPublisher {
+  public publish(): Promise<void> {
+    return Promise.resolve();
+  }
+}
+
 export class DiscordRenameAdministrativeLogPublisher implements RenameAdministrativeLogPublisher {
   public constructor(
     private readonly configuration: Pick<GuildConfigurationService, 'getOrCreate'>,
@@ -988,6 +1140,7 @@ class NoopRenameAdministrativeLogPublisher implements RenameAdministrativeLogPub
 export class DiscordAccountCommandAdapter {
   private readonly registrationAdministrativeLogPublisher: RegistrationAdministrativeLogPublisher;
   private readonly renameAdministrativeLogPublisher: RenameAdministrativeLogPublisher;
+  private readonly modeAdministrativeLogPublisher: ModeAdministrativeLogPublisher;
 
   public constructor(
     private readonly removalHandler: AccountRemovalCommandHandler,
@@ -997,6 +1150,8 @@ export class DiscordAccountCommandAdapter {
     registrationAdministrativeLogPublisher?: RegistrationAdministrativeLogPublisher,
     private readonly renameHandler?: AccountRenameCommandHandler,
     renameAdministrativeLogPublisher?: RenameAdministrativeLogPublisher,
+    private readonly modeHandler?: AccountModeCommandHandler,
+    modeAdministrativeLogPublisher?: ModeAdministrativeLogPublisher,
   ) {
     if (registrationHandler !== undefined && registrationAdministrativeLogPublisher === undefined) {
       throw new Error('Registration support requires an administrative log publisher.');
@@ -1008,6 +1163,11 @@ export class DiscordAccountCommandAdapter {
     }
     this.renameAdministrativeLogPublisher =
       renameAdministrativeLogPublisher ?? new NoopRenameAdministrativeLogPublisher();
+    if (modeHandler !== undefined && modeAdministrativeLogPublisher === undefined) {
+      throw new Error('Mode-change support requires an administrative log publisher.');
+    }
+    this.modeAdministrativeLogPublisher =
+      modeAdministrativeLogPublisher ?? new NoopModeAdministrativeLogPublisher();
   }
 
   public async handle(
@@ -1071,6 +1231,15 @@ export class DiscordAccountCommandAdapter {
       );
       return;
     }
+    if (subcommand === MODE_SUBCOMMAND_NAME && this.modeHandler !== undefined) {
+      await interaction.respond(
+        await this.modeHandler.autocomplete(
+          toGuildInteractionContext(interaction),
+          interaction.options.getFocused(),
+        ),
+      );
+      return;
+    }
     if (subcommand !== REMOVE_SUBCOMMAND_NAME) {
       return;
     }
@@ -1097,6 +1266,10 @@ export class DiscordAccountCommandAdapter {
     }
     if (interaction.options.getSubcommand() === RENAME_SUBCOMMAND_NAME) {
       await this.handleRenameStart(interaction);
+      return;
+    }
+    if (interaction.options.getSubcommand() === MODE_SUBCOMMAND_NAME) {
+      await this.handleModeStart(interaction);
       return;
     }
     if (interaction.options.getSubcommand() !== REMOVE_SUBCOMMAND_NAME) {
@@ -1143,6 +1316,26 @@ export class DiscordAccountCommandAdapter {
         encodeRenameInteraction(interaction.options.getString(ACCOUNT_OPTION_NAME, true)),
       ),
     );
+  }
+
+  private async handleModeStart(interaction: ChatInputCommandInteraction): Promise<void> {
+    if (this.modeHandler === undefined) return;
+    await interaction.reply({
+      components: [
+        new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+          new StringSelectMenuBuilder()
+            .setCustomId(
+              encodeModeInteraction(interaction.options.getString(ACCOUNT_OPTION_NAME, true)),
+            )
+            .setPlaceholder('Choose game mode')
+            .addOptions(
+              OSRS_ACCOUNT_MODES.map((mode) => ({ label: accountModeLabel(mode), value: mode })),
+            ),
+        ),
+      ],
+      content: 'Choose the new game mode. The account will be validated before it is changed.',
+      flags: MessageFlags.Ephemeral,
+    });
   }
 
   private async handleButton(interaction: ButtonInteraction): Promise<void> {
@@ -1203,10 +1396,33 @@ export class DiscordAccountCommandAdapter {
   }
 
   private async handleStringSelectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
-    if (this.registrationHandler === undefined) {
+    const value = interaction.values[0] ?? '';
+    const modeAccountId = decodeModeInteraction(interaction.customId);
+    if (modeAccountId !== undefined && this.modeHandler !== undefined) {
+      if (!isOsrsAccountMode(value)) {
+        await interaction.reply({
+          content: 'That account mode is invalid.',
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+      await interaction.deferUpdate();
+      const result = await this.modeHandler.change(
+        toGuildInteractionContext(interaction),
+        modeAccountId,
+        value,
+      );
+      await interaction.editReply({ components: [], content: result.message });
+      if (result.kind === 'mode_changed') {
+        try {
+          await this.modeAdministrativeLogPublisher.publish(interaction, result.auditEntry);
+        } catch {
+          // Administrative delivery is an optional side effect and must not undo a mode change.
+        }
+      }
       return;
     }
-    const value = interaction.values[0] ?? '';
+    if (this.registrationHandler === undefined) return;
     if (decodeRegistrationInteraction(interaction.customId, 'association') !== undefined) {
       await updateRegistrationResult(
         interaction,
@@ -1350,11 +1566,30 @@ export function createAccountRenameCommandHandler(
   });
 }
 
+export function createAccountModeCommandHandler(
+  accountRepository: AccountRetrievalRepository & AccountModeChangeRepository,
+  accountModeValidator: AccountModeValidationService,
+  audit: Pick<AuditService, 'record'>,
+  permissions: AccountCommandPermissionEvaluator,
+): AccountModeCommandHandler {
+  return new AccountModeCommandHandler({
+    accountModeChange: new AccountModeChangeService(
+      accountModeValidator,
+      accountRepository,
+      accountRepository,
+    ),
+    accountRetrieval: new AccountRetrievalService(accountRepository),
+    audit,
+    permissions,
+  });
+}
+
 export function createDiscordAccountCommandAdapter(
   removalHandler: AccountRemovalCommandHandler,
   defaultSelectionHandler: AccountDefaultSelectionCommandHandler,
   registrationHandler: AccountRegistrationCommandHandler,
   renameHandler: AccountRenameCommandHandler,
+  modeHandler: AccountModeCommandHandler,
   configuration: Pick<GuildConfigurationService, 'getOrCreate'>,
 ): DiscordAccountCommandAdapter {
   return new DiscordAccountCommandAdapter(
@@ -1365,6 +1600,8 @@ export function createDiscordAccountCommandAdapter(
     new DiscordRegistrationAdministrativeLogPublisher(configuration),
     renameHandler,
     new DiscordRenameAdministrativeLogPublisher(configuration),
+    modeHandler,
+    new DiscordModeAdministrativeLogPublisher(configuration),
   );
 }
 
@@ -1683,6 +1920,17 @@ function decodeRenameInteraction(customId: string): string | undefined {
   return accountId.length > 0 && !accountId.includes(':') ? accountId : undefined;
 }
 
+function encodeModeInteraction(accountId: string): string {
+  return `${MODE_INTERACTION_PREFIX}:${accountId}`;
+}
+
+function decodeModeInteraction(customId: string): string | undefined {
+  const prefix = `${MODE_INTERACTION_PREFIX}:`;
+  if (!customId.startsWith(prefix)) return undefined;
+  const accountId = customId.slice(prefix.length);
+  return accountId.length > 0 && !accountId.includes(':') ? accountId : undefined;
+}
+
 function toRegistrationBinding(
   context: GuildInteractionContext,
 ): Pick<AccountRegistrationSession, 'guildId' | 'requesterDiscordUserId'> | undefined {
@@ -1767,6 +2015,54 @@ function renderRenameAuditEntry(auditEntry: StructuredLogEntry): string {
     return 'A tracked OSRS account was renamed.';
   }
   return `Renamed tracked account **${previousDisplayUsername}** to **${newDisplayUsername}** by <@${actorDiscordUserId}>.`;
+}
+
+function modeCommandResult(
+  result: ChangeAccountModeResult,
+  recordAudit: (event: Parameters<AuditService['record']>[0]) => StructuredLogEntry,
+  actor: { guildId: string; requesterDiscordUserId: string },
+): AccountModeCommandResult {
+  switch (result.kind) {
+    case 'mode_changed':
+      return {
+        auditEntry: recordAudit({
+          context: {
+            accountId: result.account.id,
+            accountMode: result.account.accountMode,
+            actorDiscordUserId: actor.requesterDiscordUserId,
+            associationType: result.account.association.type,
+            displayUsername: result.account.displayUsername,
+          },
+          guildId: actor.guildId,
+          occurredAt: new Date(),
+          operation: 'account.mode_change',
+          severity: 'info',
+          type: 'account-edit-or-deletion',
+        }),
+        kind: 'mode_changed',
+        message: `Changed **${result.account.displayUsername}** to ${accountModeLabel(result.account.accountMode)}.`,
+      };
+    case 'account_not_found':
+      return { kind: 'account_not_found', message: 'That tracked account is no longer available.' };
+    case 'forbidden':
+      return { kind: 'forbidden', message: 'You are not allowed to change that account mode.' };
+    case 'hiscores_failure':
+      return { kind: 'hiscores_failure', message: hiscoresFailureMessage(result.failure.kind) };
+  }
+}
+
+function renderModeAuditEntry(auditEntry: StructuredLogEntry): string {
+  const accountMode = stringContextValue(auditEntry.context, 'accountMode');
+  const actorDiscordUserId = stringContextValue(auditEntry.context, 'actorDiscordUserId');
+  const displayUsername = stringContextValue(auditEntry.context, 'displayUsername');
+  if (
+    accountMode === undefined ||
+    actorDiscordUserId === undefined ||
+    displayUsername === undefined
+  ) {
+    return 'A tracked OSRS account game mode was changed.';
+  }
+  return `Changed tracked account **${displayUsername}** to ${accountModeLabel(accountMode as OsrsAccountMode)} by <@${actorDiscordUserId}>.`;
 }
 
 function stringContextValue(

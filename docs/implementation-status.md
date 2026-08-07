@@ -16,16 +16,20 @@ merged.
 - Stage 4 - Guild configuration, Discord-independent permissions, structured
   audit events, central sanitization, error-reference IDs, administrative-log
   policy selection, and local structured logging.
+- Stage 6 - Lookups and permanent leaderboards for the approved
+  slash-command-only v1 scope.
+- Stage 7 - Daily recap configuration, collection, preview, durable delivery,
+  and automatic scheduling. The configured Debian private beta has completed
+  its operational acceptance and has run continuously without reported issues;
+  backup and restore guarantees remain explicitly deferred for this small
+  private beta.
 
 ## Current implementation stage
 
-Stage 7 - Daily recaps. Stage 6 - Lookups and permanent leaderboards is
-complete for the approved slash-command-only v1 scope. Daily recaps have been
-intentionally reprioritized ahead of competitions so the bot can provide useful
-automatic activity posts to a private server while competition development
-continues afterward. The Stage 7 implementation is merged; the remaining work
-is real-server operational acceptance, with backup and restore guarantees
-explicitly deferred for the current small private beta.
+Stage 5 - Account-management Discord adapters. The account-mode adapter is the
+current unmerged branch work. Daily recaps were intentionally delivered before
+competitions so the bot could support the private beta first; Stage 8 remains
+deferred while the narrower account-management slices are completed.
 
 The merged skill-lookup foundation begins the lookup module with a
 Discord-independent, guild-scoped skill lookup service. It resolves a
@@ -250,11 +254,11 @@ guild isolation, autocomplete, response translation, and factory construction.
 Stage 5 is not complete. The remaining deferred account-management Discord
 adapters remain post-launch priorities.
 
-The remaining Discord adapters for account-mode changes, account-association
-conversion, and linked-account reassignment are deliberately deferred until
-post-launch use demonstrates a need. Their Discord-independent services are
-merged and remain available; this is an implementation-priority decision, not
-a removal of the approved product behaviour.
+The remaining Discord adapters for account-association conversion and
+linked-account reassignment remain deliberately deferred until post-launch use
+demonstrates a need. Their Discord-independent services are merged and remain
+available; this is an implementation-priority decision, not a removal of the
+approved product behaviour.
 
 The merged development Discord runtime foundation adds explicit development-guild
 command registration and a runnable local bot composition for the merged
@@ -311,6 +315,12 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
+`9967972` (2026-08-07) - Merge private-beta backup deferral.
+
+This recorded the approved decision that the small private beta may continue
+without backup or restore guarantees. The operational assets remain retained
+for a future public, paid, or larger-community deployment.
+
 `6bca34d` (2026-08-05) - Merge boss selection coverage fix.
 
 This merged the `/boss` bounded-menu fix. Boss choices are now shared with the
@@ -349,16 +359,16 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-None. The `/boss` bounded boss-menu coverage fix, recap configuration
-acknowledgement, and private-beta CI fixes are merged. The Debian private-beta
-operating path remains merged. Its real-server checklist still needs to be
-completed and recorded; backup and restore checks are deliberately deferred for
-the current small private beta, and live Hiscores-failure coverage should be
-observed naturally rather than manufactured in the friend's guild.
+`codex/account-mode-command` adds the guild-only `/account mode` adapter. It
+uses account autocomplete scoped by the existing service authorization rules,
+requires a text-labelled Discord mode selection, delegates validation and the
+guild-scoped update to the existing Account Mode service, gives a private
+outcome, and records successful edits through the established audit and
+administrative-log policy. This work is implemented locally but is not merged.
 
 ## Next recommended branch-sized task
 
-Complete and record the non-disruptive Debian real-server acceptance checklist
-before claiming private-beta readiness without backup or restore guarantees.
-Keep competition work deferred until the Debian operating path has proven
-reliable.
+Review and merge `codex/account-mode-command`. After it is merged, select the
+smallest observed account-management need between the association-conversion
+and linked-account-reassignment Discord adapters before beginning Stage 8
+competitions.

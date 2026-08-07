@@ -53,7 +53,7 @@ export class AccountModeChangeService {
   }
 }
 
-function canChangeMode(account: TrackedAccount, request: ChangeAccountModeRequest): boolean {
+export function canChangeMode(account: TrackedAccount, request: ChangeAccountModeRequest): boolean {
   if (request.canManageAccounts) {
     return true;
   }
