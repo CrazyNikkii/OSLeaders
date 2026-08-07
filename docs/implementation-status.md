@@ -26,12 +26,14 @@ merged.
 
 ## Current implementation stage
 
-Stage 8 - Competition draft creation. The merged `/account mode` adapter,
-member-presence Discord event work, and daily-recap readability improvements
-complete the current edit, presence, and recap-presentation workflows. The
-merged competition foundation provides durable guild-scoped draft creation;
-the current unmerged adapter branch exposes that narrow slice through Discord.
-It does not add participation, snapshots, scheduling, or standings.
+Stage 8 - Competition draft creation and participation foundation. The merged
+`/account mode` adapter, member-presence Discord event work, daily-recap
+readability improvements, and `/competition create` flow complete the current
+edit, presence, recap-presentation, and competition-draft creation workflows.
+The current unmerged branch adds the durable, Discord-independent draft
+participant and selected-contributing-account foundation. It does not add a
+participation Discord adapter, snapshots, scheduling, claims, standings, roles,
+or lifecycle transitions.
 
 The merged skill-lookup foundation begins the lookup module with a
 Discord-independent, guild-scoped skill lookup service. It resolves a
@@ -338,6 +340,16 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
+`f20f472` (2026-08-07) - Merge Discord competition draft creation.
+
+This merged the manager-authorized guild-only `/competition create` guided
+flow. It collects a name, one of the four approved competition types, a
+canonical skill or bounded boss selection, and the required duration or target
+value through five-minute guild- and initiator-bound interactions. It uses the
+configured guild timezone, keeps results private, and wires the merged
+competition creation service into development command registration and runtime
+composition.
+
 `6dd9f50` (2026-08-07) - Merge competition draft foundation.
 
 This merged the Stage 8 Discord-independent competition creation foundation:
@@ -421,20 +433,20 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-`codex/discord-competition-create` - Add the manager-authorized Discord
-`/competition create` draft flow. The branch collects a name, approved type,
-canonical skill or bounded boss selection, and the required duration or target
-value through guild- and initiator-bound five-minute interactions. It uses the
-configured guild timezone, delegates validation and authorization to the
-merged competition service, keeps results private, and wires the command into
-the runtime and development-guild registration. Participation, snapshots,
-scheduling, claims, standings, roles, and lifecycle transitions remain later
-Stage 8 slices.
+`codex/competition-draft-participation` - Add the Discord-independent
+draft-participation foundation. The branch adds durable guild-scoped entrants
+and selected-contributing-account records, composite foreign keys that prevent
+cross-guild relationships, and draft-only self-join/self-leave and
+creator-or-manager add/remove operations. Discord entrants may select only
+their linked accounts; watchlist accounts are standalone entrants; and all
+membership changes lock outside the draft state. It deliberately does not add
+a Discord participation adapter, snapshots, scheduling, claims, standings,
+roles, or lifecycle transitions.
 
 ## Next recommended branch-sized task
 
-After this branch merges, add the Discord-independent draft-participation
-foundation: durable entrant and selected-contributing-account records with
-guild-consistent constraints and the approved draft-only join, leave, add, and
-remove authorization rules. Do not add snapshots, scheduling, claims,
-standings, roles, or another account-management adapter in that slice.
+After this branch merges, add the guild-only Discord draft-participation
+adapter. It should expose the existing join, leave, manager/creator add, and
+manager/creator remove operations with bounded, initiator- and guild-bound
+account selection. Do not add snapshots, scheduling, claims, standings, roles,
+or lifecycle transitions in that slice.

@@ -2,6 +2,10 @@ export { guilds } from './guilds.js';
 export {
   competitionMetricKind,
   competitionMetricKinds,
+  competitionContributingAccounts,
+  competitionEntrantType,
+  competitionEntrantTypes,
+  competitionEntrants,
   competitionState,
   competitionStates,
   competitions,

@@ -2,15 +2,18 @@ import { sql } from 'drizzle-orm';
 import {
   bigint,
   check,
+  foreignKey,
   integer,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
 } from 'drizzle-orm/pg-core';
 
 import { guilds } from './guilds.js';
+import { trackedAccounts } from './tracked-accounts.js';
 
 export const competitionTypes = [
   'most_skill_xp',
@@ -27,10 +30,12 @@ export const competitionStates = [
   'cancelled',
 ] as const;
 export const competitionMetricKinds = ['skill', 'boss'] as const;
+export const competitionEntrantTypes = ['discord_member', 'watchlist'] as const;
 
 export const competitionType = pgEnum('competition_type', competitionTypes);
 export const competitionState = pgEnum('competition_state', competitionStates);
 export const competitionMetricKind = pgEnum('competition_metric_kind', competitionMetricKinds);
+export const competitionEntrantType = pgEnum('competition_entrant_type', competitionEntrantTypes);
 
 export const competitions = pgTable(
   'competitions',
@@ -54,6 +59,7 @@ export const competitions = pgTable(
   },
   (table) => [
     unique('competitions_guild_normalized_name_unique').on(table.guildId, table.normalizedName),
+    unique('competitions_id_guild_unique').on(table.id, table.guildId),
     check(
       'competitions_definition_check',
       sql`(
@@ -70,5 +76,87 @@ export const competitions = pgTable(
         (${table.type} IN ('most_boss_kc', 'boss_kc_target_race') AND ${table.metricKind} = 'boss')
       )`,
     ),
+  ],
+);
+
+export const competitionEntrants = pgTable(
+  'competition_entrants',
+  {
+    id: text('id').primaryKey(),
+    guildId: text('guild_id').notNull(),
+    competitionId: text('competition_id').notNull(),
+    entrantType: competitionEntrantType('entrant_type').notNull(),
+    discordUserId: text('discord_user_id'),
+    watchlistAccountId: text('watchlist_account_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('competition_entrants_id_guild_competition_unique').on(
+      table.id,
+      table.guildId,
+      table.competitionId,
+    ),
+    unique('competition_entrants_competition_discord_member_unique').on(
+      table.competitionId,
+      table.discordUserId,
+    ),
+    unique('competition_entrants_competition_watchlist_account_unique').on(
+      table.competitionId,
+      table.watchlistAccountId,
+    ),
+    foreignKey({
+      columns: [table.competitionId, table.guildId],
+      foreignColumns: [competitions.id, competitions.guildId],
+      name: 'competition_entrants_competition_guild_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.watchlistAccountId, table.guildId],
+      foreignColumns: [trackedAccounts.id, trackedAccounts.guildId],
+      name: 'competition_entrants_watchlist_account_guild_fk',
+    }).onDelete('restrict'),
+    check(
+      'competition_entrants_association_check',
+      sql`(
+        (${table.entrantType} = 'discord_member' AND ${table.discordUserId} IS NOT NULL AND ${table.watchlistAccountId} IS NULL)
+        OR
+        (${table.entrantType} = 'watchlist' AND ${table.discordUserId} IS NULL AND ${table.watchlistAccountId} IS NOT NULL)
+      )`,
+    ),
+  ],
+);
+
+export const competitionContributingAccounts = pgTable(
+  'competition_contributing_accounts',
+  {
+    competitionEntrantId: text('competition_entrant_id').notNull(),
+    competitionId: text('competition_id').notNull(),
+    guildId: text('guild_id').notNull(),
+    trackedAccountId: text('tracked_account_id').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.competitionEntrantId, table.trackedAccountId] }),
+    unique('competition_contributing_accounts_competition_account_unique').on(
+      table.competitionId,
+      table.trackedAccountId,
+    ),
+    foreignKey({
+      columns: [table.competitionEntrantId, table.guildId, table.competitionId],
+      foreignColumns: [
+        competitionEntrants.id,
+        competitionEntrants.guildId,
+        competitionEntrants.competitionId,
+      ],
+      name: 'competition_contributing_accounts_entrant_guild_competition_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.competitionId, table.guildId],
+      foreignColumns: [competitions.id, competitions.guildId],
+      name: 'competition_contributing_accounts_competition_guild_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.trackedAccountId, table.guildId],
+      foreignColumns: [trackedAccounts.id, trackedAccounts.guildId],
+      name: 'competition_contributing_accounts_tracked_account_guild_fk',
+    }).onDelete('restrict'),
   ],
 );
