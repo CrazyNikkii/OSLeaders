@@ -46,12 +46,15 @@ Windows development bot uses `NODE_ENV=development` and
    This command refuses `osleaders_dev` and `osleaders_test`. It never runs
    automatically when the bot starts.
 
-6. Invite the production bot to the one private guild with the `bot` and
+6. In the production Discord application's Developer Portal **Bot** settings,
+   enable the privileged **Server Members Intent**. OSLeaders uses it to retain
+   linked-account presence correctly when members leave and rejoin the guild.
+7. Invite the production bot to the one private guild with the `bot` and
    `applications.commands` scopes. Give it View Channel, Send Messages, Embed
    Links, Read Message History, and Use Application Commands in every channel
    it needs, including recap and optional administrative-log channels. Do not
    grant Discord Administrator unless that is intentional.
-7. Register the current commands in the production guild:
+8. Register the current commands in the production guild:
 
    ```sh
    cd /opt/osleaders

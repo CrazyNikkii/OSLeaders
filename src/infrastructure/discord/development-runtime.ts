@@ -1,6 +1,7 @@
 import { Client, Events, GatewayIntentBits } from 'discord.js';
 
 import { AccountModeValidator } from '../../features/accounts/validate-account-mode.js';
+import { MemberPresenceService } from '../../features/accounts/member-presence.js';
 import { AuditService } from '../../features/audit/audit-service.js';
 import { SkillLookupService } from '../../features/lookups/skill-lookup.js';
 import { SkillLeaderboardService } from '../../features/leaderboards/skill-leaderboard.js';
@@ -97,6 +98,10 @@ import {
   bindDiscordDailyRecapConfigurationCommandAdapter,
   DiscordDailyRecapConfigurationCommandAdapter,
 } from './daily-recap-configuration-command.js';
+import {
+  bindDiscordMemberPresenceEventAdapter,
+  DiscordMemberPresenceEventAdapter,
+} from './member-presence-events.js';
 
 export interface DevelopmentDiscordRuntime {
   close(): Promise<void>;
@@ -121,7 +126,8 @@ export interface DevelopmentDiscordRuntimeDependencies {
 }
 
 const defaultDependencies: DevelopmentDiscordRuntimeDependencies = {
-  createClient: () => new Client({ intents: [GatewayIntentBits.Guilds] }),
+  createClient: () =>
+    new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] }),
   createDatabaseConnection,
   createLogger: () => new StdoutStructuredLocalLogger(),
   createDailyRecapDeliveryRecoveryScheduler: (delivery, logger) =>
@@ -146,6 +152,9 @@ export async function startDevelopmentDiscordRuntime(
     await connection.pool.query('SELECT 1');
 
     const accountRepository = new PostgresAccountRegistrationRepository(connection.database);
+    const memberPresenceAdapter = new DiscordMemberPresenceEventAdapter(
+      new MemberPresenceService(accountRepository),
+    );
     const configurationRepository = new PostgresGuildConfigurationRepository(connection.database);
     const configurationService = new GuildConfigurationService(configurationRepository);
     const permissions = new GuildPermissionService(configurationRepository);
@@ -313,6 +322,12 @@ export async function startDevelopmentDiscordRuntime(
       dailyRecapConfigurationAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.guildId,
+    );
+    bindDiscordMemberPresenceEventAdapter(
+      client,
+      memberPresenceAdapter,
+      (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
+      (member) => member.guild.id === configuration.discord.guildId,
     );
     client.once(Events.ClientReady, () => {
       logger.write({

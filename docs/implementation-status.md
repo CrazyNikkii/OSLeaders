@@ -26,10 +26,12 @@ merged.
 
 ## Current implementation stage
 
-Stage 5 - Account-management Discord adapters. The account-mode adapter is the
-current unmerged branch work. Daily recaps were intentionally delivered before
-competitions so the bot could support the private beta first; Stage 8 remains
-deferred while the narrower account-management slices are completed.
+Stage 5 - Account-management Discord adapters. The merged `/account mode`
+adapter completes the current edit workflow. The current unmerged branch work
+wires the existing member-presence service to Discord member join and leave
+events. Daily recaps were intentionally delivered before competitions so the
+bot could support the private beta first; Stage 8 remains deferred while the
+narrower account-management slices are completed.
 
 The merged skill-lookup foundation begins the lookup module with a
 Discord-independent, guild-scoped skill lookup service. It resolves a
@@ -284,6 +286,16 @@ channel without undoing a valid rename if delivery fails. Focused unit tests
 cover the command definition, authorization, guild isolation, modal handling,
 audit context, audit delivery, and delivery failure.
 
+The current unmerged member-presence Discord event work adds the runtime
+adapter for the already-merged guild-scoped presence service. It handles member
+joins and departures only for the configured guild, writes the durable present
+or absent state without modifying accounts, and serializes transitions per
+guild/member so a rejoin cannot be overwritten by an older departure write. It
+reports unexpected persistence failures through sanitized local diagnostics,
+enables the required Discord Guild Members gateway intent, documents the
+Developer Portal setting, and adds focused adapter and runtime-binding tests.
+This work is not complete until merged.
+
 ## Deferred and later planned stages
 
 - Stage 5 - Remaining deferred account-management Discord adapters.
@@ -366,10 +378,11 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-None.
+`codex/member-presence-discord-events` - Wire durable member presence to
+configured-guild Discord join and leave events; this work is awaiting review.
 
 ## Next recommended branch-sized task
 
-Select the smallest observed account-management need between the
-association-conversion and linked-account-reassignment Discord adapters before
-beginning Stage 8 competitions.
+After this branch merges, select the smallest observed account-management need
+between the association-conversion and linked-account-reassignment Discord
+adapters before beginning Stage 8 competitions.
