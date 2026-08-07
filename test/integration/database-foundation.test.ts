@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { loadTestDatabaseConfiguration } from '../../src/infrastructure/config/database-environment.js';
 import { AccountRetrievalService } from '../../src/features/accounts/account-retrieval.js';
+import type { CompetitionDraft } from '../../src/features/competitions/create-competition.js';
 import { AccountAssociationConversionService } from '../../src/features/accounts/convert-account-association.js';
 import { MemberPresenceService } from '../../src/features/accounts/member-presence.js';
 import { AccountRemovalService } from '../../src/features/accounts/remove-account.js';
@@ -23,7 +24,9 @@ import { PostgresManualDailyRecapSendRepository } from '../../src/infrastructure
 import { PostgresDailyRecapDeliveryRepository } from '../../src/infrastructure/database/postgres-daily-recap-delivery-repository.js';
 import { PostgresAutomaticDailyRecapScheduleRepository } from '../../src/infrastructure/database/postgres-automatic-daily-recap-schedule-repository.js';
 import { PostgresAutomaticDailyRecapCollectionRepository } from '../../src/infrastructure/database/postgres-automatic-daily-recap-collection-repository.js';
+import { PostgresCompetitionCreationRepository } from '../../src/infrastructure/database/postgres-competition-creation-repository.js';
 import {
+  competitions,
   guildConfigurations,
   guildMemberPresences,
   guilds,
@@ -63,7 +66,7 @@ describe('database foundation', () => {
   it('applies the committed database migrations to an empty test database', async () => {
     const committedMigrations = await readCommittedMigrations();
     const applicationTables = await connection.pool.query<{ table_name: string }>(
-      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('daily_recap_deliveries', 'daily_recap_runs', 'guild_configurations', 'guild_member_presences', 'guilds', 'recap_baselines', 'tracked_accounts') ORDER BY table_name",
+      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('competitions', 'daily_recap_deliveries', 'daily_recap_runs', 'guild_configurations', 'guild_member_presences', 'guilds', 'recap_baselines', 'tracked_accounts') ORDER BY table_name",
     );
     const migrationTables = await connection.pool.query<{ table_name: string }>(
       "SELECT table_name FROM information_schema.tables WHERE table_schema = 'drizzle' AND table_name = '__drizzle_migrations'",
@@ -73,6 +76,7 @@ describe('database foundation', () => {
     );
 
     expect(applicationTables.rows).toEqual([
+      { table_name: 'competitions' },
       { table_name: 'daily_recap_deliveries' },
       { table_name: 'daily_recap_runs' },
       { table_name: 'guild_configurations' },
@@ -83,6 +87,33 @@ describe('database foundation', () => {
     ]);
     expect(migrationTables.rows).toEqual([{ table_name: '__drizzle_migrations' }]);
     expect(migrationRecords.rows).toEqual(committedMigrations);
+  });
+
+  it('stores draft competitions with guild-scoped normalized-name uniqueness', async () => {
+    const repository = new PostgresCompetitionCreationRepository(connection.database);
+    const first = competitionDraft({ guildId: 'competition-guild-one', id: 'competition-one' });
+
+    await expect(repository.create(first)).resolves.toMatchObject({ kind: 'created' });
+    await expect(
+      repository.create({ ...first, id: 'competition-two', displayName: ' WEEKEND  WOODCUTTING ' }),
+    ).resolves.toEqual({ kind: 'name_taken' });
+    await expect(
+      repository.create({ ...first, guildId: 'competition-guild-two', id: 'competition-three' }),
+    ).resolves.toMatchObject({ kind: 'created' });
+
+    const rows = await connection.database
+      .select()
+      .from(competitions)
+      .where(eq(competitions.guildId, 'competition-guild-one'));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      durationSeconds: 86400,
+      metricKind: 'skill',
+      metricName: 'Woodcutting',
+      state: 'draft',
+      targetValue: null,
+      type: 'most_skill_xp',
+    });
   });
 
   it('commits a successful transaction', async () => {
@@ -1555,6 +1586,26 @@ function initialRecapBaseline() {
     capturedAt: new Date('2026-07-25T00:00:00.000Z'),
     skillExperience: { Attack: 1234 },
     skillLevels: { Attack: 10 },
+  };
+}
+
+function competitionDraft(overrides: Partial<CompetitionDraft> = {}): CompetitionDraft {
+  const timestamp = new Date('2026-08-07T12:00:00.000Z');
+  return {
+    createdAt: timestamp,
+    createdByDiscordUserId: 'competition-manager-one',
+    displayName: 'Weekend Woodcutting',
+    durationSeconds: 86400,
+    guildId: 'competition-guild-one',
+    id: 'competition-default',
+    metric: { kind: 'skill', name: 'Woodcutting' },
+    normalizedName: 'weekend woodcutting',
+    state: 'draft',
+    targetValue: null,
+    timezone: 'Europe/Helsinki',
+    type: 'most_skill_xp',
+    updatedAt: timestamp,
+    ...overrides,
   };
 }
 
