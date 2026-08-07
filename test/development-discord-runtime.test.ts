@@ -101,6 +101,7 @@ describe('development Discord runtime', () => {
     await vi.waitFor(() => expect(reply).toHaveBeenCalledOnce());
 
     expect(dependencies.interactionHandlers).toHaveLength(10);
+    expect(dependencies.memberPresenceHandlers).toHaveLength(2);
     expect(reply).toHaveBeenCalledWith({
       content: 'You do not have a default linked account in this server.',
       flags: MessageFlags.Ephemeral,
@@ -144,12 +145,16 @@ class RuntimeDependencies {
     }),
   };
   public readonly interactionHandlers: ((interaction: never) => void)[] = [];
+  public readonly memberPresenceHandlers: ((member: never) => void)[] = [];
   public readonly client = {
     destroy: vi.fn(),
     login: vi.fn(() => Promise.resolve('token-one')),
     on: vi.fn((event: Events, listener: (interaction: never) => void) => {
       if (event === Events.InteractionCreate) {
         this.interactionHandlers.push(listener);
+      }
+      if (event === Events.GuildMemberAdd || event === Events.GuildMemberRemove) {
+        this.memberPresenceHandlers.push(listener);
       }
     }),
     once: vi.fn(),

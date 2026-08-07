@@ -10,13 +10,16 @@ guarded test-database commands at either database.
    local `osleaders_dev` database URL.
 2. Install the locked dependencies with `npm ci` and apply migrations with
    `npm run db:migrate`.
-3. Invite the development bot to the development guild with the `bot` and
+3. In the development Discord application's Developer Portal **Bot** settings,
+   enable the privileged **Server Members Intent** before testing member join
+   and leave handling locally.
+4. Invite the development bot to the development guild with the `bot` and
    `applications.commands` scopes. It needs permission to view the channel,
    send messages, and use application commands.
-4. Run `npm run discord:commands`. This registers the current
+5. Run `npm run discord:commands`. This registers the current
    commands in only the configured development guild, so command updates are
    available without waiting for global Discord command propagation.
-5. Run `npm run dev`. Startup verifies PostgreSQL before logging the bot in;
+6. Run `npm run dev`. Startup verifies PostgreSQL before logging the bot in;
    stop it with Ctrl+C to close Discord and the database connection.
 
 ## Current vertical-slice checklist
