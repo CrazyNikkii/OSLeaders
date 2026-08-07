@@ -126,40 +126,44 @@ export function renderDailyRecapDeliveryContent(presentation: DailyRecapPresenta
     ...presentation.linkedMembers.flatMap((member) => member.accounts),
     ...presentation.watchlistAccounts,
   ];
-  const sections = [
-    ...(accounts.length === 0 ? [] : summaryLines(accounts)),
-    ...presentation.linkedMembers.flatMap((member) => [
-      `**<@${member.discordUserId}>**`,
-      ...member.accounts.flatMap(accountLines),
-    ]),
+  const activityBlocks = [
+    ...presentation.linkedMembers.map((member) =>
+      [`**<@${member.discordUserId}>**`, ...accountBlocks(member.accounts)].join('\n'),
+    ),
     ...(presentation.watchlistAccounts.length === 0
       ? []
-      : ['**Watchlist accounts**', ...presentation.watchlistAccounts.flatMap(accountLines)]),
+      : [['**Watchlist accounts**', ...accountBlocks(presentation.watchlistAccounts)].join('\n')]),
+  ];
+  return [
+    ...summaryLines(accounts),
+    ...(activityBlocks.length === 0 ? [] : [activityBlocks.join(`\n\n${PLAYER_DIVIDER}\n\n`)]),
     ...(presentation.noActivity ? ['**Activity**', 'No notable activity today.'] : []),
     ...(presentation.failures.length === 0
       ? []
       : ['**Unavailable accounts**', ...presentation.failures.map(formatFailure)]),
-  ];
-  return sections.join('\n');
+  ].join('\n\n');
 }
 
-function accountLines(entry: DailyRecapAccountPresentation): string[] {
-  const lines = [`**${entry.account.displayUsername}** · ${accountModeLabel(entry.account)}`];
-  if (entry.changes.bosses.length > 0) {
-    lines.push(
-      `**+${formatNumber(totalBossKillCount(entry))} KC** · ${entry.changes.bosses
-        .map((change) => `${change.boss} +${formatNumber(change.killCountGained)}`)
-        .join(' · ')}`,
-    );
-  }
-  if (entry.changes.skills.length > 0) {
-    lines.push(
-      `**+${formatCompactNumber(totalExperience(entry))} XP** · ${entry.changes.skills
-        .map(formatSkillChange)
-        .join(' · ')}`,
-    );
-  }
-  return lines;
+const PLAYER_DIVIDER = '──────────────';
+
+function accountBlocks(entries: readonly DailyRecapAccountPresentation[]): string[] {
+  return entries.flatMap((entry, index) =>
+    index === 0 ? [accountLines(entry)] : ['', accountLines(entry)],
+  );
+}
+
+function accountLines(entry: DailyRecapAccountPresentation): string {
+  return [
+    `**${entry.account.displayUsername}** · ${accountModeLabel(entry.account)}`,
+    ...entry.changes.bosses.map(
+      (change) => `• ${change.boss}: +${formatNumber(change.killCountGained)} KC`,
+    ),
+    ...(entry.changes.skills.length === 0
+      ? []
+      : [`**+${formatCompactNumber(totalExperience(entry))} XP**`]),
+    ...entry.changes.skills.map(formatSkillExperience),
+    ...entry.changes.skills.flatMap(formatLevelUp),
+  ].join('\n');
 }
 
 function summaryLines(accounts: readonly DailyRecapAccountPresentation[]): string[] {
@@ -181,10 +185,7 @@ function summaryLines(accounts: readonly DailyRecapAccountPresentation[]): strin
       ? []
       : [`**${formatNumber(totalLevels)} ${totalLevels === 1 ? 'level' : 'levels'}**`]),
   ];
-  return [
-    `*${accounts.length} active ${accounts.length === 1 ? 'account' : 'accounts'} · compared with account-specific baselines*`,
-    ...gains,
-  ];
+  return gains;
 }
 
 function totalExperience(entry: DailyRecapAccountPresentation): number {
@@ -195,13 +196,19 @@ function totalBossKillCount(entry: DailyRecapAccountPresentation): number {
   return entry.changes.bosses.reduce((total, change) => total + change.killCountGained, 0);
 }
 
-function formatSkillChange(
+function formatSkillExperience(
   change: DailyRecapAccountPresentation['changes']['skills'][number],
 ): string {
-  const experience =
-    change.experienceGained === 0 ? '' : ` +${formatCompactNumber(change.experienceGained)}`;
-  const level = change.levelGained === 0 ? '' : ` → ${change.currentLevel}`;
-  return `${change.skill}${experience}${level}`;
+  return `• ${change.skill}: +${formatCompactNumber(change.experienceGained)} XP`;
+}
+
+function formatLevelUp(
+  change: DailyRecapAccountPresentation['changes']['skills'][number],
+): readonly string[] {
+  if (change.levelGained === 0) return [];
+  return [
+    `> **${change.skill}: +${change.levelGained} ${change.levelGained === 1 ? 'level' : 'levels'} → ${change.currentLevel}**`,
+  ];
 }
 
 function formatCompactNumber(value: number): string {

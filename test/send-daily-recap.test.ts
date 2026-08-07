@@ -38,11 +38,9 @@ describe('manual daily recap send service', () => {
         collection,
       }),
     ]);
-    expect(repository.finalized[0]?.deliveryContent).toContain('**+3 KC** · Zulrah +3');
+    expect(repository.finalized[0]?.deliveryContent).toContain('• Zulrah: +3 KC');
     expect(repository.finalized[0]?.deliveryContent).toContain('**Rune Scape** · Main');
-    expect(repository.finalized[0]?.deliveryContent).toContain(
-      '1 active account · compared with account-specific baselines',
-    );
+    expect(repository.finalized[0]?.deliveryContent).not.toContain('account-specific baselines');
     expect(repository.finalized[0]?.deliveryContent).toContain('Unavailable accounts');
     expect(repository.finalized[0]?.deliveryContent).toContain('Hiscores timed out');
     expect(repository.failed).toEqual([]);
@@ -181,7 +179,7 @@ describe('manual daily recap send service', () => {
         watchlistAccounts: [],
       }),
     ).toBe(
-      '**Activity**\nNo notable activity today.\n**Unavailable accounts**\n**Rune Scape** (Main) — Hiscores timed out',
+      '**Activity**\n\nNo notable activity today.\n\n**Unavailable accounts**\n\n**Rune Scape** (Main) — Hiscores timed out',
     );
   });
 });
