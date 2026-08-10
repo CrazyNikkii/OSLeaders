@@ -67,6 +67,9 @@ export const competitions = pgTable(
     startAttemptCount: integer('start_attempt_count').notNull().default(0),
     nextStartAttemptAt: timestamp('next_start_attempt_at', { withTimezone: true }),
     lastStartFailureSummary: text('last_start_failure_summary'),
+    finishAttemptCount: integer('finish_attempt_count').notNull().default(0),
+    nextFinishAttemptAt: timestamp('next_finish_attempt_at', { withTimezone: true }),
+    lastFinishFailureSummary: text('last_finish_failure_summary'),
     startedAt: timestamp('started_at', { withTimezone: true }),
     endsAt: timestamp('ends_at', { withTimezone: true }),
     winningTargetClaimId: text('winning_target_claim_id'),
@@ -161,6 +164,62 @@ export const competitionAccountProgress = pgTable(
       ],
       name: 'competition_account_progress_snapshot_fk',
     }).onDelete('cascade'),
+  ],
+);
+
+/** Immutable final values retained when a competition is finalized. */
+export const competitionAccountFinalValues = pgTable(
+  'competition_account_final_values',
+  {
+    competitionId: text('competition_id').notNull(),
+    guildId: text('guild_id').notNull(),
+    trackedAccountId: text('tracked_account_id').notNull(),
+    finalValue: bigint('final_value', { mode: 'bigint' }).notNull(),
+    finalObservedAt: timestamp('final_observed_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.competitionId, table.trackedAccountId] }),
+    foreignKey({
+      columns: [table.competitionId, table.guildId],
+      foreignColumns: [competitions.id, competitions.guildId],
+      name: 'competition_account_final_values_competition_guild_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.competitionId, table.trackedAccountId],
+      foreignColumns: [
+        competitionAccountSnapshots.competitionId,
+        competitionAccountSnapshots.trackedAccountId,
+      ],
+      name: 'competition_account_final_values_snapshot_fk',
+    }).onDelete('restrict'),
+  ],
+);
+
+/** One row per winner; multiple rows represent an exact shared tie. */
+export const competitionWinners = pgTable(
+  'competition_winners',
+  {
+    competitionId: text('competition_id').notNull(),
+    guildId: text('guild_id').notNull(),
+    competitionEntrantId: text('competition_entrant_id').notNull(),
+    finalGain: bigint('final_gain', { mode: 'bigint' }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.competitionId, table.competitionEntrantId] }),
+    foreignKey({
+      columns: [table.competitionId, table.guildId],
+      foreignColumns: [competitions.id, competitions.guildId],
+      name: 'competition_winners_competition_guild_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.competitionEntrantId, table.guildId, table.competitionId],
+      foreignColumns: [
+        competitionEntrants.id,
+        competitionEntrants.guildId,
+        competitionEntrants.competitionId,
+      ],
+      name: 'competition_winners_entrant_guild_competition_fk',
+    }).onDelete('restrict'),
   ],
 );
 

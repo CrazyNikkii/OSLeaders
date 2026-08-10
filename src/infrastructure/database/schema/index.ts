@@ -3,6 +3,7 @@ export {
   competitionMetricKind,
   competitionMetricKinds,
   competitionAccountProgress,
+  competitionAccountFinalValues,
   competitionAccountSnapshots,
   competitionContributingAccounts,
   competitionEntrantType,
@@ -16,6 +17,7 @@ export {
   competitions,
   competitionType,
   competitionTypes,
+  competitionWinners,
 } from './competitions.js';
 export { guildMemberPresences } from './guild-member-presences.js';
 export { recapBaselines } from './recap-baselines.js';
