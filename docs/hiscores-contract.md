@@ -39,7 +39,7 @@ OSRS endpoint and stores the selected group mode as server-managed information.
 
 The current JSON response contains a submitted name, named skill rows, and named
 activity rows. On the verification date it contained Overall plus all 24 OSRS
-skills, including Sailing, and 90 activities.
+skills, including Sailing, and 91 activities.
 
 Jagex adds skills, bosses, and activities over time. The parser therefore:
 
@@ -53,6 +53,24 @@ Jagex adds skills, bosses, and activities over time. The parser therefore:
 The returned `name` can reflect submitted casing, underscores, or surrounding
 whitespace. It is not a canonical-name source and must not silently replace the
 server's stored display name.
+
+## New boss update procedure
+
+When Jagex adds a boss that OSLeaders should support, verify its exact activity
+name against the live JSON endpoint, then update the central
+`OSRS_BOSS_ACTIVITY_NAMES` catalog and the representative fixture. Update the
+fixture activity count and add focused parser and shared-menu coverage. The
+catalog is deliberately the single source for boss parsing, lookups,
+leaderboards, competition metrics, and daily-recap baseline and gain handling;
+no per-command boss list should be added.
+
+Existing recap baselines can predate a newly supported boss. Their next
+successful collection records the new current value but omits a gain for that
+boss because no prior comparable value exists. This repairs the baseline without
+misreporting an account's all-time KC as daily activity. Add the boss name to
+the narrowly scoped legacy-baseline compatibility list in recap collection at
+the same time; missing established boss fields remain a `baseline_incomplete`
+failure so corruption cannot be silently repaired.
 
 ## Numeric values
 
@@ -94,6 +112,6 @@ The investigation used live public responses from the official
 - group-oriented GIM and HCGIM pages rather than individual lite endpoints.
 
 Deterministic automated tests use a sanitized representative response with all
-25 current skill rows and all 90 current activity rows, plus focused derived
+25 current skill rows and all 91 current activity rows, plus focused derived
 cases for future additional activities and malformed data. They never require
 live Jagex access.

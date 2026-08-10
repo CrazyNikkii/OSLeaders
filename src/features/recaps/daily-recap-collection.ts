@@ -10,6 +10,8 @@ import {
   type OsrsHiscoreEndpoint,
 } from '../../infrastructure/hiscores/osrs-hiscore-catalog.js';
 
+const LEGACY_MISSING_BOSS_BASELINE_NAMES = new Set(['Mad Angel']);
+
 export type RecapBaseline = InitialRecapBaseline;
 
 export interface RecapCollectionAccount {
@@ -143,8 +145,11 @@ function calculateChanges(
       : [];
   });
   const bosses = data.bosses.flatMap((boss) => {
-    const killCountGained =
-      normalizedKillCount(boss.score) - normalizedKillCount(baseline.bossKillCounts[boss.name]!);
+    const baselineScore = baseline.bossKillCounts[boss.name];
+    if (baselineScore === undefined || !Number.isSafeInteger(baselineScore)) {
+      return [];
+    }
+    const killCountGained = normalizedKillCount(boss.score) - normalizedKillCount(baselineScore);
     return killCountGained > 0 ? [{ boss: boss.name, killCountGained }] : [];
   });
 
@@ -175,9 +180,28 @@ function validateBaseline(
   const missing = [
     ...missingNumericValues('skillExperience', OSRS_SKILL_NAMES, baseline.skillExperience),
     ...missingNumericValues('skillLevels', OSRS_SKILL_NAMES, baseline.skillLevels),
-    ...missingNumericValues('bossKillCounts', OSRS_BOSS_ACTIVITY_NAMES, baseline.bossKillCounts),
+    ...missingNumericValuesExceptLegacyAdditions(
+      'bossKillCounts',
+      OSRS_BOSS_ACTIVITY_NAMES,
+      baseline.bossKillCounts,
+    ),
   ];
   return missing.length === 0 ? undefined : { kind: 'baseline_incomplete', missing };
+}
+
+function missingNumericValuesExceptLegacyAdditions(
+  category: string,
+  names: readonly string[],
+  values: Readonly<Record<string, number>>,
+): string[] {
+  return names
+    .filter((name) => {
+      const value = values[name];
+      return value === undefined
+        ? !LEGACY_MISSING_BOSS_BASELINE_NAMES.has(name)
+        : !Number.isSafeInteger(value);
+    })
+    .map((name) => `${category}:${name}`);
 }
 
 function validateCompleteHiscores(

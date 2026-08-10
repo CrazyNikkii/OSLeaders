@@ -36,10 +36,10 @@ workflows. The merged Discord-independent competition-start foundation adds
 authorized manual start from a draft, durable per-account historical
 starting-value snapshots, durable actual start/deadline timestamps, and the
 `start_pending` retry path for incomplete initial Hiscores fetches. The current
-unmerged branch corrects the Discord `/boss-leaderboard` selection flow to use
-the shared bounded boss menus already used by `/boss`, `/one-time-boss`, and
-competition creation. It does not alter leaderboard collection or the remaining
-competition lifecycle work.
+unmerged branch adds the current Jagex `Mad Angel` activity to the central boss
+catalog, representative Hiscores fixture, and shared command-menu coverage. It
+does not alter leaderboard collection or the remaining competition lifecycle
+work.
 
 The merged skill-lookup foundation begins the lookup module with a
 Discord-independent, guild-scoped skill lookup service. It resolves a
@@ -346,6 +346,13 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
+`ee22d7b` (2026-08-10) - Merge boss leaderboard menu selection fix.
+
+This merged the guild-only `/boss-leaderboard` correction to use the shared
+bounded, alphabetically ordered boss select menus. The private selector stays
+guild- and initiator-bound, acknowledges before leaderboard collection, and
+publishes the selected leaderboard publicly with the chosen top-10 or all scope.
+
 `9a6a9dc` (2026-08-10) - Merge Discord competition start command.
 
 This merged the guild-only `/competition start` adapter for the durable start
@@ -473,11 +480,12 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-`codex/fix-boss-leaderboard-menu` - Correct the guild-only Discord
-`/boss-leaderboard` flow to use the existing bounded, alphabetically ordered
-boss select menus. The branch preserves public leaderboard results, the
-top-10/all option, guild and initiator session binding, and component-response
-deferral before leaderboard collection.
+`codex/add-mad-angel-boss` - Add Jagex's `Mad Angel` activity to the central
+OSRS boss catalog and representative fixture. This makes it available through
+the existing parser, shared Discord menus, lookups, leaderboards, competitions,
+and daily-recap baseline and gain processing; existing recap baselines repair
+the new field after their next successful collection without reporting an
+unmeasurable historical gain.
 
 ## Next recommended branch-sized task
 

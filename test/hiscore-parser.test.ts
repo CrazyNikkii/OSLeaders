@@ -60,12 +60,16 @@ describe('OSRS Hiscores JSON parser', () => {
       rank: -1,
       score: -1,
     });
+    expect(result.data.bosses.find(({ name }) => name === 'Mad Angel')).toMatchObject({
+      rank: -1,
+      score: 0,
+    });
   });
 
   it('retains an unknown additional activity without treating it as a boss', () => {
     const response = structuredClone(completeResponse);
     response.activities.push({
-      id: 90,
+      id: 91,
       name: 'Future Jagex Activity',
       rank: -1,
       score: -1,
@@ -83,7 +87,7 @@ describe('OSRS Hiscores JSON parser', () => {
     );
   });
 
-  it('parses all 90 activities in the representative current response', () => {
+  it('parses all 91 activities in the representative current response', () => {
     const result = parseHiscoreResponse(completeResponse);
 
     expect(result.kind).toBe('success');
@@ -91,13 +95,14 @@ describe('OSRS Hiscores JSON parser', () => {
       return;
     }
 
-    expect(result.data.activities).toHaveLength(90);
+    expect(result.data.activities).toHaveLength(91);
     expect(result.data.activities.map(({ name }) => name)).toEqual(
       expect.arrayContaining([
         'Grid Points',
         'Clue Scrolls (master)',
         'Collections Logged',
         'Abyssal Sire',
+        'Mad Angel',
         'Zulrah',
       ]),
     );
