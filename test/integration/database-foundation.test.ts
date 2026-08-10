@@ -27,9 +27,11 @@ import { PostgresAutomaticDailyRecapCollectionRepository } from '../../src/infra
 import { PostgresCompetitionCreationRepository } from '../../src/infrastructure/database/postgres-competition-creation-repository.js';
 import { PostgresCompetitionDraftParticipationRepository } from '../../src/infrastructure/database/postgres-competition-draft-participation-repository.js';
 import { PostgresCompetitionStartRepository } from '../../src/infrastructure/database/postgres-competition-start-repository.js';
+import { PostgresCompetitionStandingsRepository } from '../../src/infrastructure/database/postgres-competition-standings-repository.js';
 import { PostgresCompetitionSchedulingRepository } from '../../src/infrastructure/database/postgres-competition-scheduling-repository.js';
 import {
   competitionContributingAccounts,
+  competitionAccountProgress,
   competitionAccountSnapshots,
   competitionEntrants,
   competitions,
@@ -403,6 +405,71 @@ describe('database foundation', () => {
         guildId: 'another-guild',
         requesterDiscordUserId: 'manager-one',
       }),
+    ).resolves.toEqual({ kind: 'competition_not_found' });
+  });
+
+  it('retains guild-scoped competition progress separately from immutable starting snapshots', async () => {
+    const creations = new PostgresCompetitionCreationRepository(connection.database);
+    const accounts = new PostgresAccountRegistrationRepository(connection.database);
+    const participation = new PostgresCompetitionDraftParticipationRepository(connection.database);
+    const starts = new PostgresCompetitionStartRepository(connection.database);
+    const standings = new PostgresCompetitionStandingsRepository(connection.database);
+    const guildId = 'competition-standings-guild';
+    const competitionId = 'competition-standings';
+    await creations.create(
+      competitionDraft({ guildId, id: competitionId, normalizedName: 'competition standings' }),
+    );
+    await accounts.register(
+      account({ guildId, id: 'competition-standings-account' }),
+      initialRecapBaseline(),
+    );
+    await participation.join({
+      competitionId,
+      contributingAccountIds: ['competition-standings-account'],
+      entrantId: 'competition-standings-entrant',
+      guildId,
+      requesterDiscordUserId: 'member-one',
+    });
+    const begin = await starts.beginStart({
+      canManageCompetitions: true,
+      competitionId,
+      guildId,
+      requesterDiscordUserId: 'manager-one',
+    });
+    if (begin.kind !== 'ready_to_start') throw new Error('Expected ready competition start.');
+    await starts.completeStart({
+      competitionId,
+      guildId,
+      startedAt: new Date('2026-08-10T12:00:00.000Z'),
+      snapshots: [{ account: begin.competition.accounts[0]!, value: 100n }],
+    });
+
+    await expect(standings.findActive({ competitionId, guildId })).resolves.toMatchObject({
+      accounts: [
+        { id: 'competition-standings-account', startingValue: 100n, lastKnownValue: 100n },
+      ],
+    });
+    await standings.recordObservedValues({
+      competitionId,
+      guildId,
+      observedAt: new Date('2026-08-10T13:00:00.000Z'),
+      values: [{ accountId: 'competition-standings-account', value: 175n }],
+    });
+    await expect(standings.findActive({ competitionId, guildId })).resolves.toMatchObject({
+      accounts: [
+        { id: 'competition-standings-account', startingValue: 100n, lastKnownValue: 175n },
+      ],
+    });
+    await expect(
+      connection.database
+        .select()
+        .from(competitionAccountProgress)
+        .where(eq(competitionAccountProgress.competitionId, competitionId)),
+    ).resolves.toMatchObject([
+      { lastKnownValue: 175n, trackedAccountId: 'competition-standings-account' },
+    ]);
+    await expect(
+      standings.findActive({ competitionId, guildId: 'another-guild' }),
     ).resolves.toEqual({ kind: 'competition_not_found' });
   });
 
