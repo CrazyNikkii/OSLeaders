@@ -52,6 +52,7 @@ export const competitions = pgTable(
     targetValue: bigint('target_value', { mode: 'bigint' }),
     durationSeconds: integer('duration_seconds'),
     timezone: text('timezone').notNull(),
+    intendedStartAt: timestamp('intended_start_at', { withTimezone: true }),
     state: competitionState('state').notNull().default('draft'),
     startAttemptCount: integer('start_attempt_count').notNull().default(0),
     nextStartAttemptAt: timestamp('next_start_attempt_at', { withTimezone: true }),

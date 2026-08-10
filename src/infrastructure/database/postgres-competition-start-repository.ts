@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, lte, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 
 import type {
   CompetitionStartAccount,
@@ -229,11 +229,35 @@ export class PostgresCompetitionStartRepository implements CompetitionStartRepos
         if (competition === undefined) {
           continue;
         }
+        const accounts = await this.listContributingAccounts(
+          transaction,
+          competition.guildId,
+          competition.id,
+        );
+        if (accounts.length === 0) {
+          const nextAttemptAt = new Date(now.getTime() + START_LEASE_MS);
+          await transaction
+            .update(competitions)
+            .set(
+              competition.state === 'draft'
+                ? { intendedStartAt: nextAttemptAt, updatedAt: now }
+                : { nextStartAttemptAt: nextAttemptAt, updatedAt: now },
+            )
+            .where(
+              and(
+                eq(competitions.guildId, competition.guildId),
+                eq(competitions.id, competition.id),
+                dueStartCondition(now),
+              ),
+            );
+          continue;
+        }
         const [claimed] = await transaction
           .update(competitions)
           .set({
             nextStartAttemptAt: new Date(now.getTime() + START_LEASE_MS),
             startAttemptCount: sql`${competitions.startAttemptCount} + 1`,
+            state: 'start_pending',
             updatedAt: now,
           })
           .where(
@@ -247,11 +271,6 @@ export class PostgresCompetitionStartRepository implements CompetitionStartRepos
         if (claimed === undefined) {
           continue;
         }
-        const accounts = await this.listContributingAccounts(
-          transaction,
-          competition.guildId,
-          competition.id,
-        );
         return {
           accounts,
           competitionId: competition.id,
@@ -309,7 +328,11 @@ export class PostgresCompetitionStartRepository implements CompetitionStartRepos
 }
 
 function dueStartCondition(now: Date) {
-  return and(eq(competitions.state, 'start_pending'), lte(competitions.nextStartAttemptAt, now));
+  return sql`(
+    (${competitions.state} = 'start_pending' AND ${competitions.nextStartAttemptAt} <= ${now})
+    OR
+    (${competitions.state} = 'draft' AND ${competitions.intendedStartAt} <= ${now})
+  )`;
 }
 
 function sameAccounts(
