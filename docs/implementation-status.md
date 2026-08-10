@@ -36,6 +36,9 @@ workflows. The merged Discord-independent competition-start foundation adds
 authorized manual start from a draft, durable per-account historical
 starting-value snapshots, durable actual start/deadline timestamps, and the
 `start_pending` retry path for incomplete initial Hiscores fetches. The merged
+scheduled-start foundation adds a durable intended UTC start instant and
+timezone-aware local-time validation, then lets the existing constrained retry
+scheduler atomically claim due drafts into the durable start workflow. The
 raid-menu update separates the six supported raid activities into a dedicated
 shared Discord selector, while all other supported bosses remain in bounded
 alphabetical selectors. That shared selector serves boss lookups, one-time
@@ -347,6 +350,20 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
+`21c8647` (2026-08-10) - Merge scheduled competition-start foundation.
+
+This merged the durable optional intended-start instant for a competition, its
+reviewed generated migration, and a timezone-aware minute-precision local-time
+resolver that rejects daylight-saving gaps and ambiguous local times. The
+existing constrained competition-start retry scheduler now also atomically
+claims due scheduled drafts, changes them to `START_PENDING`, and invokes the
+existing fresh-snapshot start workflow. Empty scheduled drafts remain drafts
+and are retried later rather than being activated without entrants. It does not
+add a Discord scheduling command, claims, standings, roles, or finish
+lifecycle work. Focused unit and PostgreSQL integration tests cover UTC
+resolution, invalid and DST local times, persisted intended starts, one-time
+due claiming, empty-draft handling, and the durable transition.
+
 `06ecd6a` (2026-08-10) - Merge pending competition start retries.
 
 This merged the durable `START_PENDING` competition-start retry and
@@ -510,23 +527,12 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-`codex/scheduled-competition-starts` - Scheduled competition-start foundation.
-
-This unmerged Stage 8 slice adds the durable optional intended-start instant
-for a competition, a reviewed generated migration, and a timezone-aware
-minute-precision local-time resolver that rejects daylight-saving gaps and
-ambiguous local times. The existing constrained competition-start retry
-scheduler now also atomically claims due scheduled drafts, changes them to
-`START_PENDING`, and invokes the existing fresh-snapshot start workflow. It
-does not add a Discord scheduling command, claims, standings, roles, or finish
-lifecycle work. Focused unit and PostgreSQL integration tests cover UTC
-resolution, invalid and DST local times, persisted intended starts, one-time
-due claiming, and the durable transition.
+None.
 
 ## Next recommended branch-sized task
 
-After the scheduled-start foundation is merged, add the small guild-only
-Discord adapter for setting a draft competition's intended local start time.
+Add the small guild-only Discord adapter for setting a draft competition's
+intended local start time.
 It should use the stored competition timezone and the shared resolver, display
 Discord-native timestamps, and leave claims, standings, roles, and finish
 lifecycle work deferred.
