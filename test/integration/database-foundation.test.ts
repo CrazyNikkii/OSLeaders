@@ -27,6 +27,7 @@ import { PostgresAutomaticDailyRecapCollectionRepository } from '../../src/infra
 import { PostgresCompetitionCreationRepository } from '../../src/infrastructure/database/postgres-competition-creation-repository.js';
 import { PostgresCompetitionDraftParticipationRepository } from '../../src/infrastructure/database/postgres-competition-draft-participation-repository.js';
 import { PostgresCompetitionStartRepository } from '../../src/infrastructure/database/postgres-competition-start-repository.js';
+import { PostgresCompetitionSchedulingRepository } from '../../src/infrastructure/database/postgres-competition-scheduling-repository.js';
 import {
   competitionContributingAccounts,
   competitionAccountSnapshots,
@@ -533,6 +534,64 @@ describe('database foundation', () => {
       {
         intendedStartAt: new Date('2026-08-10T12:05:00.000Z'),
         state: 'draft',
+      },
+    ]);
+  });
+
+  it('stores intended starts only for the selected guild draft', async () => {
+    const creationRepository = new PostgresCompetitionCreationRepository(connection.database);
+    const repository = new PostgresCompetitionSchedulingRepository(
+      connection.database,
+      () => new Date('2026-08-10T12:00:00.000Z'),
+    );
+    await creationRepository.create(
+      competitionDraft({
+        displayName: 'Schedule me',
+        guildId: 'schedule-guild-one',
+        id: 'schedule-one',
+        normalizedName: 'schedule me',
+      }),
+    );
+    await creationRepository.create(
+      competitionDraft({
+        displayName: 'Other guild',
+        guildId: 'schedule-guild-two',
+        id: 'schedule-two',
+        normalizedName: 'other guild',
+      }),
+    );
+
+    await expect(
+      repository.findDraft({ competitionId: 'schedule-one', guildId: 'schedule-guild-one' }),
+    ).resolves.toMatchObject({ timezone: 'Europe/Helsinki' });
+    await expect(
+      repository.setIntendedStart({
+        competitionId: 'schedule-one',
+        guildId: 'schedule-guild-one',
+        intendedStartAt: new Date('2026-08-10T12:30:00.000Z'),
+      }),
+    ).resolves.toBe(true);
+    await expect(
+      repository.setIntendedStart({
+        competitionId: 'schedule-one',
+        guildId: 'schedule-guild-two',
+        intendedStartAt: new Date('2026-08-10T12:30:00.000Z'),
+      }),
+    ).resolves.toBe(false);
+    await expect(
+      connection.database
+        .select({
+          intendedStartAt: competitions.intendedStartAt,
+          updatedAt: competitions.updatedAt,
+        })
+        .from(competitions)
+        .where(
+          and(eq(competitions.id, 'schedule-one'), eq(competitions.guildId, 'schedule-guild-one')),
+        ),
+    ).resolves.toEqual([
+      {
+        intendedStartAt: new Date('2026-08-10T12:30:00.000Z'),
+        updatedAt: new Date('2026-08-10T12:00:00.000Z'),
       },
     ]);
   });
