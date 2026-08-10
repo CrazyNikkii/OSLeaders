@@ -82,7 +82,7 @@ export const competitions = pgTable(
       sql`(
         (${table.type} IN ('most_skill_xp', 'most_boss_kc') AND ${table.durationSeconds} > 0 AND ${table.targetValue} IS NULL)
         OR
-        (${table.type} IN ('skill_xp_target_race', 'boss_kc_target_race') AND ${table.targetValue} > 0 AND ${table.durationSeconds} IS NULL)
+        (${table.type} IN ('skill_xp_target_race', 'boss_kc_target_race') AND ${table.targetValue} > 0 AND (${table.durationSeconds} IS NULL OR ${table.durationSeconds} > 0))
       )`,
     ),
     check(

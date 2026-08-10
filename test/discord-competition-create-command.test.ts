@@ -84,7 +84,7 @@ describe('Discord competition create command', () => {
     ]);
   });
 
-  it('uses canonical boss selections and bigint target values for target races', async () => {
+  it('uses canonical boss selections, bigint targets, and an optional deadline for target races', async () => {
     const competitions = new CompetitionStub();
     const handler = new CompetitionCreateCommandHandler(competitions, new ConfigurationStub());
     const start = handler.start('guild-one', 'manager-one');
@@ -112,10 +112,12 @@ describe('Discord competition create command', () => {
       hasAdministratorPermission: true,
       memberRoleIds: [],
       requesterDiscordUserId: 'manager-one',
+      deadline: '604800',
       value: '1000000000000',
     });
 
     expect(competitions.requests[0]).toMatchObject({
+      durationSeconds: 604800,
       metric: { kind: 'boss', name: 'Mad Angel' },
       targetValue: 1_000_000_000_000n,
       type: 'boss_kc_target_race',
@@ -162,9 +164,18 @@ describe('Discord competition create command', () => {
         return Promise.resolve();
       },
     );
-    await adapter.handle(selectInteraction(typeCustomId, 'most_boss_kc', update) as never);
+    await adapter.handle(selectInteraction(typeCustomId, 'boss_kc_target_race', update) as never);
 
-    const showValueModal = vi.fn(() => Promise.resolve());
+    const showValueModal = vi.fn(
+      (modal: { toJSON(): { components: { components: { custom_id: string }[] }[] } }) => {
+        expect(
+          modal
+            .toJSON()
+            .components.flatMap((row) => row.components.map((input) => input.custom_id)),
+        ).toEqual(['value', 'deadline']);
+        return Promise.resolve();
+      },
+    );
     await adapter.handle(
       selectInteraction(raidCustomId, 'Tombs of Amascut', update, showValueModal) as never,
     );
@@ -299,7 +310,7 @@ class CompetitionStub {
       createdAt: new Date('2026-08-07T00:00:00.000Z'),
       createdByDiscordUserId: request.createdByDiscordUserId,
       displayName: request.name.trim(),
-      durationSeconds: 'durationSeconds' in request ? request.durationSeconds : null,
+      durationSeconds: request.durationSeconds ?? null,
       guildId: request.guildId,
       id: 'competition-one',
       metric: request.metric,
@@ -371,7 +382,10 @@ function valueModalInteraction(
 ) {
   return {
     customId,
-    fields: { getTextInputValue: () => '86400' },
+    fields: {
+      fields: { get: () => undefined },
+      getTextInputValue: () => '86400',
+    },
     guildId: 'guild-one',
     isChatInputCommand: () => false,
     isModalSubmit: () => true,

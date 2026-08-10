@@ -415,6 +415,11 @@ previous latest-known value and is marked stale in the result.
 
 Target races are claim-driven and never require constant polling.
 
+When a target race has an optional deadline and no successful claim has won
+before it, the normal durable finish workflow fetches final values and selects
+the entrant or entrants with the highest combined gain. Exact highest gains are
+retained as shared winners.
+
 The bot records the claim receipt instant in UTC before performing Hiscore
 requests. For competitions with a deadline:
 

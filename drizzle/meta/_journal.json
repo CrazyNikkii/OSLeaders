@@ -92,6 +92,13 @@
       "when": 1786371542227,
       "tag": "0012_bouncy_pretty_boy",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1786392372015,
+      "tag": "0013_wise_wolfsbane",
+      "breakpoints": true
     }
   ]
 }

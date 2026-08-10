@@ -39,8 +39,8 @@ authorization, receipt ordering, verification, retry, and winner selection to
 the merged service. The merged target-race finish foundation atomically records
 the verified winning claim and transitions its competition from `active` to
 `finished`, retaining the claim's final value and immutable historical
-snapshots. Roles, recap integration, target-race deadline completion without a
-winner, and timed-competition finalization remain deferred. The merged
+snapshots. Roles, recap integration, target-race deadline completion with its
+most-progress fallback, and timed-competition finalization remain deferred. The merged
 Discord-independent competition standings
 foundation adds active-competition progress collection with durable last-known
 values for partial Hiscores failures, combined linked-account scores, standalone
@@ -377,7 +377,7 @@ This merged the Discord-independent target-race finish foundation. When the
 earliest valid claim wins, it atomically preserves the verified claim and final
 value, records the winner, and transitions the competition from `active` to
 `finished`. It does not add roles, recap integration, target-race deadline
-completion without a winner, or timed-competition finalization.
+completion with its most-progress fallback, or timed-competition finalization.
 
 `472e18b` (2026-08-10) - Add Discord target-race claim command.
 
@@ -604,11 +604,19 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-None.
+`codex/target-race-deadline-configuration` - Add optional target-race deadline
+configuration. This in-review branch permits target-race drafts to keep no
+deadline or store a validated positive duration, persists that choice through a
+reviewed migration, and collects the optional duration in the existing guided
+Discord creation flow. The existing start path then derives `endsAt` from the
+successful starting snapshot. It does not implement deadline finalization,
+winner selection, roles, or recap integration.
 
 ## Next recommended branch-sized task
 
-Add a durable target-race deadline-completion foundation for races with no
-valid claim. It should finish the race without a winner at its stored deadline
-and retain the data needed for final progress standings, while leaving roles,
-recap integration, and timed-competition finalization deferred.
+After the deadline-configuration branch merges, add durable target-race
+deadline finalization. It should collect and retain final progress, finish
+early for a verified claim, or at its deadline award the highest-gain entrant
+or entrants as shared winners on an exact tie. Leave roles and recap
+integration deferred; timed-competition finalization remains a separate
+follow-up.

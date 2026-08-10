@@ -55,11 +55,13 @@ export type CreateCompetitionRequest =
       type: 'most_boss_kc';
     })
   | (CompetitionCreationRequestBase & {
+      durationSeconds?: number | undefined;
       metric: { kind: 'skill'; name: string };
       targetValue: bigint;
       type: 'skill_xp_target_race';
     })
   | (CompetitionCreationRequestBase & {
+      durationSeconds?: number | undefined;
       metric: { kind: 'boss'; name: string };
       targetValue: bigint;
       type: 'boss_kc_target_race';
@@ -116,7 +118,7 @@ export class CompetitionCreationService {
       durationSeconds:
         request.type === 'most_skill_xp' || request.type === 'most_boss_kc'
           ? request.durationSeconds
-          : null,
+          : (request.durationSeconds ?? null),
       guildId: request.guildId,
       id: this.createId(),
       intendedStartAt: request.intendedStartAt,
@@ -170,15 +172,24 @@ function isValidDefinition(request: CreateCompetitionRequest): boolean {
       return (
         request.metric.kind === 'skill' &&
         request.targetValue > 0n &&
-        request.targetValue <= MAX_TARGET_VALUE
+        request.targetValue <= MAX_TARGET_VALUE &&
+        isOptionalDuration(request.durationSeconds)
       );
     case 'boss_kc_target_race':
       return (
         request.metric.kind === 'boss' &&
         request.targetValue > 0n &&
-        request.targetValue <= MAX_TARGET_VALUE
+        request.targetValue <= MAX_TARGET_VALUE &&
+        isOptionalDuration(request.durationSeconds)
       );
   }
+}
+
+function isOptionalDuration(value: number | undefined): boolean {
+  return (
+    value === undefined ||
+    (Number.isSafeInteger(value) && value > 0 && value <= MAX_DURATION_SECONDS)
+  );
 }
 
 function isKnownMetric(metric: CompetitionMetric): boolean {

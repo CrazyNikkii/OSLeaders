@@ -32,6 +32,7 @@ const COMMAND_NAME = 'competition';
 const INTERACTION_PREFIX = 'osleaders:competition-create';
 const NAME_INPUT_ID = 'name';
 const VALUE_INPUT_ID = 'value';
+const DEADLINE_INPUT_ID = 'deadline';
 const SESSION_LIFETIME_MS = 5 * 60 * 1_000;
 const MAX_PENDING_SESSIONS = 1_000;
 
@@ -275,6 +276,7 @@ export class CompetitionCreateCommandHandler {
     hasAdministratorPermission: boolean;
     memberRoleIds: readonly string[];
     requesterDiscordUserId: string;
+    deadline?: string;
     value: string;
   }): Promise<CompetitionCreateCommandResult> {
     const sessionId = decode(request.customId, 'value');
@@ -287,12 +289,15 @@ export class CompetitionCreateCommandHandler {
     }
     const numericValue = parsePositiveInteger(request.value);
     if (numericValue === undefined) return invalidDefinition();
+    const deadlineSeconds = parseOptionalDuration(request.deadline ?? '');
+    if (deadlineSeconds === 'invalid') return invalidDefinition();
     const configuration = await this.configuration.getOrCreate(binding.guildId);
     const result = await this.competitions.create(
       createRequest({
         configurationTimezone: configuration.timezone,
         hasAdministratorPermission: request.hasAdministratorPermission,
         memberRoleIds: request.memberRoleIds,
+        deadlineSeconds,
         numericValue,
         requesterDiscordUserId: request.requesterDiscordUserId,
         session,
@@ -346,6 +351,7 @@ export class DiscordCompetitionCreateCommandAdapter {
                 interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) ?? false,
               memberRoleIds: memberRoleIds(interaction),
               requesterDiscordUserId: interaction.user.id,
+              deadline: optionalTextInputValue(interaction, DEADLINE_INPUT_ID),
               value: interaction.fields.getTextInputValue(VALUE_INPUT_ID),
             }),
           ),
@@ -430,6 +436,18 @@ function valueModal(customId: string, type: CompetitionType): ModalBuilder {
           .setRequired(true)
           .setStyle(TextInputStyle.Short),
       ),
+      ...(targetRace
+        ? [
+            new ActionRowBuilder<TextInputBuilder>().addComponents(
+              new TextInputBuilder()
+                .setCustomId(DEADLINE_INPUT_ID)
+                .setLabel('Deadline in seconds (optional)')
+                .setPlaceholder('For example: 604800')
+                .setRequired(false)
+                .setStyle(TextInputStyle.Short),
+            ),
+          ]
+        : []),
     );
 }
 
@@ -489,6 +507,7 @@ function select(
 
 function createRequest(input: {
   configurationTimezone: string;
+  deadlineSeconds: number | undefined;
   hasAdministratorPermission: boolean;
   memberRoleIds: readonly string[];
   numericValue: bigint;
@@ -527,6 +546,7 @@ function createRequest(input: {
         throw new Error('A skill competition requires a skill metric.');
       return {
         ...base,
+        ...(input.deadlineSeconds === undefined ? {} : { durationSeconds: input.deadlineSeconds }),
         metric: input.session.metric,
         targetValue: input.numericValue,
         type: input.session.type,
@@ -536,6 +556,7 @@ function createRequest(input: {
         throw new Error('A boss competition requires a boss metric.');
       return {
         ...base,
+        ...(input.deadlineSeconds === undefined ? {} : { durationSeconds: input.deadlineSeconds }),
         metric: input.session.metric,
         targetValue: input.numericValue,
         type: input.session.type,
@@ -595,6 +616,20 @@ function parsePositiveInteger(value: string): bigint | undefined {
   } catch {
     return undefined;
   }
+}
+
+function parseOptionalDuration(value: string): number | 'invalid' | undefined {
+  if (value.trim() === '') return undefined;
+  const parsed = parsePositiveInteger(value);
+  if (parsed === undefined || parsed > BigInt(Number.MAX_SAFE_INTEGER)) return 'invalid';
+  return Number(parsed);
+}
+
+function optionalTextInputValue(interaction: ModalSubmitInteraction, customId: string): string {
+  const field = interaction.fields.fields.get(customId);
+  return field !== undefined && 'value' in field && typeof field.value === 'string'
+    ? field.value
+    : '';
 }
 
 function memberRoleIds(interaction: ModalSubmitInteraction): readonly string[] {

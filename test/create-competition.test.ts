@@ -40,12 +40,30 @@ describe('competition creation service', () => {
       service.create(
         request({
           type: 'skill_xp_target_race',
+          durationSeconds: undefined,
           metric: { kind: 'skill', name: 'Mining' },
           targetValue: 1000000n,
           name: 'Mining race',
         }),
       ),
-    ).resolves.toMatchObject({ kind: 'created', competition: { targetValue: 1000000n } });
+    ).resolves.toMatchObject({
+      kind: 'created',
+      competition: { durationSeconds: null, targetValue: 1000000n },
+    });
+    await expect(
+      service.create(
+        request({
+          durationSeconds: 604800,
+          metric: { kind: 'skill', name: 'Mining' },
+          name: 'Timed mining race',
+          targetValue: 1000000n,
+          type: 'skill_xp_target_race',
+        }),
+      ),
+    ).resolves.toMatchObject({
+      kind: 'created',
+      competition: { durationSeconds: 604800, targetValue: 1000000n },
+    });
     await expect(
       service.create(
         request({
@@ -63,6 +81,7 @@ describe('competition creation service', () => {
       service.create(
         request({
           type: 'boss_kc_target_race',
+          durationSeconds: undefined,
           metric: { kind: 'boss', name: 'Vorkath' },
           targetValue: 50n,
           name: 'Vorkath race',
@@ -94,6 +113,17 @@ describe('competition creation service', () => {
           type: 'most_skill_xp',
           metric: { kind: 'skill', name: 'Mining' },
           durationSeconds: 0,
+        }),
+      ),
+    ).resolves.toEqual({ kind: 'invalid_definition' });
+    await expect(
+      allowed.create(
+        request({
+          durationSeconds: 0,
+          metric: { kind: 'skill', name: 'Mining' },
+          name: 'Invalid timed target race',
+          targetValue: 100n,
+          type: 'skill_xp_target_race',
         }),
       ),
     ).resolves.toEqual({ kind: 'invalid_definition' });

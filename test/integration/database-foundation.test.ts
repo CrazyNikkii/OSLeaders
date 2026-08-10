@@ -6,7 +6,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { loadTestDatabaseConfiguration } from '../../src/infrastructure/config/database-environment.js';
 import { AccountRetrievalService } from '../../src/features/accounts/account-retrieval.js';
-import type { CompetitionDraft } from '../../src/features/competitions/create-competition.js';
+import {
+  CompetitionCreationService,
+  type CompetitionDraft,
+} from '../../src/features/competitions/create-competition.js';
 import { AccountAssociationConversionService } from '../../src/features/accounts/convert-account-association.js';
 import { MemberPresenceService } from '../../src/features/accounts/member-presence.js';
 import { AccountRemovalService } from '../../src/features/accounts/remove-account.js';
@@ -127,6 +130,27 @@ describe('database foundation', () => {
       state: 'draft',
       targetValue: null,
       type: 'most_skill_xp',
+    });
+  });
+
+  it('persists an optional duration for a target-race draft', async () => {
+    const repository = new PostgresCompetitionCreationRepository(connection.database);
+
+    await expect(
+      repository.create(
+        competitionDraft({
+          displayName: 'Weekend mining race',
+          durationSeconds: 604800,
+          id: 'timed-target-race',
+          metric: { kind: 'skill', name: 'Mining' },
+          normalizedName: 'weekend mining race',
+          targetValue: 1_000_000n,
+          type: 'skill_xp_target_race',
+        }),
+      ),
+    ).resolves.toMatchObject({
+      kind: 'created',
+      competition: { durationSeconds: 604800, targetValue: 1_000_000n },
     });
   });
 
@@ -409,6 +433,67 @@ describe('database foundation', () => {
         requesterDiscordUserId: 'manager-one',
       }),
     ).resolves.toEqual({ kind: 'competition_not_found' });
+  });
+
+  it('derives a timed target-race deadline from its successful starting snapshot', async () => {
+    const creations = new PostgresCompetitionCreationRepository(connection.database);
+    const accounts = new PostgresAccountRegistrationRepository(connection.database);
+    const participation = new PostgresCompetitionDraftParticipationRepository(connection.database);
+    const starts = new PostgresCompetitionStartRepository(connection.database);
+    const guildId = 'timed-target-race-start-guild';
+    const competitionId = 'timed-target-race-start';
+    const startedAt = new Date('2026-08-10T12:00:00.000Z');
+    const creation = new CompetitionCreationService(
+      creations,
+      { evaluate: () => Promise.resolve({ canManageCompetitions: true }) },
+      () => competitionId,
+      () => new Date('2026-08-10T11:00:00.000Z'),
+    );
+
+    await expect(
+      creation.create({
+        createdByDiscordUserId: 'manager-one',
+        durationSeconds: 604800,
+        guildId,
+        hasAdministratorPermission: true,
+        memberRoleIds: [],
+        metric: { kind: 'skill', name: 'Mining' },
+        name: 'Weekend mining race',
+        targetValue: 1_000_000n,
+        timezone: 'Europe/Helsinki',
+        type: 'skill_xp_target_race',
+      }),
+    ).resolves.toMatchObject({ kind: 'created', competition: { durationSeconds: 604800 } });
+    await accounts.register(
+      account({ guildId, id: 'timed-target-race-start-account' }),
+      initialRecapBaseline(),
+    );
+    await participation.join({
+      competitionId,
+      contributingAccountIds: ['timed-target-race-start-account'],
+      entrantId: 'timed-target-race-start-entrant',
+      guildId,
+      requesterDiscordUserId: 'member-one',
+    });
+
+    const begin = await starts.beginStart({
+      canManageCompetitions: true,
+      competitionId,
+      guildId,
+      requesterDiscordUserId: 'manager-one',
+    });
+    if (begin.kind !== 'ready_to_start') throw new Error('Expected ready target-race start.');
+    await expect(
+      starts.completeStart({
+        competitionId,
+        guildId,
+        snapshots: [{ account: begin.competition.accounts[0]!, value: 100n }],
+        startedAt,
+      }),
+    ).resolves.toMatchObject({
+      kind: 'started',
+      endsAt: new Date('2026-08-17T12:00:00.000Z'),
+    });
   });
 
   it('retains guild-scoped competition progress separately from immutable starting snapshots', async () => {

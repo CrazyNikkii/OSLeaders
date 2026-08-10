@@ -451,7 +451,7 @@ Winner: entrant with the most XP gained in one selected skill during the competi
 
 ### 19.2 Skill XP target race
 
-Winner: first entrant to submit a successful verified claim after gaining the required amount of XP in one selected skill.
+Winner: first entrant to submit a successful verified claim after gaining the required amount of XP in one selected skill. If an optional deadline passes without a successful claim, the entrant or entrants with the most XP gained win.
 
 ### 19.3 Most boss KC gained
 
@@ -459,7 +459,7 @@ Winner: entrant with the most KC gained for one selected boss during the competi
 
 ### 19.4 Boss KC target race
 
-Winner: first entrant to submit a successful verified claim after gaining the required amount of KC for one selected boss.
+Winner: first entrant to submit a successful verified claim after gaining the required amount of KC for one selected boss. If an optional deadline passes without a successful claim, the entrant or entrants with the most KC gained win.
 
 The first version does not include:
 
@@ -633,8 +633,9 @@ A target race may have an optional deadline.
 
 If nobody submits a successful claim before the deadline:
 
-- The competition finishes without a winner.
-- Final progress standings are still displayed.
+- The entrant or entrants with the most progress win.
+- Exact highest-progress ties are shared wins.
+- Final progress standings are displayed.
 
 ## 28. Competition standings
 
@@ -1125,7 +1126,7 @@ The first complete version is acceptable when:
 13. All four competition types can be created and completed.
 14. Multiple selected accounts combine into one Discord entrant score.
 15. Timed competitions preserve their intended duration after delayed starts.
-16. Target races use first-valid-claim-wins behaviour.
+16. Target races use first-valid-claim-wins behaviour, with a most-progress fallback and shared exact ties when an optional deadline passes without a successful claim.
 17. Competitions survive bot restarts.
 18. Competition roles notify present Discord participants about important events.
 19. Daily recaps contain only positive changes.
