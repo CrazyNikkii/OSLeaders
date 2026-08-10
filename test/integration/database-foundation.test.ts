@@ -449,6 +449,10 @@ describe('database foundation', () => {
         { id: 'competition-standings-account', startingValue: 100n, lastKnownValue: 100n },
       ],
     });
+    await expect(standings.listActive(guildId)).resolves.toEqual([
+      { displayName: 'Weekend Woodcutting', id: competitionId },
+    ]);
+    await expect(standings.listActive('another-guild')).resolves.toEqual([]);
     await standings.recordObservedValues({
       competitionId,
       guildId,

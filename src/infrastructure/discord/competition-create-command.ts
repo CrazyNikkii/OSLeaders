@@ -61,6 +61,9 @@ export const competitionCommandDefinitions = [
     .addSubcommand((subcommand) =>
       subcommand.setName('schedule').setDescription('Schedule a competition draft to start.'),
     )
+    .addSubcommand((subcommand) =>
+      subcommand.setName('standings').setDescription('View active competition standings.'),
+    )
     .toJSON(),
 ] as const;
 
