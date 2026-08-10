@@ -256,7 +256,11 @@ export class PostgresTargetRaceClaimRepository implements TargetRaceClaimReposit
       if (earlierPending !== undefined) return { kind: 'earlier_claim_pending' };
       const [won] = await transaction
         .update(competitions)
-        .set({ winningTargetClaimId: request.claimId, updatedAt: request.verifiedAt })
+        .set({
+          state: 'finished',
+          winningTargetClaimId: request.claimId,
+          updatedAt: request.verifiedAt,
+        })
         .where(
           and(
             eq(competitions.guildId, request.guildId),

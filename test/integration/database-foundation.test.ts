@@ -615,6 +615,21 @@ describe('database foundation', () => {
         requesterDiscordUserId: 'member-two',
       }),
     ).resolves.toMatchObject({ kind: 'ready', claim: { receivedAt: secondReceipt } });
+    await connection.database
+      .update(competitions)
+      .set({ endsAt: firstReceipt })
+      .where(and(eq(competitions.guildId, guildId), eq(competitions.id, competitionId)));
+    await expect(
+      repository.beginClaim({
+        canManageCompetitions: false,
+        claimId: 'target-claim-late',
+        competitionId,
+        entrantId: 'target-claim-entrant-two',
+        guildId,
+        receivedAt: secondReceipt,
+        requesterDiscordUserId: 'member-two',
+      }),
+    ).resolves.toEqual({ kind: 'deadline_passed' });
     await expect(
       repository.finalize({
         claimId: 'target-claim-two',
@@ -646,33 +661,36 @@ describe('database foundation', () => {
       },
     ]);
     await expect(
+      connection.database
+        .select({
+          state: competitions.state,
+          winningTargetClaimId: competitions.winningTargetClaimId,
+        })
+        .from(competitions)
+        .where(and(eq(competitions.guildId, guildId), eq(competitions.id, competitionId))),
+    ).resolves.toEqual([{ state: 'finished', winningTargetClaimId: 'target-claim-one' }]);
+    await expect(
+      connection.database
+        .select({
+          finalValue: competitionTargetClaims.finalValue,
+          id: competitionTargetClaims.id,
+          status: competitionTargetClaims.status,
+        })
+        .from(competitionTargetClaims)
+        .where(
+          and(
+            eq(competitionTargetClaims.guildId, guildId),
+            eq(competitionTargetClaims.id, 'target-claim-one'),
+          ),
+        ),
+    ).resolves.toEqual([{ finalValue: 50n, id: 'target-claim-one', status: 'verified' }]);
+    await expect(
       repository.listClaimableEntrants({
         canManageCompetitions: false,
         guildId,
         requesterDiscordUserId: 'member-one',
       }),
     ).resolves.toEqual([]);
-    await expect(
-      connection.database
-        .select()
-        .from(competitionTargetClaims)
-        .where(eq(competitionTargetClaims.competitionId, competitionId)),
-    ).resolves.toHaveLength(2);
-    await connection.database
-      .update(competitions)
-      .set({ endsAt: firstReceipt })
-      .where(and(eq(competitions.guildId, guildId), eq(competitions.id, competitionId)));
-    await expect(
-      repository.beginClaim({
-        canManageCompetitions: false,
-        claimId: 'target-claim-late',
-        competitionId,
-        entrantId: 'target-claim-entrant-two',
-        guildId,
-        receivedAt: secondReceipt,
-        requesterDiscordUserId: 'member-two',
-      }),
-    ).resolves.toEqual({ kind: 'deadline_passed' });
     await expect(
       connection.database
         .select()
