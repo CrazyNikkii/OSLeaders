@@ -19,6 +19,7 @@ import { AutomaticDailyRecapCollectionService } from '../../features/recaps/coll
 import { DailyRecapFailureAuditService } from '../../features/recaps/report-daily-recap-failures.js';
 import { CompetitionCreationService } from '../../features/competitions/create-competition.js';
 import { CompetitionDraftParticipationService } from '../../features/competitions/manage-draft-participation.js';
+import { CompetitionStandingsService } from '../../features/competitions/competition-standings.js';
 import { createErrorReferenceId } from '../../features/audit/error-reference.js';
 import { GuildConfigurationService } from '../../features/guild-configuration/guild-configuration-service.js';
 import { GuildPermissionService } from '../../features/guild-configuration/guild-permission-service.js';
@@ -34,6 +35,7 @@ import { PostgresAutomaticDailyRecapCollectionRepository } from '../database/pos
 import { PostgresCompetitionCreationRepository } from '../database/postgres-competition-creation-repository.js';
 import { PostgresCompetitionDraftParticipationRepository } from '../database/postgres-competition-draft-participation-repository.js';
 import { PostgresCompetitionStartRepository } from '../database/postgres-competition-start-repository.js';
+import { PostgresCompetitionStandingsRepository } from '../database/postgres-competition-standings-repository.js';
 import { OsrsHiscoreHttpClient } from '../hiscores/osrs-hiscore-http-client.js';
 import { OSRS_MODE_FETCH_STRATEGIES } from '../hiscores/osrs-hiscore-catalog.js';
 import { StdoutStructuredLocalLogger } from '../logging/structured-local-logger.js';
@@ -135,6 +137,11 @@ import {
   CompetitionScheduleCommandHandler,
   DiscordCompetitionScheduleCommandAdapter,
 } from './competition-schedule-command.js';
+import {
+  bindDiscordCompetitionStandingsCommandAdapter,
+  CompetitionStandingsCommandHandler,
+  DiscordCompetitionStandingsCommandAdapter,
+} from './competition-standings-command.js';
 import { CompetitionSchedulingService } from '../../features/competitions/schedule-competition.js';
 import { PostgresCompetitionSchedulingRepository } from '../database/postgres-competition-scheduling-repository.js';
 
@@ -355,6 +362,15 @@ export async function startDevelopmentDiscordRuntime(
         competitionSchedulingRepository,
       ),
     );
+    const competitionStandingsRepository = new PostgresCompetitionStandingsRepository(
+      connection.database,
+    );
+    const competitionStandingsAdapter = new DiscordCompetitionStandingsCommandAdapter(
+      new CompetitionStandingsCommandHandler(
+        new CompetitionStandingsService(competitionStandingsRepository, hiscores),
+        competitionStandingsRepository,
+      ),
+    );
 
     bindDiscordAccountCommandAdapter(
       client,
@@ -437,6 +453,12 @@ export async function startDevelopmentDiscordRuntime(
     bindDiscordCompetitionScheduleCommandAdapter(
       client,
       competitionScheduleAdapter,
+      (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
+      (interaction) => interaction.guildId === configuration.discord.guildId,
+    );
+    bindDiscordCompetitionStandingsCommandAdapter(
+      client,
+      competitionStandingsAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.guildId,
     );

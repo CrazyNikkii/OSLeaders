@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 
 import type {
   ActiveCompetitionForStandings,
@@ -80,6 +80,16 @@ export class PostgresCompetitionStandingsRepository implements CompetitionStandi
       metric: { kind: competition.metricKind, name: competition.metricName },
       targetValue: competition.targetValue,
     } satisfies ActiveCompetitionForStandings;
+  }
+
+  public async listActive(
+    guildId: string,
+  ): Promise<readonly { displayName: string; id: string }[]> {
+    return this.database
+      .select({ displayName: competitions.displayName, id: competitions.id })
+      .from(competitions)
+      .where(and(eq(competitions.guildId, guildId), eq(competitions.state, 'active')))
+      .orderBy(asc(competitions.startedAt), asc(competitions.id));
   }
 
   public async recordObservedValues(request: {
