@@ -29,6 +29,16 @@ describe('development Discord command registration', () => {
       expect.objectContaining({ name: 'recap' }),
       expect.objectContaining({ name: 'competition' }),
     ]);
+    const competition = registrar.requests[0]?.commands.find(
+      (command): command is { name: string; options: readonly { name: string }[] } =>
+        typeof command === 'object' &&
+        command !== null &&
+        'name' in command &&
+        command.name === 'competition' &&
+        'options' in command &&
+        Array.isArray(command.options),
+    );
+    expect(competition?.options).toContainEqual(expect.objectContaining({ name: 'start' }));
   });
 
   it('registers the production command set in its separate configured guild', async () => {
