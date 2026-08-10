@@ -1,10 +1,11 @@
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, lte, sql } from 'drizzle-orm';
 
 import type {
   CompetitionStartAccount,
   CompetitionStartBeginResult,
   CompetitionStartCompleteResult,
   CompetitionStartRepository,
+  CompetitionReadyToStart,
   CompetitionStartingSnapshot,
 } from '../../features/competitions/start-competition.js';
 import type { Database, Transaction } from './connection.js';
@@ -15,8 +16,13 @@ import {
   trackedAccounts,
 } from './schema/index.js';
 
+const START_LEASE_MS = 5 * 60 * 1_000;
+
 export class PostgresCompetitionStartRepository implements CompetitionStartRepository {
-  public constructor(private readonly database: Database) {}
+  public constructor(
+    private readonly database: Database,
+    private readonly now: () => Date = () => new Date(),
+  ) {}
 
   public async listStartable(
     guildId: string,
@@ -71,16 +77,25 @@ export class PostgresCompetitionStartRepository implements CompetitionStartRepos
       if (accounts.length === 0) {
         return { kind: 'no_entrants' };
       }
-      if (competition.state === 'draft') {
-        await transaction
-          .update(competitions)
-          .set({ state: 'start_pending', updatedAt: new Date() })
-          .where(
-            and(
-              eq(competitions.guildId, request.guildId),
-              eq(competitions.id, request.competitionId),
-            ),
-          );
+      const now = this.now();
+      const [started] = await transaction
+        .update(competitions)
+        .set({
+          nextStartAttemptAt: new Date(now.getTime() + START_LEASE_MS),
+          startAttemptCount: sql`${competitions.startAttemptCount} + 1`,
+          state: 'start_pending',
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(competitions.guildId, request.guildId),
+            eq(competitions.id, request.competitionId),
+            inArray(competitions.state, ['draft', 'start_pending']),
+          ),
+        )
+        .returning({ startAttemptCount: competitions.startAttemptCount });
+      if (started === undefined) {
+        return { kind: 'start_locked' };
       }
       return {
         kind: 'ready_to_start',
@@ -90,6 +105,7 @@ export class PostgresCompetitionStartRepository implements CompetitionStartRepos
           durationSeconds: competition.durationSeconds,
           guildId: competition.guildId,
           metric: { kind: competition.metricKind, name: competition.metricName },
+          startAttemptCount: started.startAttemptCount,
         },
       };
     });
@@ -143,6 +159,8 @@ export class PostgresCompetitionStartRepository implements CompetitionStartRepos
         .update(competitions)
         .set({
           endsAt,
+          lastStartFailureSummary: null,
+          nextStartAttemptAt: null,
           startedAt: request.startedAt,
           state: 'active',
           updatedAt: request.startedAt,
@@ -160,6 +178,89 @@ export class PostgresCompetitionStartRepository implements CompetitionStartRepos
         guildId: request.guildId,
         startedAt: request.startedAt,
       };
+    });
+  }
+
+  public async scheduleRetry(request: {
+    competitionId: string;
+    failureSummary: string;
+    guildId: string;
+    nextAttemptAt: Date;
+  }): Promise<void> {
+    await this.database.transaction(async (transaction) => {
+      await lockGuild(transaction, request.guildId);
+      await transaction
+        .update(competitions)
+        .set({
+          lastStartFailureSummary: request.failureSummary.slice(0, 500),
+          nextStartAttemptAt: request.nextAttemptAt,
+          updatedAt: this.now(),
+        })
+        .where(
+          and(
+            eq(competitions.guildId, request.guildId),
+            eq(competitions.id, request.competitionId),
+            eq(competitions.state, 'start_pending'),
+          ),
+        );
+    });
+  }
+
+  public async claimDueStart(): Promise<CompetitionReadyToStart | undefined> {
+    return this.database.transaction(async (transaction) => {
+      const now = this.now();
+      while (true) {
+        const [candidate] = await transaction
+          .select({ guildId: competitions.guildId })
+          .from(competitions)
+          .where(dueStartCondition(now))
+          .orderBy(asc(competitions.nextStartAttemptAt), asc(competitions.createdAt))
+          .limit(1);
+        if (candidate === undefined) {
+          return undefined;
+        }
+        await lockGuild(transaction, candidate.guildId);
+        const [competition] = await transaction
+          .select()
+          .from(competitions)
+          .where(and(eq(competitions.guildId, candidate.guildId), dueStartCondition(now)))
+          .orderBy(asc(competitions.nextStartAttemptAt), asc(competitions.createdAt))
+          .limit(1);
+        if (competition === undefined) {
+          continue;
+        }
+        const [claimed] = await transaction
+          .update(competitions)
+          .set({
+            nextStartAttemptAt: new Date(now.getTime() + START_LEASE_MS),
+            startAttemptCount: sql`${competitions.startAttemptCount} + 1`,
+            updatedAt: now,
+          })
+          .where(
+            and(
+              eq(competitions.guildId, competition.guildId),
+              eq(competitions.id, competition.id),
+              dueStartCondition(now),
+            ),
+          )
+          .returning({ startAttemptCount: competitions.startAttemptCount });
+        if (claimed === undefined) {
+          continue;
+        }
+        const accounts = await this.listContributingAccounts(
+          transaction,
+          competition.guildId,
+          competition.id,
+        );
+        return {
+          accounts,
+          competitionId: competition.id,
+          durationSeconds: competition.durationSeconds,
+          guildId: competition.guildId,
+          metric: { kind: competition.metricKind, name: competition.metricName },
+          startAttemptCount: claimed.startAttemptCount,
+        };
+      }
     });
   }
 
@@ -205,6 +306,10 @@ export class PostgresCompetitionStartRepository implements CompetitionStartRepos
       registeredByDiscordUserId: account.registeredByDiscordUserId,
     }));
   }
+}
+
+function dueStartCondition(now: Date) {
+  return and(eq(competitions.state, 'start_pending'), lte(competitions.nextStartAttemptAt, now));
 }
 
 function sameAccounts(

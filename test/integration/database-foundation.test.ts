@@ -346,7 +346,7 @@ describe('database foundation', () => {
     });
     expect(begin).toMatchObject({
       kind: 'ready_to_start',
-      competition: { accounts: [{ id: 'competition-start-account' }] },
+      competition: { accounts: [{ id: 'competition-start-account' }], startAttemptCount: 1 },
     });
     if (begin.kind !== 'ready_to_start')
       throw new Error('Expected the competition to be ready to start.');
@@ -361,6 +361,18 @@ describe('database foundation', () => {
       kind: 'started',
       endsAt: new Date('2026-08-11T12:00:00.000Z'),
     });
+    await expect(
+      connection.database
+        .select({
+          lastStartFailureSummary: competitions.lastStartFailureSummary,
+          nextStartAttemptAt: competitions.nextStartAttemptAt,
+          startAttemptCount: competitions.startAttemptCount,
+        })
+        .from(competitions)
+        .where(eq(competitions.id, competitionId)),
+    ).resolves.toEqual([
+      { lastStartFailureSummary: null, nextStartAttemptAt: null, startAttemptCount: 1 },
+    ]);
     await expect(
       connection.database
         .select()
@@ -391,6 +403,106 @@ describe('database foundation', () => {
         requesterDiscordUserId: 'manager-one',
       }),
     ).resolves.toEqual({ kind: 'competition_not_found' });
+  });
+
+  it('claims only due pending competition starts and persists the next retry state', async () => {
+    const creationRepository = new PostgresCompetitionCreationRepository(connection.database);
+    const accountsRepository = new PostgresAccountRegistrationRepository(connection.database);
+    const participationRepository = new PostgresCompetitionDraftParticipationRepository(
+      connection.database,
+    );
+    const now = new Date('2026-08-10T12:00:00.000Z');
+    const repository = new PostgresCompetitionStartRepository(connection.database, () => now);
+    const guildId = 'competition-start-retry-guild';
+    const competitionId = 'competition-start-retry';
+    await creationRepository.create(
+      competitionDraft({
+        displayName: 'Retry competition',
+        guildId,
+        id: competitionId,
+        normalizedName: 'retry competition',
+      }),
+    );
+    await accountsRepository.register(
+      account({ id: 'competition-start-retry-account', guildId }),
+      initialRecapBaseline(),
+    );
+    await participationRepository.join({
+      competitionId,
+      contributingAccountIds: ['competition-start-retry-account'],
+      entrantId: 'competition-start-retry-entrant',
+      guildId,
+      requesterDiscordUserId: 'member-one',
+    });
+    await repository.beginStart({
+      canManageCompetitions: true,
+      competitionId,
+      guildId,
+      requesterDiscordUserId: 'manager-one',
+    });
+    await repository.scheduleRetry({
+      competitionId,
+      failureSummary: 'competition-start-retry-account:timeout',
+      guildId,
+      nextAttemptAt: new Date('2026-08-01T00:00:00.000Z'),
+    });
+
+    await expect(repository.claimDueStart()).resolves.toMatchObject({
+      accounts: [{ id: 'competition-start-retry-account' }],
+      competitionId,
+      guildId,
+      startAttemptCount: 2,
+    });
+    await expect(repository.claimDueStart()).resolves.toBeUndefined();
+  });
+
+  it('recovers an interrupted initial start once its durable lease expires', async () => {
+    const creationRepository = new PostgresCompetitionCreationRepository(connection.database);
+    const accountsRepository = new PostgresAccountRegistrationRepository(connection.database);
+    const participationRepository = new PostgresCompetitionDraftParticipationRepository(
+      connection.database,
+    );
+    let now = new Date('2026-07-10T12:00:00.000Z');
+    const repository = new PostgresCompetitionStartRepository(connection.database, () => now);
+    const guildId = 'competition-start-interruption-guild';
+    const competitionId = 'competition-start-interruption';
+    await creationRepository.create(
+      competitionDraft({
+        displayName: 'Interrupted start',
+        guildId,
+        id: competitionId,
+        normalizedName: 'interrupted start',
+      }),
+    );
+    await accountsRepository.register(
+      account({ id: 'competition-start-interruption-account', guildId }),
+      initialRecapBaseline(),
+    );
+    await participationRepository.join({
+      competitionId,
+      contributingAccountIds: ['competition-start-interruption-account'],
+      entrantId: 'competition-start-interruption-entrant',
+      guildId,
+      requesterDiscordUserId: 'member-one',
+    });
+
+    await expect(
+      repository.beginStart({
+        canManageCompetitions: true,
+        competitionId,
+        guildId,
+        requesterDiscordUserId: 'manager-one',
+      }),
+    ).resolves.toMatchObject({ kind: 'ready_to_start', competition: { startAttemptCount: 1 } });
+    await expect(repository.claimDueStart()).resolves.toBeUndefined();
+
+    now = new Date('2026-07-10T12:05:00.000Z');
+    await expect(repository.claimDueStart()).resolves.toMatchObject({
+      accounts: [{ id: 'competition-start-interruption-account' }],
+      competitionId,
+      guildId,
+      startAttemptCount: 2,
+    });
   });
 
   it('lists only guild-scoped draft and start-pending competitions for manual start', async () => {

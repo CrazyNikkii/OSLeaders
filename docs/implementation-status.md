@@ -497,12 +497,25 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-None.
+`codex/competition-start-pending-retries` - Durable `START_PENDING`
+competition-start retry and administrative audit slice, pending review.
+
+This unmerged Stage 8 slice adds reviewed PostgreSQL retry metadata to
+competitions, including attempt count, next due time, and sanitized failure
+summary. A constrained in-process scheduler claims due persisted starts on
+startup and at a restrained interval, takes fresh cache-bypassing snapshots
+through the existing start service, and leaves failed work durably scheduled
+for the short first retry and later ten-minute retries. Competition-start
+fetch failures now create a sanitized structured audit event and, where
+configured, an administrative-channel summary; a log-delivery failure does not
+interrupt the durable retry path. Successful starts clear the retry state.
+Focused unit, runtime, and PostgreSQL integration coverage accompanies this
+work. It is not completed until merged.
 
 ## Next recommended branch-sized task
 
-Add durable automatic retry scheduling and administrative-log delivery for
-`START_PENDING` competitions. Keep that slice
-limited to retrying persisted incomplete starts and reporting their failures;
-do not add scheduled initial starts, claims, standings, roles, or finish
-lifecycle work.
+After the current retry slice is merged, add the smallest durable foundation
+for automatically scheduled initial competition starts. Keep that slice
+limited to persisted intended start times, timezone validation, and scheduler
+transition into the existing start workflow; do not add claims, standings,
+roles, or finish lifecycle work.

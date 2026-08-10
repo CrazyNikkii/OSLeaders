@@ -32,6 +32,7 @@ describe('competition start service', () => {
       },
     ]);
     expect(repository.started).toBe(true);
+    expect(repository.scheduledRetries).toEqual([]);
   });
 
   it('leaves the durable start pending when any fresh snapshot fails, then permits retry', async () => {
@@ -46,6 +47,9 @@ describe('competition start service', () => {
       ],
     });
     expect(repository.started).toBe(false);
+    expect(repository.scheduledRetries).toEqual([
+      expect.objectContaining({ failureSummary: 'account-one:temporary_upstream_failure' }),
+    ]);
     hiscores.responses['Rune Scape'] = skillResult(123456);
     await expect(service.start(request())).resolves.toMatchObject({ kind: 'started' });
     expect(hiscores.options).toEqual([{ cacheMode: 'bypass' }, { cacheMode: 'bypass' }]);
@@ -91,6 +95,7 @@ describe('competition start service', () => {
 
 class StartRepository implements CompetitionStartRepository {
   public readonly completed: { snapshots: readonly CompetitionStartingSnapshot[] }[] = [];
+  public readonly scheduledRetries: { failureSummary: string; nextAttemptAt: Date }[] = [];
   public started = false;
   private pending = false;
   public constructor(
@@ -133,6 +138,15 @@ class StartRepository implements CompetitionStartRepository {
       endsAt: new Date(request.startedAt.getTime() + 86_400_000),
     });
   }
+
+  public scheduleRetry(request: { failureSummary: string; nextAttemptAt: Date }): Promise<void> {
+    this.scheduledRetries.push(request);
+    return Promise.resolve();
+  }
+
+  public claimDueStart(): Promise<CompetitionReadyToStart | undefined> {
+    return Promise.resolve(undefined);
+  }
 }
 
 class Hiscores implements CompetitionStartHiscoreFetcher {
@@ -171,6 +185,7 @@ function competition(
     durationSeconds: 86400,
     guildId: 'guild-one',
     metric,
+    startAttemptCount: 1,
   };
 }
 

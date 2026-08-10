@@ -34,6 +34,8 @@ describe('development Discord runtime', () => {
     expect(dependencies.automaticSchedulingScheduler.stop).toHaveBeenCalledOnce();
     expect(dependencies.automaticCollectionScheduler.start).toHaveBeenCalledOnce();
     expect(dependencies.automaticCollectionScheduler.stop).toHaveBeenCalledOnce();
+    expect(dependencies.competitionStartRetryScheduler.start).toHaveBeenCalledOnce();
+    expect(dependencies.competitionStartRetryScheduler.stop).toHaveBeenCalledOnce();
   });
 
   it('starts the production runtime using its separately selected guild', async () => {
@@ -177,6 +179,10 @@ class RuntimeDependencies {
     start: vi.fn(() => Promise.resolve()),
     stop: vi.fn(),
   };
+  public readonly competitionStartRetryScheduler = {
+    start: vi.fn(() => Promise.resolve()),
+    stop: vi.fn(),
+  };
   public readonly logger = new RecordingLogger();
   public readonly pool = { query: vi.fn(() => Promise.resolve()) };
 
@@ -187,6 +193,7 @@ class RuntimeDependencies {
       createDailyRecapDeliveryRecoveryScheduler: vi.fn(() => this.deliveryRecoveryScheduler),
       createAutomaticDailyRecapSchedulingScheduler: vi.fn(() => this.automaticSchedulingScheduler),
       createAutomaticDailyRecapCollectionScheduler: vi.fn(() => this.automaticCollectionScheduler),
+      createCompetitionStartRetryScheduler: vi.fn(() => this.competitionStartRetryScheduler),
       createLogger: () => this.logger,
     };
   }
