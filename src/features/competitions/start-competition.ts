@@ -7,6 +7,7 @@ import type { OsrsHiscoreEndpoint } from '../../infrastructure/hiscores/osrs-his
 import { OSRS_MODE_FETCH_STRATEGIES } from '../../infrastructure/hiscores/osrs-hiscore-catalog.js';
 
 import type { CompetitionMetric } from './create-competition.js';
+import type { CompetitionStartFailureReporter } from './report-competition-start-failures.js';
 
 export interface CompetitionStartPermissionEvaluator {
   evaluate(request: {
@@ -21,6 +22,7 @@ export interface CompetitionStartAccount extends TrackedAccount {
 }
 
 export interface CompetitionReadyToStart {
+  startAttemptCount: number;
   competitionId: string;
   durationSeconds: number | null;
   guildId: string;
@@ -46,6 +48,13 @@ export interface CompetitionStartRepository {
     snapshots: readonly CompetitionStartingSnapshot[];
     startedAt: Date;
   }): Promise<CompetitionStartCompleteResult>;
+  scheduleRetry(request: {
+    competitionId: string;
+    failureSummary: string;
+    guildId: string;
+    nextAttemptAt: Date;
+  }): Promise<void>;
+  claimDueStart(): Promise<CompetitionReadyToStart | undefined>;
 }
 
 export type CompetitionStartBeginResult =
@@ -101,6 +110,9 @@ export class CompetitionStartService {
     private readonly permissions: CompetitionStartPermissionEvaluator,
     private readonly hiscores: CompetitionStartHiscoreFetcher,
     private readonly now: () => Date = () => new Date(),
+    private readonly failureReporter: CompetitionStartFailureReporter = {
+      report: () => Promise.resolve(),
+    },
   ) {}
 
   public async start(request: {
@@ -125,27 +137,51 @@ export class CompetitionStartService {
       return begin;
     }
 
+    return this.startReady(begin.competition);
+  }
+
+  public async retryDue(): Promise<CompetitionStartResult | { kind: 'no_due_start' }> {
+    const competition = await this.repository.claimDueStart();
+    if (competition === undefined) {
+      return { kind: 'no_due_start' };
+    }
+    return this.startReady(competition);
+  }
+
+  private async startReady(competition: CompetitionReadyToStart): Promise<CompetitionStartResult> {
     const outcomes = await Promise.all(
-      begin.competition.accounts.map((account) =>
-        this.fetchStartingValue(account, begin.competition.metric),
-      ),
+      competition.accounts.map((account) => this.fetchStartingValue(account, competition.metric)),
     );
     const failures = outcomes.filter(
       (outcome): outcome is { kind: 'failure'; failure: CompetitionStartFailure } =>
         outcome.kind === 'failure',
     );
     if (failures.length > 0) {
+      await this.repository.scheduleRetry({
+        competitionId: competition.competitionId,
+        failureSummary: summarizeFailures(failures.map((outcome) => outcome.failure)),
+        guildId: competition.guildId,
+        nextAttemptAt: new Date(this.now().getTime() + retryDelayMs(competition.startAttemptCount)),
+      });
+      try {
+        await this.failureReporter.report(
+          competition.guildId,
+          failures.map((outcome) => outcome.failure),
+        );
+      } catch {
+        // Administrative audit delivery must not interrupt durable retry scheduling.
+      }
       return {
         kind: 'start_pending',
-        competitionId: begin.competition.competitionId,
-        guildId: begin.competition.guildId,
+        competitionId: competition.competitionId,
+        guildId: competition.guildId,
         failures: failures.map((outcome) => outcome.failure),
       };
     }
 
     return this.repository.completeStart({
-      competitionId: begin.competition.competitionId,
-      guildId: begin.competition.guildId,
+      competitionId: competition.competitionId,
+      guildId: competition.guildId,
       snapshots: outcomes.map((outcome) => {
         if (outcome.kind !== 'snapshot') {
           throw new Error('Successful competition start must contain only snapshots.');
@@ -186,4 +222,15 @@ export class CompetitionStartService {
       snapshot: { account, value: BigInt(metric.kind === 'boss' ? Math.max(value, 0) : value) },
     };
   }
+}
+
+export function retryDelayMs(startAttemptCount: number): number {
+  return startAttemptCount <= 1 ? 60_000 : 10 * 60_000;
+}
+
+function summarizeFailures(failures: readonly CompetitionStartFailure[]): string {
+  return failures
+    .map(({ account, failure }) => `${account.id}:${failure.kind}`)
+    .join(', ')
+    .slice(0, 500);
 }

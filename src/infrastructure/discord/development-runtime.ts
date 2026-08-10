@@ -124,6 +124,12 @@ import {
   DiscordCompetitionStartCommandAdapter,
 } from './competition-start-command.js';
 import { CompetitionStartService } from '../../features/competitions/start-competition.js';
+import { CompetitionStartFailureAuditService } from '../../features/competitions/report-competition-start-failures.js';
+import {
+  InProcessCompetitionStartRetryScheduler,
+  type CompetitionStartRetryScheduler,
+} from './competition-start-retry-scheduler.js';
+import { DiscordCompetitionStartFailureAuditPublisher } from './competition-start-failure-audit-publisher.js';
 
 export interface DevelopmentDiscordRuntime {
   close(): Promise<void>;
@@ -145,6 +151,10 @@ export interface DevelopmentDiscordRuntimeDependencies {
     collection: AutomaticDailyRecapCollectionService,
     logger: StructuredLocalLogger,
   ): AutomaticDailyRecapCollectionScheduler;
+  createCompetitionStartRetryScheduler(
+    starts: CompetitionStartService,
+    logger: StructuredLocalLogger,
+  ): CompetitionStartRetryScheduler;
 }
 
 const defaultDependencies: DevelopmentDiscordRuntimeDependencies = {
@@ -158,6 +168,8 @@ const defaultDependencies: DevelopmentDiscordRuntimeDependencies = {
     new InProcessAutomaticDailyRecapSchedulingScheduler(schedules, logger),
   createAutomaticDailyRecapCollectionScheduler: (collection, logger) =>
     new InProcessAutomaticDailyRecapCollectionScheduler(collection, logger),
+  createCompetitionStartRetryScheduler: (starts, logger) =>
+    new InProcessCompetitionStartRetryScheduler(starts, logger),
 };
 
 export async function startDevelopmentDiscordRuntime(
@@ -310,11 +322,22 @@ export async function startDevelopmentDiscordRuntime(
         ),
       );
     const competitionStartRepository = new PostgresCompetitionStartRepository(connection.database);
-    const competitionStartAdapter = new DiscordCompetitionStartCommandAdapter(
-      new CompetitionStartCommandHandler(
-        new CompetitionStartService(competitionStartRepository, permissions, hiscores),
-        competitionStartRepository,
+    const competitionStartService = new CompetitionStartService(
+      competitionStartRepository,
+      permissions,
+      hiscores,
+      undefined,
+      new CompetitionStartFailureAuditService(
+        audit,
+        new DiscordCompetitionStartFailureAuditPublisher(client, configurationService),
       ),
+    );
+    const competitionStartAdapter = new DiscordCompetitionStartCommandAdapter(
+      new CompetitionStartCommandHandler(competitionStartService, competitionStartRepository),
+    );
+    const competitionStartRetryScheduler = dependencies.createCompetitionStartRetryScheduler(
+      competitionStartService,
+      logger,
     );
 
     bindDiscordAccountCommandAdapter(
@@ -420,6 +443,7 @@ export async function startDevelopmentDiscordRuntime(
     await deliveryRecoveryScheduler.start();
     await automaticSchedulingScheduler.start();
     await automaticCollectionScheduler.start();
+    await competitionStartRetryScheduler.start();
     return createRuntime(
       client,
       connection,
@@ -427,6 +451,7 @@ export async function startDevelopmentDiscordRuntime(
       deliveryRecoveryScheduler,
       automaticSchedulingScheduler,
       automaticCollectionScheduler,
+      competitionStartRetryScheduler,
     );
   } catch (error) {
     await client.destroy();
@@ -467,10 +492,12 @@ async function closeRuntime(
   deliveryRecoveryScheduler: DailyRecapDeliveryRecoveryScheduler,
   automaticSchedulingScheduler: AutomaticDailyRecapSchedulingScheduler,
   automaticCollectionScheduler: AutomaticDailyRecapCollectionScheduler,
+  competitionStartRetryScheduler: CompetitionStartRetryScheduler,
 ): Promise<void> {
   deliveryRecoveryScheduler.stop();
   automaticSchedulingScheduler.stop();
   automaticCollectionScheduler.stop();
+  competitionStartRetryScheduler.stop();
   await client.destroy();
   await connection.close();
   logger.write({
@@ -487,6 +514,7 @@ function createRuntime(
   deliveryRecoveryScheduler: DailyRecapDeliveryRecoveryScheduler,
   automaticSchedulingScheduler: AutomaticDailyRecapSchedulingScheduler,
   automaticCollectionScheduler: AutomaticDailyRecapCollectionScheduler,
+  competitionStartRetryScheduler: CompetitionStartRetryScheduler,
 ): DevelopmentDiscordRuntime {
   let closePromise: Promise<void> | undefined;
   return {
@@ -498,6 +526,7 @@ function createRuntime(
         deliveryRecoveryScheduler,
         automaticSchedulingScheduler,
         automaticCollectionScheduler,
+        competitionStartRetryScheduler,
       );
       return closePromise;
     },
