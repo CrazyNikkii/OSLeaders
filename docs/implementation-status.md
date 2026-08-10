@@ -347,6 +347,19 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
+`06ecd6a` (2026-08-10) - Merge pending competition start retries.
+
+This merged the durable `START_PENDING` competition-start retry and
+administrative-audit slice. Competition starts now persist attempt count, next
+due time, and a sanitized failure summary. A constrained in-process scheduler
+claims due starts at startup and at a restrained interval; an initial start
+attempt writes a durable lease before Hiscores work so an interrupted process
+can recover it. Failed starts retry once after a short delay and then at
+ten-minute intervals, while successful starts clear retry state. Failure audit
+events and optional administrative-channel summaries do not interrupt the
+durable retry path. Focused unit, runtime, and PostgreSQL integration coverage
+is merged with this work.
+
 `ecfa4d9` (2026-08-10) - Merge raid boss menu.
 
 This merged the shared Discord boss selector's dedicated Raids menu for the
@@ -497,20 +510,7 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-`codex/competition-start-pending-retries` - Durable `START_PENDING`
-competition-start retry and administrative audit slice, pending review.
-
-This unmerged Stage 8 slice adds reviewed PostgreSQL retry metadata to
-competitions, including attempt count, next due time, and sanitized failure
-summary. A constrained in-process scheduler claims due persisted starts on
-startup and at a restrained interval, takes fresh cache-bypassing snapshots
-through the existing start service, and leaves failed work durably scheduled
-for the short first retry and later ten-minute retries. Competition-start
-fetch failures now create a sanitized structured audit event and, where
-configured, an administrative-channel summary; a log-delivery failure does not
-interrupt the durable retry path. Successful starts clear the retry state.
-Focused unit, runtime, and PostgreSQL integration coverage accompanies this
-work. It is not completed until merged.
+None.
 
 ## Next recommended branch-sized task
 
