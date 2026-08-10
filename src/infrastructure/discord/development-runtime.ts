@@ -130,6 +130,13 @@ import {
   type CompetitionStartRetryScheduler,
 } from './competition-start-retry-scheduler.js';
 import { DiscordCompetitionStartFailureAuditPublisher } from './competition-start-failure-audit-publisher.js';
+import {
+  bindDiscordCompetitionScheduleCommandAdapter,
+  CompetitionScheduleCommandHandler,
+  DiscordCompetitionScheduleCommandAdapter,
+} from './competition-schedule-command.js';
+import { CompetitionSchedulingService } from '../../features/competitions/schedule-competition.js';
+import { PostgresCompetitionSchedulingRepository } from '../database/postgres-competition-scheduling-repository.js';
 
 export interface DevelopmentDiscordRuntime {
   close(): Promise<void>;
@@ -339,6 +346,15 @@ export async function startDevelopmentDiscordRuntime(
       competitionStartService,
       logger,
     );
+    const competitionSchedulingRepository = new PostgresCompetitionSchedulingRepository(
+      connection.database,
+    );
+    const competitionScheduleAdapter = new DiscordCompetitionScheduleCommandAdapter(
+      new CompetitionScheduleCommandHandler(
+        new CompetitionSchedulingService(competitionSchedulingRepository, permissions),
+        competitionSchedulingRepository,
+      ),
+    );
 
     bindDiscordAccountCommandAdapter(
       client,
@@ -415,6 +431,12 @@ export async function startDevelopmentDiscordRuntime(
     bindDiscordCompetitionStartCommandAdapter(
       client,
       competitionStartAdapter,
+      (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
+      (interaction) => interaction.guildId === configuration.discord.guildId,
+    );
+    bindDiscordCompetitionScheduleCommandAdapter(
+      client,
+      competitionScheduleAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.guildId,
     );

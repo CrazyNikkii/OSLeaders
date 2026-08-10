@@ -527,12 +527,20 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-None.
+`codex/competition-schedule-command` adds the pending guild-only
+`/competition schedule` adapter for draft competitions. It presents bounded,
+initiator- and guild-bound draft selection, collects a minute-precision local
+time through a modal, delegates authorization and draft-state enforcement to a
+Discord-independent scheduling service, resolves the stored competition
+timezone through the shared DST-safe resolver, and confirms the persisted UTC
+instant using Discord-native timestamps. It includes focused unit, Discord
+adapter, runtime-binding, and PostgreSQL integration coverage. This work is
+not complete until it is reviewed and merged.
 
 ## Next recommended branch-sized task
 
-Add the small guild-only Discord adapter for setting a draft competition's
-intended local start time.
-It should use the stored competition timezone and the shared resolver, display
-Discord-native timestamps, and leave claims, standings, roles, and finish
-lifecycle work deferred.
+Add the Discord-independent active-competition standings foundation. It should
+fetch current values for each selected contributing account, retain the last
+known value for partial Hiscores failures, sum gains by Discord entrant while
+keeping watchlist entrants standalone, and leave claims, roles, recap
+integration, and finish lifecycle work deferred.

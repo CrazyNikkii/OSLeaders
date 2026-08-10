@@ -58,6 +58,9 @@ export const competitionCommandDefinitions = [
     .addSubcommand((subcommand) =>
       subcommand.setName('start').setDescription('Start a competition manually.'),
     )
+    .addSubcommand((subcommand) =>
+      subcommand.setName('schedule').setDescription('Schedule a competition draft to start.'),
+    )
     .toJSON(),
 ] as const;
 
