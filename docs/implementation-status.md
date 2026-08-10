@@ -26,17 +26,19 @@ merged.
 
 ## Current implementation stage
 
-Stage 8 - Competition draft creation, participation, and start foundation. The
+Stage 8 - Competition draft creation, participation, start foundation, and
+manual-start adapter. The
 merged `/account mode` adapter, member-presence Discord event work, daily-recap
 readability improvements, `/competition create` flow, and guild-only Discord
 draft-participation adapter complete the current edit, presence,
 recap-presentation, competition-draft creation, and draft-participation
-workflows. The current unmerged branch adds the Discord-independent
-competition-start foundation: authorized manual start from a draft, durable
-per-account historical starting-value snapshots, durable actual start/deadline
-timestamps, and the `start_pending` retry path for incomplete initial Hiscores
-fetches. It does not add a Discord start command, scheduling, claims,
-standings, roles, or finish lifecycle work.
+workflows. The merged Discord-independent competition-start foundation adds
+authorized manual start from a draft, durable per-account historical
+starting-value snapshots, durable actual start/deadline timestamps, and the
+`start_pending` retry path for incomplete initial Hiscores fetches. The current
+unmerged branch adds the guild-only Discord `/competition start` adapter for
+manual start and presentation of `started` or `start_pending` outcomes. It does
+not add scheduling, claims, standings, roles, or finish lifecycle work.
 
 The merged skill-lookup foundation begins the lookup module with a
 Discord-independent, guild-scoped skill lookup service. It resolves a
@@ -343,6 +345,16 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
+`bcb3540` (2026-08-10) - Merge competition start foundation.
+
+This merged the Discord-independent, guild-scoped competition-start foundation.
+Authorized manual starts transition drafts through durable `start_pending`,
+fetch fresh cache-bypassing starting values outside the database transaction,
+and atomically persist historical per-account snapshots with actual start and
+deadline timestamps. Failed fetches retain `start_pending` so a later manual
+retry can complete the start. It deliberately does not add a Discord start
+command, scheduling, claims, standings, roles, or finish lifecycle work.
+
 `8755b30` (2026-08-07) - Merge Discord competition draft participation.
 
 This merged the guild-only Discord draft-participation adapter. It exposes
@@ -451,18 +463,17 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-`codex/competition-start-foundation` - Add the Discord-independent,
-guild-scoped competition-start foundation. The branch transitions authorized
-draft starts through durable `start_pending`, collects fresh initial values
-outside the database transaction, writes all historical starting snapshots and
-actual start/deadline timestamps atomically, and retains `start_pending` when
-any fetch fails so a later manual retry can complete it. It deliberately does
-not add a Discord start command, scheduling, claims, standings, roles, or
-finish lifecycle work.
+`codex/discord-competition-start` - Add the guild-only Discord
+`/competition start` adapter for the merged start foundation. The branch limits
+the flow to authorized manual start and private presentation of `started` or
+`start_pending` outcomes; it does not add automatic retry scheduling,
+administrative-log delivery, claims, standings, roles, or finish lifecycle
+work.
 
 ## Next recommended branch-sized task
 
-After this branch merges, add the guild-only Discord `/competition start`
-adapter for the durable start foundation. Keep it limited to authorized manual
-start and presentation of `started` or `start_pending` outcomes; do not add
-scheduling, claims, standings, roles, or finish lifecycle work in that slice.
+After this branch merges, add durable automatic retry scheduling and
+administrative-log delivery for `START_PENDING` competitions. Keep that slice
+limited to retrying persisted incomplete starts and reporting their failures;
+do not add scheduled initial starts, claims, standings, roles, or finish
+lifecycle work.

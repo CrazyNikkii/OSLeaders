@@ -393,6 +393,57 @@ describe('database foundation', () => {
     ).resolves.toEqual({ kind: 'competition_not_found' });
   });
 
+  it('lists only guild-scoped draft and start-pending competitions for manual start', async () => {
+    const creationRepository = new PostgresCompetitionCreationRepository(connection.database);
+    const repository = new PostgresCompetitionStartRepository(connection.database);
+    const guildId = 'competition-start-choices-guild';
+    await creationRepository.create(
+      competitionDraft({
+        displayName: 'Draft start choice',
+        guildId,
+        id: 'competition-start-choice-draft',
+        normalizedName: 'draft start choice',
+      }),
+    );
+    await creationRepository.create(
+      competitionDraft({
+        displayName: 'Pending start choice',
+        guildId,
+        id: 'competition-start-choice-pending',
+        normalizedName: 'pending start choice',
+      }),
+    );
+    await creationRepository.create(
+      competitionDraft({
+        displayName: 'Active start exclusion',
+        guildId,
+        id: 'competition-start-choice-active',
+        normalizedName: 'active start exclusion',
+      }),
+    );
+    await creationRepository.create(
+      competitionDraft({
+        displayName: 'Other guild draft',
+        guildId: 'competition-start-choices-other-guild',
+        id: 'competition-start-choice-other-guild',
+        normalizedName: 'other guild draft',
+      }),
+    );
+    await connection.database
+      .update(competitions)
+      .set({ state: 'start_pending' })
+      .where(eq(competitions.id, 'competition-start-choice-pending'));
+    await connection.database
+      .update(competitions)
+      .set({ state: 'active' })
+      .where(eq(competitions.id, 'competition-start-choice-active'));
+
+    await expect(repository.listStartable(guildId)).resolves.toEqual([
+      { displayName: 'Draft start choice', id: 'competition-start-choice-draft' },
+      { displayName: 'Pending start choice', id: 'competition-start-choice-pending' },
+    ]);
+  });
+
   it('commits a successful transaction', async () => {
     const guildId = 'integration-commit-guild';
 

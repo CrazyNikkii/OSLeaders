@@ -33,6 +33,7 @@ import { PostgresAutomaticDailyRecapScheduleRepository } from '../database/postg
 import { PostgresAutomaticDailyRecapCollectionRepository } from '../database/postgres-automatic-daily-recap-collection-repository.js';
 import { PostgresCompetitionCreationRepository } from '../database/postgres-competition-creation-repository.js';
 import { PostgresCompetitionDraftParticipationRepository } from '../database/postgres-competition-draft-participation-repository.js';
+import { PostgresCompetitionStartRepository } from '../database/postgres-competition-start-repository.js';
 import { OsrsHiscoreHttpClient } from '../hiscores/osrs-hiscore-http-client.js';
 import { OSRS_MODE_FETCH_STRATEGIES } from '../hiscores/osrs-hiscore-catalog.js';
 import { StdoutStructuredLocalLogger } from '../logging/structured-local-logger.js';
@@ -117,6 +118,12 @@ import {
   CompetitionDraftParticipationCommandHandler,
   DiscordCompetitionDraftParticipationCommandAdapter,
 } from './competition-draft-participation-command.js';
+import {
+  bindDiscordCompetitionStartCommandAdapter,
+  CompetitionStartCommandHandler,
+  DiscordCompetitionStartCommandAdapter,
+} from './competition-start-command.js';
+import { CompetitionStartService } from '../../features/competitions/start-competition.js';
 
 export interface DevelopmentDiscordRuntime {
   close(): Promise<void>;
@@ -302,6 +309,13 @@ export async function startDevelopmentDiscordRuntime(
           accountRepository,
         ),
       );
+    const competitionStartRepository = new PostgresCompetitionStartRepository(connection.database);
+    const competitionStartAdapter = new DiscordCompetitionStartCommandAdapter(
+      new CompetitionStartCommandHandler(
+        new CompetitionStartService(competitionStartRepository, permissions, hiscores),
+        competitionStartRepository,
+      ),
+    );
 
     bindDiscordAccountCommandAdapter(
       client,
@@ -372,6 +386,12 @@ export async function startDevelopmentDiscordRuntime(
     bindDiscordCompetitionDraftParticipationCommandAdapter(
       client,
       competitionDraftParticipationAdapter,
+      (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
+      (interaction) => interaction.guildId === configuration.discord.guildId,
+    );
+    bindDiscordCompetitionStartCommandAdapter(
+      client,
+      competitionStartAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.guildId,
     );

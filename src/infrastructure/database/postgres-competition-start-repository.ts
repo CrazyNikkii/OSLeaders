@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 
 import type {
   CompetitionStartAccount,
@@ -17,6 +17,21 @@ import {
 
 export class PostgresCompetitionStartRepository implements CompetitionStartRepository {
   public constructor(private readonly database: Database) {}
+
+  public async listStartable(
+    guildId: string,
+  ): Promise<readonly { id: string; displayName: string }[]> {
+    return this.database
+      .select({ displayName: competitions.displayName, id: competitions.id })
+      .from(competitions)
+      .where(
+        and(
+          eq(competitions.guildId, guildId),
+          inArray(competitions.state, ['draft', 'start_pending']),
+        ),
+      )
+      .orderBy(competitions.createdAt, competitions.id);
+  }
 
   public beginStart(request: {
     canManageCompetitions: boolean;

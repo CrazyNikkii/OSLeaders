@@ -55,6 +55,9 @@ export const competitionCommandDefinitions = [
     .addSubcommand((subcommand) =>
       subcommand.setName('remove').setDescription('Remove a participant from a competition draft.'),
     )
+    .addSubcommand((subcommand) =>
+      subcommand.setName('start').setDescription('Start a competition manually.'),
+    )
     .toJSON(),
 ] as const;
 
