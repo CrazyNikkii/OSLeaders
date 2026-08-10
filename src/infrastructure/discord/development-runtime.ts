@@ -21,6 +21,8 @@ import { CompetitionCreationService } from '../../features/competitions/create-c
 import { CompetitionDraftParticipationService } from '../../features/competitions/manage-draft-participation.js';
 import { CompetitionStandingsService } from '../../features/competitions/competition-standings.js';
 import { TargetRaceClaimService } from '../../features/competitions/claim-target-race.js';
+import { TargetRaceDeadlineFinalizationService } from '../../features/competitions/finalize-target-race-deadline.js';
+import { TargetRaceDeadlineFailureAuditService } from '../../features/competitions/report-target-race-deadline-failures.js';
 import { createErrorReferenceId } from '../../features/audit/error-reference.js';
 import { GuildConfigurationService } from '../../features/guild-configuration/guild-configuration-service.js';
 import { GuildPermissionService } from '../../features/guild-configuration/guild-permission-service.js';
@@ -38,6 +40,7 @@ import { PostgresCompetitionDraftParticipationRepository } from '../database/pos
 import { PostgresCompetitionStartRepository } from '../database/postgres-competition-start-repository.js';
 import { PostgresCompetitionStandingsRepository } from '../database/postgres-competition-standings-repository.js';
 import { PostgresTargetRaceClaimRepository } from '../database/postgres-target-race-claim-repository.js';
+import { PostgresTargetRaceDeadlineFinalizationRepository } from '../database/postgres-target-race-deadline-finalization-repository.js';
 import { OsrsHiscoreHttpClient } from '../hiscores/osrs-hiscore-http-client.js';
 import { OSRS_MODE_FETCH_STRATEGIES } from '../hiscores/osrs-hiscore-catalog.js';
 import { StdoutStructuredLocalLogger } from '../logging/structured-local-logger.js';
@@ -133,6 +136,7 @@ import {
   InProcessCompetitionStartRetryScheduler,
   type CompetitionStartRetryScheduler,
 } from './competition-start-retry-scheduler.js';
+import { InProcessTargetRaceDeadlineFinalizationScheduler } from './target-race-deadline-finalization-scheduler.js';
 import { DiscordCompetitionStartFailureAuditPublisher } from './competition-start-failure-audit-publisher.js';
 import {
   bindDiscordCompetitionScheduleCommandAdapter,
@@ -176,6 +180,11 @@ export interface DevelopmentDiscordRuntimeDependencies {
     starts: CompetitionStartService,
     logger: StructuredLocalLogger,
   ): CompetitionStartRetryScheduler;
+  createTargetRaceDeadlineFinalizationScheduler?(
+    finalizations: TargetRaceDeadlineFinalizationService,
+    logger: StructuredLocalLogger,
+    claims: TargetRaceClaimService,
+  ): InProcessTargetRaceDeadlineFinalizationScheduler;
 }
 
 const defaultDependencies: DevelopmentDiscordRuntimeDependencies = {
@@ -191,6 +200,8 @@ const defaultDependencies: DevelopmentDiscordRuntimeDependencies = {
     new InProcessAutomaticDailyRecapCollectionScheduler(collection, logger),
   createCompetitionStartRetryScheduler: (starts, logger) =>
     new InProcessCompetitionStartRetryScheduler(starts, logger),
+  createTargetRaceDeadlineFinalizationScheduler: (finalizations, logger, claims) =>
+    new InProcessTargetRaceDeadlineFinalizationScheduler(finalizations, logger, claims),
 };
 
 export async function startDevelopmentDiscordRuntime(
@@ -379,9 +390,29 @@ export async function startDevelopmentDiscordRuntime(
       ),
     );
     const targetRaceClaimRepository = new PostgresTargetRaceClaimRepository(connection.database);
+    const targetRaceClaimService = new TargetRaceClaimService(
+      targetRaceClaimRepository,
+      permissions,
+      hiscores,
+      randomUUID,
+    );
+    const targetRaceDeadlineFinalizationScheduler =
+      dependencies.createTargetRaceDeadlineFinalizationScheduler?.(
+        new TargetRaceDeadlineFinalizationService(
+          new PostgresTargetRaceDeadlineFinalizationRepository(connection.database),
+          hiscores,
+          undefined,
+          new TargetRaceDeadlineFailureAuditService(
+            audit,
+            new DiscordCompetitionStartFailureAuditPublisher(client, configurationService),
+          ),
+        ),
+        logger,
+        targetRaceClaimService,
+      );
     const targetRaceClaimAdapter = new DiscordCompetitionTargetRaceClaimCommandAdapter(
       new CompetitionTargetRaceClaimCommandHandler(
-        new TargetRaceClaimService(targetRaceClaimRepository, permissions, hiscores, randomUUID),
+        targetRaceClaimService,
         targetRaceClaimRepository,
         permissions,
       ),
@@ -509,6 +540,7 @@ export async function startDevelopmentDiscordRuntime(
     await automaticSchedulingScheduler.start();
     await automaticCollectionScheduler.start();
     await competitionStartRetryScheduler.start();
+    await targetRaceDeadlineFinalizationScheduler?.start();
     return createRuntime(
       client,
       connection,
@@ -517,6 +549,7 @@ export async function startDevelopmentDiscordRuntime(
       automaticSchedulingScheduler,
       automaticCollectionScheduler,
       competitionStartRetryScheduler,
+      targetRaceDeadlineFinalizationScheduler,
     );
   } catch (error) {
     await client.destroy();
@@ -558,11 +591,14 @@ async function closeRuntime(
   automaticSchedulingScheduler: AutomaticDailyRecapSchedulingScheduler,
   automaticCollectionScheduler: AutomaticDailyRecapCollectionScheduler,
   competitionStartRetryScheduler: CompetitionStartRetryScheduler,
+  targetRaceDeadlineFinalizationScheduler:
+    InProcessTargetRaceDeadlineFinalizationScheduler | undefined,
 ): Promise<void> {
   deliveryRecoveryScheduler.stop();
   automaticSchedulingScheduler.stop();
   automaticCollectionScheduler.stop();
   competitionStartRetryScheduler.stop();
+  targetRaceDeadlineFinalizationScheduler?.stop();
   await client.destroy();
   await connection.close();
   logger.write({
@@ -580,6 +616,8 @@ function createRuntime(
   automaticSchedulingScheduler: AutomaticDailyRecapSchedulingScheduler,
   automaticCollectionScheduler: AutomaticDailyRecapCollectionScheduler,
   competitionStartRetryScheduler: CompetitionStartRetryScheduler,
+  targetRaceDeadlineFinalizationScheduler:
+    InProcessTargetRaceDeadlineFinalizationScheduler | undefined,
 ): DevelopmentDiscordRuntime {
   let closePromise: Promise<void> | undefined;
   return {
@@ -592,6 +630,7 @@ function createRuntime(
         automaticSchedulingScheduler,
         automaticCollectionScheduler,
         competitionStartRetryScheduler,
+        targetRaceDeadlineFinalizationScheduler,
       );
       return closePromise;
     },

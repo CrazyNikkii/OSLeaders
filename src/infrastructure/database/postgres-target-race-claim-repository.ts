@@ -137,6 +137,53 @@ export class PostgresTargetRaceClaimRepository implements TargetRaceClaimReposit
     });
   }
 
+  public async claimDueRetry(): Promise<TargetRaceClaimReady | undefined> {
+    return this.database.transaction(async (transaction) => {
+      const [candidate] = await transaction
+        .select({ guildId: competitionTargetClaims.guildId, id: competitionTargetClaims.id })
+        .from(competitionTargetClaims)
+        .innerJoin(
+          competitions,
+          and(
+            eq(competitions.id, competitionTargetClaims.competitionId),
+            eq(competitions.guildId, competitionTargetClaims.guildId),
+          ),
+        )
+        .where(
+          and(
+            eq(competitionTargetClaims.status, 'pending'),
+            eq(competitions.state, 'active'),
+            isNull(competitions.winningTargetClaimId),
+          ),
+        )
+        .orderBy(asc(competitionTargetClaims.receivedAt), asc(competitionTargetClaims.id))
+        .limit(1);
+      if (candidate === undefined) return undefined;
+      await lockGuild(transaction, candidate.guildId);
+      const [claim] = await transaction
+        .select()
+        .from(competitionTargetClaims)
+        .where(
+          and(
+            eq(competitionTargetClaims.guildId, candidate.guildId),
+            eq(competitionTargetClaims.id, candidate.id),
+            eq(competitionTargetClaims.status, 'pending'),
+          ),
+        );
+      if (claim === undefined) return undefined;
+      const prepared = await this.prepareEntrantForDueRetry(
+        transaction,
+        claim.guildId,
+        claim.competitionId,
+        claim.entrantId,
+        claim.receivedAt,
+      );
+      return 'kind' in prepared
+        ? undefined
+        : { ...prepared, claimId: claim.id, receivedAt: claim.receivedAt };
+    });
+  }
+
   public async recordTemporaryFailure(request: {
     claimId: string;
     failureSummary: string;
@@ -302,6 +349,7 @@ export class PostgresTargetRaceClaimRepository implements TargetRaceClaimReposit
     requesterDiscordUserId: string,
     canManageCompetitions: boolean,
     receivedAt: Date,
+    bypassAuthorization = false,
   ): Promise<
     | Omit<TargetRaceClaimReady, 'claimId' | 'receivedAt'>
     | Exclude<TargetRaceClaimBeginResult, { kind: 'ready' }>
@@ -350,7 +398,8 @@ export class PostgresTargetRaceClaimRepository implements TargetRaceClaimReposit
     const selfClaim = entrant.discordUserId === requesterDiscordUserId;
     const managerClaimForAbsentMember =
       canManageCompetitions && entrant.discordUserId !== null && entrant.isPresent === false;
-    if (!selfClaim && !managerClaimForAbsentMember) return { kind: 'forbidden' };
+    if (!bypassAuthorization && !selfClaim && !managerClaimForAbsentMember)
+      return { kind: 'forbidden' };
     const accounts = await transaction
       .select({
         accountMode: competitionAccountSnapshots.accountMode,
@@ -376,6 +425,25 @@ export class PostgresTargetRaceClaimRepository implements TargetRaceClaimReposit
       metric: { kind: competition.metricKind, name: competition.metricName },
       targetValue: competition.targetValue,
     };
+  }
+
+  private async prepareEntrantForDueRetry(
+    transaction: Transaction,
+    guildId: string,
+    competitionId: string,
+    entrantId: string,
+    receivedAt: Date,
+  ) {
+    return this.prepareEntrant(
+      transaction,
+      guildId,
+      competitionId,
+      entrantId,
+      '',
+      true,
+      receivedAt,
+      true,
+    );
   }
 }
 

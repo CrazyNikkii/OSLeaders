@@ -371,6 +371,15 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
+`86e393e` (2026-08-10) - Add optional target race deadlines.
+
+This is on `master` and permits target-race drafts to keep no deadline or
+store a validated positive duration. It persists that choice through a
+reviewed migration, collects the optional duration in the guided Discord
+creation flow, and derives `endsAt` from the successful starting snapshot. It
+does not implement deadline finalization, winner selection, roles, or recap
+integration.
+
 `a78e626` (2026-08-10) - Merge target-race finish foundation.
 
 This merged the Discord-independent target-race finish foundation. When the
@@ -604,19 +613,17 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-`codex/target-race-deadline-configuration` - Add optional target-race deadline
-configuration. This in-review branch permits target-race drafts to keep no
-deadline or store a validated positive duration, persists that choice through a
-reviewed migration, and collects the optional duration in the existing guided
-Discord creation flow. The existing start path then derives `endsAt` from the
-successful starting snapshot. It does not implement deadline finalization,
-winner selection, roles, or recap integration.
+`codex/target-race-deadline-finalization` - Add the Discord-independent,
+durable deadline workflow for optional target races. It claims due work,
+collects fresh final values, retains final values and shared exact-tie winners,
+retries failed collection through the existing in-process scheduler pattern,
+and automatically retries pending pre-deadline claims before fallback
+finalization.
+It does not add Discord result presentation, roles, recap integration, or
+general timed-competition finalization.
 
 ## Next recommended branch-sized task
 
-After the deadline-configuration branch merges, add durable target-race
-deadline finalization. It should collect and retain final progress, finish
-early for a verified claim, or at its deadline award the highest-gain entrant
-or entrants as shared winners on an exact tie. Leave roles and recap
-integration deferred; timed-competition finalization remains a separate
-follow-up.
+After the deadline-finalization branch merges, add durable timed-competition
+finalization with delayed-result handling. Leave roles and recap integration
+deferred.

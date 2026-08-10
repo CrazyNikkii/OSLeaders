@@ -41,6 +41,7 @@ export interface TargetRaceClaimRepository {
     guildId: string;
     requesterDiscordUserId: string;
   }): Promise<TargetRaceClaimBeginResult>;
+  claimDueRetry(): Promise<TargetRaceClaimReady | undefined>;
   recordTemporaryFailure(request: {
     claimId: string;
     failureSummary: string;
@@ -154,6 +155,11 @@ export class TargetRaceClaimService {
       requesterDiscordUserId: request.requesterDiscordUserId,
     });
     return begin.kind === 'ready' ? this.verify(begin.claim) : begin;
+  }
+
+  public async retryDue(): Promise<TargetRaceClaimResult | { kind: 'no_due_claim' }> {
+    const claim = await this.repository.claimDueRetry();
+    return claim === undefined ? { kind: 'no_due_claim' } : this.verify(claim);
   }
 
   private async verify(claim: TargetRaceClaimReady): Promise<TargetRaceClaimResult> {

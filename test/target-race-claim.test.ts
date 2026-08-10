@@ -78,12 +78,32 @@ describe('target-race claim service', () => {
     ]);
     expect(repository.failures).toEqual([]);
   });
+
+  it('automatically retries the oldest pending claim with its original receipt', async () => {
+    const repository = new Repository();
+    repository.dueClaim = ready('claim-earlier', new Date('2026-08-10T13:59:00.000Z'));
+    const service = serviceFor(
+      repository,
+      new Hiscores({ Alpha: success(140), Bravo: success(70) }),
+    );
+
+    await expect(service.retryDue()).resolves.toMatchObject({
+      kind: 'won',
+      claimId: 'claim-earlier',
+    });
+    expect(repository.finalized[0]?.claimId).toBe('claim-earlier');
+  });
 });
 
 class Repository implements TargetRaceClaimRepository {
   public readonly begun: { claimId: string; receivedAt: Date }[] = [];
   public readonly failures: { claimId: string; failureSummary: string; guildId: string }[] = [];
   public readonly finalized: { claimId: string; finalValue: bigint }[] = [];
+
+  public dueClaim: ReturnType<typeof ready> | undefined;
+  public claimDueRetry() {
+    return Promise.resolve(this.dueClaim);
+  }
   public readonly retried: string[] = [];
   public readonly verificationFailures: {
     claimId: string;
