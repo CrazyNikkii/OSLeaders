@@ -30,7 +30,11 @@ Stage 8 - Competition draft creation, participation, start foundation, and
 manual-start adapter. The merged Discord-independent competition standings
 foundation adds active-competition progress collection with durable last-known
 values for partial Hiscores failures, combined linked-account scores, standalone
-watchlist entrants, shared ranks, and incomplete-score warnings. The
+watchlist entrants, shared ranks, and incomplete-score warnings. The merged
+guild-only `/competition standings` adapter exposes those results through
+bounded active-competition selection to any server member, acknowledges before
+Hiscores collection, and publishes public embeds with score, account breakdown,
+rank, deadline or target, and stale-account context. The
 merged `/account mode` adapter, member-presence Discord event work, daily-recap
 readability improvements, `/competition create` flow, and guild-only Discord
 draft-participation adapter complete the current edit, presence,
@@ -353,6 +357,16 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
+`5672905` (2026-08-10) - Merge Discord competition standings command.
+
+This merged the guild-only `/competition standings` adapter. Any server member
+can select an active competition through a bounded, guild- and initiator-bound
+menu; the interaction is acknowledged before standings collection. The adapter
+publishes public embeds with combined entrant scores, contributing-account
+breakdowns, shared ranks, deadline or target context, and durable last-known
+value warnings for incomplete entries. It does not add claims, roles, recap
+integration, or finish lifecycle work.
+
 `b533050` (2026-08-10) - Merge competition standings foundation.
 
 This merged the Discord-independent, guild-scoped active-competition standings
@@ -550,13 +564,7 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-`codex/competition-standings-command` adds the pending guild-only Discord
-`/competition standings` adapter. It presents bounded, guild- and
-initiator-bound active-competition selection to any server member, acknowledges
-before standings collection, and publishes combined entrant score, contributing
-account breakdown, shared rank, deadline or target, and stale-account warnings
-publicly. It does not add claims, roles, recap integration, or finish lifecycle
-work. This work is not complete until it is reviewed and merged.
+None.
 
 ## Next recommended branch-sized task
 
