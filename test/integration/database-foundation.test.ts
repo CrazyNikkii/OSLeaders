@@ -26,8 +26,10 @@ import { PostgresAutomaticDailyRecapScheduleRepository } from '../../src/infrast
 import { PostgresAutomaticDailyRecapCollectionRepository } from '../../src/infrastructure/database/postgres-automatic-daily-recap-collection-repository.js';
 import { PostgresCompetitionCreationRepository } from '../../src/infrastructure/database/postgres-competition-creation-repository.js';
 import { PostgresCompetitionDraftParticipationRepository } from '../../src/infrastructure/database/postgres-competition-draft-participation-repository.js';
+import { PostgresCompetitionStartRepository } from '../../src/infrastructure/database/postgres-competition-start-repository.js';
 import {
   competitionContributingAccounts,
+  competitionAccountSnapshots,
   competitionEntrants,
   competitions,
   guildConfigurations,
@@ -69,7 +71,7 @@ describe('database foundation', () => {
   it('applies the committed database migrations to an empty test database', async () => {
     const committedMigrations = await readCommittedMigrations();
     const applicationTables = await connection.pool.query<{ table_name: string }>(
-      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('competition_contributing_accounts', 'competition_entrants', 'competitions', 'daily_recap_deliveries', 'daily_recap_runs', 'guild_configurations', 'guild_member_presences', 'guilds', 'recap_baselines', 'tracked_accounts') ORDER BY table_name",
+      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('competition_account_snapshots', 'competition_contributing_accounts', 'competition_entrants', 'competitions', 'daily_recap_deliveries', 'daily_recap_runs', 'guild_configurations', 'guild_member_presences', 'guilds', 'recap_baselines', 'tracked_accounts') ORDER BY table_name",
     );
     const migrationTables = await connection.pool.query<{ table_name: string }>(
       "SELECT table_name FROM information_schema.tables WHERE table_schema = 'drizzle' AND table_name = '__drizzle_migrations'",
@@ -79,6 +81,7 @@ describe('database foundation', () => {
     );
 
     expect(applicationTables.rows).toEqual([
+      { table_name: 'competition_account_snapshots' },
       { table_name: 'competition_contributing_accounts' },
       { table_name: 'competition_entrants' },
       { table_name: 'competitions' },
@@ -303,6 +306,91 @@ describe('database foundation', () => {
         requesterDiscordUserId: 'another-manager',
       }),
     ).resolves.toEqual({ kind: 'membership_locked' });
+  });
+
+  it('durably starts a guild-scoped competition with historical starting snapshots and deadline', async () => {
+    const competitionsRepository = new PostgresCompetitionCreationRepository(connection.database);
+    const accountsRepository = new PostgresAccountRegistrationRepository(connection.database);
+    const participationRepository = new PostgresCompetitionDraftParticipationRepository(
+      connection.database,
+    );
+    const repository = new PostgresCompetitionStartRepository(connection.database);
+    const guildId = 'competition-start-guild';
+    const competitionId = 'competition-start';
+    const startedAt = new Date('2026-08-10T12:00:00.000Z');
+    await competitionsRepository.create(
+      competitionDraft({
+        guildId,
+        id: competitionId,
+        displayName: 'Start competition',
+        normalizedName: 'start competition',
+      }),
+    );
+    await accountsRepository.register(
+      account({ id: 'competition-start-account', guildId }),
+      initialRecapBaseline(),
+    );
+    await participationRepository.join({
+      competitionId,
+      contributingAccountIds: ['competition-start-account'],
+      entrantId: 'competition-start-entrant',
+      guildId,
+      requesterDiscordUserId: 'member-one',
+    });
+
+    const begin = await repository.beginStart({
+      canManageCompetitions: true,
+      competitionId,
+      guildId,
+      requesterDiscordUserId: 'manager-one',
+    });
+    expect(begin).toMatchObject({
+      kind: 'ready_to_start',
+      competition: { accounts: [{ id: 'competition-start-account' }] },
+    });
+    if (begin.kind !== 'ready_to_start')
+      throw new Error('Expected the competition to be ready to start.');
+    await expect(
+      repository.completeStart({
+        competitionId,
+        guildId,
+        snapshots: [{ account: begin.competition.accounts[0]!, value: 987654321n }],
+        startedAt,
+      }),
+    ).resolves.toMatchObject({
+      kind: 'started',
+      endsAt: new Date('2026-08-11T12:00:00.000Z'),
+    });
+    await expect(
+      connection.database
+        .select()
+        .from(competitionAccountSnapshots)
+        .where(eq(competitionAccountSnapshots.competitionId, competitionId)),
+    ).resolves.toMatchObject([
+      {
+        accountMode: 'main',
+        displayUsername: 'Rune Scape',
+        startingObservedAt: startedAt,
+        startingValue: 987654321n,
+        trackedAccountId: 'competition-start-account',
+      },
+    ]);
+    await expect(
+      repository.beginStart({
+        canManageCompetitions: true,
+        competitionId,
+        guildId,
+        requesterDiscordUserId: 'manager-one',
+      }),
+    ).resolves.toEqual({ kind: 'start_locked' });
+    await expect(
+      repository.beginStart({
+        canManageCompetitions: true,
+        competitionId,
+        guildId: 'another-guild',
+        requesterDiscordUserId: 'manager-one',
+      }),
+    ).resolves.toEqual({ kind: 'competition_not_found' });
   });
 
   it('commits a successful transaction', async () => {

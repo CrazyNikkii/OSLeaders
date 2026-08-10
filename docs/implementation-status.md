@@ -26,15 +26,17 @@ merged.
 
 ## Current implementation stage
 
-Stage 8 - Competition draft creation and participation. The merged
-`/account mode` adapter, member-presence Discord event work, daily-recap
-readability improvements, and `/competition create` flow complete the current
-edit, presence, recap-presentation, and competition-draft creation workflows.
-The current unmerged branch adds the guild-only Discord draft-participation
-adapter. It exposes join, leave, creator-or-manager add, and creator-or-manager
-remove through bounded, initiator- and guild-bound five-minute selection flows.
-It does not add snapshots, scheduling, claims, standings, roles, or lifecycle
-transitions.
+Stage 8 - Competition draft creation, participation, and start foundation. The
+merged `/account mode` adapter, member-presence Discord event work, daily-recap
+readability improvements, `/competition create` flow, and guild-only Discord
+draft-participation adapter complete the current edit, presence,
+recap-presentation, competition-draft creation, and draft-participation
+workflows. The current unmerged branch adds the Discord-independent
+competition-start foundation: authorized manual start from a draft, durable
+per-account historical starting-value snapshots, durable actual start/deadline
+timestamps, and the `start_pending` retry path for incomplete initial Hiscores
+fetches. It does not add a Discord start command, scheduling, claims,
+standings, roles, or finish lifecycle work.
 
 The merged skill-lookup foundation begins the lookup module with a
 Discord-independent, guild-scoped skill lookup service. It resolves a
@@ -341,6 +343,14 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
+`8755b30` (2026-08-07) - Merge Discord competition draft participation.
+
+This merged the guild-only Discord draft-participation adapter. It exposes
+draft-only join, leave, creator-or-manager add, and creator-or-manager remove
+through bounded, initiator- and guild-bound five-minute account-selection
+interactions. It deliberately does not add snapshots, scheduling, claims,
+standings, roles, or lifecycle transitions.
+
 `ab3e01e` (2026-08-07) - Merge competition draft participation foundation.
 
 This merged the durable, Discord-independent guild-scoped entrant and selected
@@ -441,17 +451,18 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-`codex/discord-competition-draft-participation` - Add the guild-only
-Discord draft-participation adapter. The branch supplies the required
-guild-scoped draft and entrant choices and routes draft-only join, leave,
-creator-or-manager add, and creator-or-manager remove operations through
-initiator- and guild-bound five-minute account-selection interactions. It
-deliberately does not add snapshots, scheduling, claims, standings, roles, or
-lifecycle transitions.
+`codex/competition-start-foundation` - Add the Discord-independent,
+guild-scoped competition-start foundation. The branch transitions authorized
+draft starts through durable `start_pending`, collects fresh initial values
+outside the database transaction, writes all historical starting snapshots and
+actual start/deadline timestamps atomically, and retains `start_pending` when
+any fetch fails so a later manual retry can complete it. It deliberately does
+not add a Discord start command, scheduling, claims, standings, roles, or
+finish lifecycle work.
 
 ## Next recommended branch-sized task
 
-After this branch merges, add the competition-start foundation: manual start
-of a draft, durable starting-value snapshots, and the `start_pending` retry
-path for failed Hiscores fetches. Do not add scheduling, claims, standings,
-roles, or finish lifecycle work in that slice.
+After this branch merges, add the guild-only Discord `/competition start`
+adapter for the durable start foundation. Keep it limited to authorized manual
+start and presentation of `started` or `start_pending` outcomes; do not add
+scheduling, claims, standings, roles, or finish lifecycle work in that slice.
