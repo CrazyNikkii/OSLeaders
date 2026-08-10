@@ -35,8 +35,8 @@ recap-presentation, competition-draft creation, and draft-participation
 workflows. The merged Discord-independent competition-start foundation adds
 authorized manual start from a draft, durable per-account historical
 starting-value snapshots, durable actual start/deadline timestamps, and the
-`start_pending` retry path for incomplete initial Hiscores fetches. The current
-unmerged branch separates the six supported raid activities into a dedicated
+`start_pending` retry path for incomplete initial Hiscores fetches. The merged
+raid-menu update separates the six supported raid activities into a dedicated
 shared Discord selector, while all other supported bosses remain in bounded
 alphabetical selectors. That shared selector serves boss lookups, one-time
 boss lookups, boss leaderboards, and competition creation; it does not alter
@@ -347,6 +347,14 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
+`ecfa4d9` (2026-08-10) - Merge raid boss menu.
+
+This merged the shared Discord boss selector's dedicated Raids menu for the
+six currently supported raid activities. The remaining bosses stay in bounded
+alphabetical menus, with coverage for boss lookup, one-time boss lookup, boss
+leaderboard, and competition creation. The catalog procedure now records that
+future supported raids must be added to this menu as well as the boss catalog.
+
 `4969e91` (2026-08-10) - Merge Mad Angel boss support.
 
 This merged Jagex's `Mad Angel` activity into the central boss catalog and
@@ -489,17 +497,12 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-`codex/separate-raid-boss-menu` - Separate the six supported raid activities
-into a dedicated Raids selector in the shared Discord boss menu. The remaining
-bosses stay in bounded alphabetical selectors. This changes the shared selector
-used by `/boss`, `/one-time-boss`, `/boss-leaderboard`, and competition
-creation, while preserving their existing authorization, guild isolation, and
-selection-session behaviour.
+None.
 
 ## Next recommended branch-sized task
 
-After this branch merges, add durable automatic retry scheduling and
-administrative-log delivery for `START_PENDING` competitions. Keep that slice
+Add durable automatic retry scheduling and administrative-log delivery for
+`START_PENDING` competitions. Keep that slice
 limited to retrying persisted incomplete starts and reporting their failures;
 do not add scheduled initial starts, claims, standings, roles, or finish
 lifecycle work.
