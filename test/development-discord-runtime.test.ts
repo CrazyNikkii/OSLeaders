@@ -39,6 +39,9 @@ describe('development Discord runtime', () => {
     expect(dependencies.createTargetRaceDeadlineFinalizationScheduler).toHaveBeenCalledOnce();
     expect(dependencies.targetRaceDeadlineFinalizationScheduler.start).toHaveBeenCalledOnce();
     expect(dependencies.targetRaceDeadlineFinalizationScheduler.stop).toHaveBeenCalledOnce();
+    expect(dependencies.createTimedCompetitionFinalizationScheduler).toHaveBeenCalledOnce();
+    expect(dependencies.timedCompetitionFinalizationScheduler.start).toHaveBeenCalledOnce();
+    expect(dependencies.timedCompetitionFinalizationScheduler.stop).toHaveBeenCalledOnce();
   });
 
   it('starts the production runtime using its separately selected guild', async () => {
@@ -193,6 +196,13 @@ class RuntimeDependencies {
   public readonly createTargetRaceDeadlineFinalizationScheduler = vi.fn(
     () => this.targetRaceDeadlineFinalizationScheduler,
   );
+  public readonly timedCompetitionFinalizationScheduler = {
+    start: vi.fn(() => Promise.resolve()),
+    stop: vi.fn(),
+  };
+  public readonly createTimedCompetitionFinalizationScheduler = vi.fn(
+    () => this.timedCompetitionFinalizationScheduler,
+  );
   public readonly logger = new RecordingLogger();
   public readonly pool = { query: vi.fn(() => Promise.resolve()) };
 
@@ -206,6 +216,8 @@ class RuntimeDependencies {
       createCompetitionStartRetryScheduler: vi.fn(() => this.competitionStartRetryScheduler),
       createTargetRaceDeadlineFinalizationScheduler: this
         .createTargetRaceDeadlineFinalizationScheduler as never,
+      createTimedCompetitionFinalizationScheduler: this
+        .createTimedCompetitionFinalizationScheduler as never,
       createLogger: () => this.logger,
     };
   }

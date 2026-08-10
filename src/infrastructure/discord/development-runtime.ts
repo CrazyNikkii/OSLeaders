@@ -22,7 +22,9 @@ import { CompetitionDraftParticipationService } from '../../features/competition
 import { CompetitionStandingsService } from '../../features/competitions/competition-standings.js';
 import { TargetRaceClaimService } from '../../features/competitions/claim-target-race.js';
 import { TargetRaceDeadlineFinalizationService } from '../../features/competitions/finalize-target-race-deadline.js';
+import { TimedCompetitionFinalizationService } from '../../features/competitions/finalize-timed-competition.js';
 import { TargetRaceDeadlineFailureAuditService } from '../../features/competitions/report-target-race-deadline-failures.js';
+import { TimedCompetitionFinalizationFailureAuditService } from '../../features/competitions/report-timed-competition-finalization-failures.js';
 import { createErrorReferenceId } from '../../features/audit/error-reference.js';
 import { GuildConfigurationService } from '../../features/guild-configuration/guild-configuration-service.js';
 import { GuildPermissionService } from '../../features/guild-configuration/guild-permission-service.js';
@@ -41,6 +43,7 @@ import { PostgresCompetitionStartRepository } from '../database/postgres-competi
 import { PostgresCompetitionStandingsRepository } from '../database/postgres-competition-standings-repository.js';
 import { PostgresTargetRaceClaimRepository } from '../database/postgres-target-race-claim-repository.js';
 import { PostgresTargetRaceDeadlineFinalizationRepository } from '../database/postgres-target-race-deadline-finalization-repository.js';
+import { PostgresTimedCompetitionFinalizationRepository } from '../database/postgres-timed-competition-finalization-repository.js';
 import { OsrsHiscoreHttpClient } from '../hiscores/osrs-hiscore-http-client.js';
 import { OSRS_MODE_FETCH_STRATEGIES } from '../hiscores/osrs-hiscore-catalog.js';
 import { StdoutStructuredLocalLogger } from '../logging/structured-local-logger.js';
@@ -137,6 +140,7 @@ import {
   type CompetitionStartRetryScheduler,
 } from './competition-start-retry-scheduler.js';
 import { InProcessTargetRaceDeadlineFinalizationScheduler } from './target-race-deadline-finalization-scheduler.js';
+import { InProcessTimedCompetitionFinalizationScheduler } from './timed-competition-finalization-scheduler.js';
 import { DiscordCompetitionStartFailureAuditPublisher } from './competition-start-failure-audit-publisher.js';
 import {
   bindDiscordCompetitionScheduleCommandAdapter,
@@ -185,6 +189,10 @@ export interface DevelopmentDiscordRuntimeDependencies {
     logger: StructuredLocalLogger,
     claims: TargetRaceClaimService,
   ): InProcessTargetRaceDeadlineFinalizationScheduler;
+  createTimedCompetitionFinalizationScheduler?(
+    finalizations: TimedCompetitionFinalizationService,
+    logger: StructuredLocalLogger,
+  ): InProcessTimedCompetitionFinalizationScheduler;
 }
 
 const defaultDependencies: DevelopmentDiscordRuntimeDependencies = {
@@ -202,6 +210,8 @@ const defaultDependencies: DevelopmentDiscordRuntimeDependencies = {
     new InProcessCompetitionStartRetryScheduler(starts, logger),
   createTargetRaceDeadlineFinalizationScheduler: (finalizations, logger, claims) =>
     new InProcessTargetRaceDeadlineFinalizationScheduler(finalizations, logger, claims),
+  createTimedCompetitionFinalizationScheduler: (finalizations, logger) =>
+    new InProcessTimedCompetitionFinalizationScheduler(finalizations, logger),
 };
 
 export async function startDevelopmentDiscordRuntime(
@@ -410,6 +420,19 @@ export async function startDevelopmentDiscordRuntime(
         logger,
         targetRaceClaimService,
       );
+    const timedCompetitionFinalizationScheduler =
+      dependencies.createTimedCompetitionFinalizationScheduler?.(
+        new TimedCompetitionFinalizationService(
+          new PostgresTimedCompetitionFinalizationRepository(connection.database),
+          hiscores,
+          undefined,
+          new TimedCompetitionFinalizationFailureAuditService(
+            audit,
+            new DiscordCompetitionStartFailureAuditPublisher(client, configurationService),
+          ),
+        ),
+        logger,
+      );
     const targetRaceClaimAdapter = new DiscordCompetitionTargetRaceClaimCommandAdapter(
       new CompetitionTargetRaceClaimCommandHandler(
         targetRaceClaimService,
@@ -541,6 +564,7 @@ export async function startDevelopmentDiscordRuntime(
     await automaticCollectionScheduler.start();
     await competitionStartRetryScheduler.start();
     await targetRaceDeadlineFinalizationScheduler?.start();
+    await timedCompetitionFinalizationScheduler?.start();
     return createRuntime(
       client,
       connection,
@@ -550,6 +574,7 @@ export async function startDevelopmentDiscordRuntime(
       automaticCollectionScheduler,
       competitionStartRetryScheduler,
       targetRaceDeadlineFinalizationScheduler,
+      timedCompetitionFinalizationScheduler,
     );
   } catch (error) {
     await client.destroy();
@@ -593,12 +618,14 @@ async function closeRuntime(
   competitionStartRetryScheduler: CompetitionStartRetryScheduler,
   targetRaceDeadlineFinalizationScheduler:
     InProcessTargetRaceDeadlineFinalizationScheduler | undefined,
+  timedCompetitionFinalizationScheduler: InProcessTimedCompetitionFinalizationScheduler | undefined,
 ): Promise<void> {
   deliveryRecoveryScheduler.stop();
   automaticSchedulingScheduler.stop();
   automaticCollectionScheduler.stop();
   competitionStartRetryScheduler.stop();
   targetRaceDeadlineFinalizationScheduler?.stop();
+  timedCompetitionFinalizationScheduler?.stop();
   await client.destroy();
   await connection.close();
   logger.write({
@@ -618,6 +645,7 @@ function createRuntime(
   competitionStartRetryScheduler: CompetitionStartRetryScheduler,
   targetRaceDeadlineFinalizationScheduler:
     InProcessTargetRaceDeadlineFinalizationScheduler | undefined,
+  timedCompetitionFinalizationScheduler: InProcessTimedCompetitionFinalizationScheduler | undefined,
 ): DevelopmentDiscordRuntime {
   let closePromise: Promise<void> | undefined;
   return {
@@ -631,6 +659,7 @@ function createRuntime(
         automaticCollectionScheduler,
         competitionStartRetryScheduler,
         targetRaceDeadlineFinalizationScheduler,
+        timedCompetitionFinalizationScheduler,
       );
       return closePromise;
     },
