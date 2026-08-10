@@ -23,6 +23,7 @@ export interface CompetitionDraft {
   durationSeconds: number | null;
   guildId: string;
   id: string;
+  intendedStartAt?: Date | undefined;
   metric: CompetitionMetric;
   normalizedName: string;
   state: 'draft';
@@ -36,6 +37,7 @@ interface CompetitionCreationRequestBase {
   createdByDiscordUserId: string;
   guildId: string;
   hasAdministratorPermission: boolean;
+  intendedStartAt?: Date | undefined;
   memberRoleIds: readonly string[];
   name: string;
   timezone: string;
@@ -117,6 +119,7 @@ export class CompetitionCreationService {
           : null,
       guildId: request.guildId,
       id: this.createId(),
+      intendedStartAt: request.intendedStartAt,
       metric: request.metric,
       normalizedName: name.normalizedName,
       state: 'draft',
@@ -141,7 +144,11 @@ export function normalizeCompetitionName(
 }
 
 function isValidDefinition(request: CreateCompetitionRequest): boolean {
-  if (!isKnownMetric(request.metric) || !isIanaTimezone(request.timezone)) {
+  if (
+    !isKnownMetric(request.metric) ||
+    !isIanaTimezone(request.timezone) ||
+    (request.intendedStartAt !== undefined && Number.isNaN(request.intendedStartAt.getTime()))
+  ) {
     return false;
   }
   switch (request.type) {

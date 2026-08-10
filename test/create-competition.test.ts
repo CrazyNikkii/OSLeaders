@@ -147,6 +147,26 @@ describe('competition creation service', () => {
     expect(repository.competitions).toEqual([]);
   });
 
+  it('retains a valid intended UTC start instant and rejects an invalid one', async () => {
+    const repository = new CompetitionRepository();
+    const service = new CompetitionCreationService(
+      repository,
+      { evaluate: () => Promise.resolve({ canManageCompetitions: true }) },
+      () => 'competition-one',
+    );
+    const intendedStartAt = new Date('2026-08-10T12:30:00.000Z');
+
+    await expect(service.create(request({ intendedStartAt }))).resolves.toMatchObject({
+      kind: 'created',
+      competition: { intendedStartAt },
+    });
+    await expect(
+      service.create(request({ intendedStartAt: new Date('invalid') })),
+    ).resolves.toEqual({
+      kind: 'invalid_definition',
+    });
+  });
+
   it('accepts values at the PostgreSQL integer and bigint limits', async () => {
     const repository = new CompetitionRepository();
     const service = new CompetitionCreationService(

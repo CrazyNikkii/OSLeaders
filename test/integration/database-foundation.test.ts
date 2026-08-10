@@ -456,6 +456,87 @@ describe('database foundation', () => {
     await expect(repository.claimDueStart()).resolves.toBeUndefined();
   });
 
+  it('claims a due scheduled draft once and transitions it to the durable start workflow', async () => {
+    const creationRepository = new PostgresCompetitionCreationRepository(connection.database);
+    const accountsRepository = new PostgresAccountRegistrationRepository(connection.database);
+    const participationRepository = new PostgresCompetitionDraftParticipationRepository(
+      connection.database,
+    );
+    const now = new Date('2026-08-10T12:00:00.000Z');
+    const repository = new PostgresCompetitionStartRepository(connection.database, () => now);
+    const guildId = 'scheduled-competition-guild';
+    const competitionId = 'scheduled-competition';
+    await creationRepository.create(
+      competitionDraft({
+        displayName: 'Scheduled competition',
+        guildId,
+        id: competitionId,
+        intendedStartAt: new Date('2026-08-10T11:59:00.000Z'),
+        normalizedName: 'scheduled competition',
+      }),
+    );
+    await accountsRepository.register(
+      account({ id: 'scheduled-competition-account', guildId }),
+      initialRecapBaseline(),
+    );
+    await participationRepository.join({
+      competitionId,
+      contributingAccountIds: ['scheduled-competition-account'],
+      entrantId: 'scheduled-competition-entrant',
+      guildId,
+      requesterDiscordUserId: 'member-one',
+    });
+
+    await expect(repository.claimDueStart()).resolves.toMatchObject({
+      accounts: [{ id: 'scheduled-competition-account' }],
+      competitionId,
+      guildId,
+      startAttemptCount: 1,
+    });
+    await expect(repository.claimDueStart()).resolves.toBeUndefined();
+    await expect(
+      connection.database
+        .select({ nextStartAttemptAt: competitions.nextStartAttemptAt, state: competitions.state })
+        .from(competitions)
+        .where(and(eq(competitions.guildId, guildId), eq(competitions.id, competitionId))),
+    ).resolves.toEqual([
+      {
+        nextStartAttemptAt: new Date('2026-08-10T12:05:00.000Z'),
+        state: 'start_pending',
+      },
+    ]);
+  });
+
+  it('does not activate a scheduled draft without entrants', async () => {
+    const creationRepository = new PostgresCompetitionCreationRepository(connection.database);
+    const now = new Date('2026-08-10T12:00:00.000Z');
+    const repository = new PostgresCompetitionStartRepository(connection.database, () => now);
+    const guildId = 'scheduled-empty-competition-guild';
+    const competitionId = 'scheduled-empty-competition';
+    await creationRepository.create(
+      competitionDraft({
+        displayName: 'Scheduled empty competition',
+        guildId,
+        id: competitionId,
+        intendedStartAt: new Date('2026-08-10T11:59:00.000Z'),
+        normalizedName: 'scheduled empty competition',
+      }),
+    );
+
+    await expect(repository.claimDueStart()).resolves.toBeUndefined();
+    await expect(
+      connection.database
+        .select({ intendedStartAt: competitions.intendedStartAt, state: competitions.state })
+        .from(competitions)
+        .where(and(eq(competitions.guildId, guildId), eq(competitions.id, competitionId))),
+    ).resolves.toEqual([
+      {
+        intendedStartAt: new Date('2026-08-10T12:05:00.000Z'),
+        state: 'draft',
+      },
+    ]);
+  });
+
   it('recovers an interrupted initial start once its durable lease expires', async () => {
     const creationRepository = new PostgresCompetitionCreationRepository(connection.database);
     const accountsRepository = new PostgresAccountRegistrationRepository(connection.database);

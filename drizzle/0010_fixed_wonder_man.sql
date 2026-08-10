@@ -1,0 +1,1 @@
+ALTER TABLE "competitions" ADD COLUMN "intended_start_at" timestamp with time zone;
