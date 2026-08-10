@@ -121,6 +121,38 @@ export const competitionAccountSnapshots = pgTable(
   ],
 );
 
+/**
+ * The latest successfully observed value for an active competition account.
+ * Starting snapshots remain immutable; this table lets standings survive a
+ * partial Hiscores failure and a process restart.
+ */
+export const competitionAccountProgress = pgTable(
+  'competition_account_progress',
+  {
+    competitionId: text('competition_id').notNull(),
+    guildId: text('guild_id').notNull(),
+    trackedAccountId: text('tracked_account_id').notNull(),
+    lastKnownValue: bigint('last_known_value', { mode: 'bigint' }).notNull(),
+    lastObservedAt: timestamp('last_observed_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.competitionId, table.trackedAccountId] }),
+    foreignKey({
+      columns: [table.competitionId, table.guildId],
+      foreignColumns: [competitions.id, competitions.guildId],
+      name: 'competition_account_progress_competition_guild_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.competitionId, table.trackedAccountId],
+      foreignColumns: [
+        competitionAccountSnapshots.competitionId,
+        competitionAccountSnapshots.trackedAccountId,
+      ],
+      name: 'competition_account_progress_snapshot_fk',
+    }).onDelete('cascade'),
+  ],
+);
+
 export const competitionEntrants = pgTable(
   'competition_entrants',
   {

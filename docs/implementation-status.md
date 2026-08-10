@@ -350,6 +350,16 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
+`3c26386` (2026-08-10) - Merge Discord competition scheduling command.
+
+This merged the guild-only `/competition schedule` adapter for draft
+competitions. It presents bounded, initiator- and guild-bound selection,
+collects a minute-precision local time through a modal, delegates
+authorization and draft-state enforcement to the Discord-independent
+scheduling service, and confirms the persisted UTC instant with Discord-native
+timestamps. Focused unit, Discord adapter, runtime-binding, and PostgreSQL
+integration coverage is merged with this work.
+
 `21c8647` (2026-08-10) - Merge scheduled competition-start foundation.
 
 This merged the durable optional intended-start instant for a competition, its
@@ -527,20 +537,22 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-`codex/competition-schedule-command` adds the pending guild-only
-`/competition schedule` adapter for draft competitions. It presents bounded,
-initiator- and guild-bound draft selection, collects a minute-precision local
-time through a modal, delegates authorization and draft-state enforcement to a
-Discord-independent scheduling service, resolves the stored competition
-timezone through the shared DST-safe resolver, and confirms the persisted UTC
-instant using Discord-native timestamps. It includes focused unit, Discord
-adapter, runtime-binding, and PostgreSQL integration coverage. This work is
-not complete until it is reviewed and merged.
+`codex/competition-standings-foundation` adds the pending Discord-independent,
+guild-scoped active-competition standings foundation. It persists each
+successful account observation separately from the immutable start snapshot,
+so partial Hiscores failures use the durable last known value after restart.
+It sums selected linked-account gains by Discord entrant, keeps watchlist
+accounts standalone, assigns shared ranks for equal gains, and reports an
+entrant as potentially incomplete when one of its accounts is stale. It does
+not add a Discord standings command, claims, roles, recap integration, or
+finish lifecycle work. This work is not complete until it is reviewed and
+merged.
 
 ## Next recommended branch-sized task
 
-Add the Discord-independent active-competition standings foundation. It should
-fetch current values for each selected contributing account, retain the last
-known value for partial Hiscores failures, sum gains by Discord entrant while
-keeping watchlist entrants standalone, and leave claims, roles, recap
-integration, and finish lifecycle work deferred.
+Add the guild-only Discord `/competition standings` adapter using the active
+competition standings foundation. It should allow any server member to select
+an active competition, acknowledge before Hiscores collection, and present the
+combined score, account breakdown, shared rank, deadline or target, and stale
+account warning. Leave claims, roles, recap integration, and finish lifecycle
+work deferred.
