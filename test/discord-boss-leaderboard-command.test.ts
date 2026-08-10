@@ -1,4 +1,4 @@
-import { MessageFlags } from 'discord.js';
+import { ActionRowBuilder, MessageFlags, StringSelectMenuBuilder } from 'discord.js';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { TrackedAccount } from '../src/features/accounts/register-account.js';
@@ -9,200 +9,219 @@ import {
   bossLeaderboardCommandDefinitions,
   bossLeaderboardEmbeds,
 } from '../src/infrastructure/discord/boss-leaderboard-command.js';
+import type { OsrsBossActivityName } from '../src/infrastructure/hiscores/osrs-hiscore-catalog.js';
 
 describe('Discord boss leaderboard command', () => {
-  it('registers a guild-only command with canonical boss autocomplete and result-scope choices', () => {
+  it('registers a guild-only command with result-scope choices and no truncated boss option', () => {
     const definition = bossLeaderboardCommandDefinitions[0];
 
     expect(definition).toMatchObject({
       description: 'Compare tracked OSRS accounts by boss kill count.',
       name: 'boss-leaderboard',
     });
-    expect(JSON.stringify(definition)).toContain('"autocomplete":true');
+    expect(JSON.stringify(definition)).not.toContain('"autocomplete":true');
     expect(JSON.stringify(definition)).toContain('"name":"Top 10","value":"top_10"');
     expect(JSON.stringify(definition)).toContain('"name":"All","value":"all"');
   });
 
-  it('suggests matching canonical boss names through autocomplete', async () => {
-    const services = new LeaderboardServices(resultWithEntries(1));
+  it('uses the shared bounded boss menus and acknowledges selection before fetching', async () => {
+    const order: string[] = [];
+    const services = new LeaderboardServices(resultWithEntries(12), () => order.push('fetch'));
     const adapter = new DiscordBossLeaderboardCommandAdapter(
       new BossLeaderboardCommandHandler(services),
     );
-    const responses = responseInteractions();
+    const command = commandInteraction();
 
-    await adapter.handle(autocompleteInteraction(responses, 'sire') as never);
+    await adapter.handle(command as never);
 
-    expect(responses.respond).toHaveBeenCalledWith([
-      { name: 'Abyssal Sire', value: 'Abyssal Sire' },
-    ]);
-    expect(services.requests).toEqual([]);
-  });
+    const firstReply = command.reply.mock.calls[0]?.[0];
+    if (firstReply === undefined) throw new Error('Expected boss menu response.');
+    expect(
+      firstReply.components.map((component) => component.toJSON().components[0]?.placeholder),
+    ).toEqual(['Choose boss (A–D)', 'Choose boss (G–S)', 'Choose boss (S–Z)']);
+    expect(firstReply.flags).toBe(MessageFlags.Ephemeral);
+    const customId = firstReply.components[2]?.toJSON().components[0]?.custom_id;
+    if (customId === undefined) throw new Error('Expected final boss selector.');
+    const selection = selectInteraction(customId, 'Zulrah', order);
 
-  it('uses only the interaction guild and shows the top ten by default', async () => {
-    const services = new LeaderboardServices(resultWithEntries(12));
-    const adapter = new DiscordBossLeaderboardCommandAdapter(
-      new BossLeaderboardCommandHandler(services),
-    );
-    const responses = responseInteractions();
+    await adapter.handle(selection as never);
 
-    await adapter.handle(interaction(responses) as never);
-
-    expect(services.requests).toEqual([{ boss: 'Abyssal Sire', guildId: 'guild-one' }]);
-    expect(responses.deferReply).toHaveBeenCalledOnce();
-    const response = JSON.stringify(responses.editReply.mock.calls[0]);
-    expect(response).toContain('1. **Account 1**');
+    expect(order).toEqual(['defer', 'fetch', 'send', 'delete']);
+    expect(services.requests).toEqual([{ boss: 'Zulrah', guildId: 'guild-one' }]);
+    const response = JSON.stringify(selection.channel.send.mock.calls[0]);
     expect(response).toContain('10. **Account 10**');
     expect(response).not.toContain('11. **Account 11**');
-    expect(response).toContain('"color":14261046');
-    expect(response).toContain('10 ranked accounts');
   });
 
-  it('rejects a boss outside the canonical catalog before calling the leaderboard service', async () => {
-    const services = new LeaderboardServices(resultWithEntries(1));
-    const adapter = new DiscordBossLeaderboardCommandAdapter(
-      new BossLeaderboardCommandHandler(services),
-    );
-    const responses = responseInteractions();
-
-    await adapter.handle(interaction(responses, null, 'guild-one', 'not a boss') as never);
-
-    expect(services.requests).toEqual([]);
-    expect(responses.deferReply).not.toHaveBeenCalled();
-    expect(responses.reply).toHaveBeenCalledWith({
-      content: 'Choose a boss from the autocomplete suggestions.',
-      flags: MessageFlags.Ephemeral,
-    });
-  });
-
-  it('shows all results when requested and marks linked and watchlist accounts', async () => {
+  it('retains the all-results choice through the boss selection session', async () => {
     const services = new LeaderboardServices(resultWithEntries(12));
     const adapter = new DiscordBossLeaderboardCommandAdapter(
       new BossLeaderboardCommandHandler(services),
     );
-    const responses = responseInteractions();
+    const command = commandInteraction('all');
+    await adapter.handle(command as never);
+    const reply = command.reply.mock.calls[0]?.[0];
+    if (reply === undefined) throw new Error('Expected boss menu response.');
+    const customId = reply.components[0]?.toJSON().components[0]?.custom_id;
+    if (customId === undefined) throw new Error('Expected boss selector.');
 
-    await adapter.handle(interaction(responses, 'all') as never);
+    const selection = selectInteraction(customId, 'Abyssal Sire');
+    await adapter.handle(selection as never);
 
-    const response = JSON.stringify(responses.editReply.mock.calls[0]);
+    const response = JSON.stringify(selection.channel.send.mock.calls[0]);
     expect(response).toContain('12. **Account 12**');
-    expect(response).toContain('KC');
     expect(response).toContain('<@member-one>');
     expect(response).toContain('Watchlist');
     expect(response).toContain('Ironman');
   });
 
-  it('reports unavailable accounts separately without hiding successful rankings', async () => {
-    const result = resultWithEntries(1);
-    const services = new LeaderboardServices({
-      ...result,
-      failures: [
-        { account: account({ displayUsername: 'Unavailable' }), failure: { kind: 'timeout' } },
-      ],
-    });
+  it('rejects a forged boss value without fetching a leaderboard', async () => {
+    const services = new LeaderboardServices(resultWithEntries(1));
+    const handler = new BossLeaderboardCommandHandler(services);
+    const selection = handler.start('guild-one', 'member-one', null);
+    if (selection.kind !== 'boss_selection') throw new Error('Expected boss selection.');
+
+    await expect(
+      handler.selectBoss('guild-one', 'member-one', selection.customIds[0] ?? '', 'not a boss'),
+    ).resolves.toMatchObject({ kind: 'invalid_boss' });
+    expect(services.requests).toEqual([]);
+  });
+
+  it('rejects direct-message use before creating a selection', async () => {
+    const services = new LeaderboardServices(resultWithEntries(1));
     const adapter = new DiscordBossLeaderboardCommandAdapter(
       new BossLeaderboardCommandHandler(services),
     );
-    const responses = responseInteractions();
+    const command = commandInteraction(null, null);
 
-    await adapter.handle(interaction(responses) as never);
+    await adapter.handle(command as never);
 
-    const response = JSON.stringify(responses.editReply.mock.calls[0]);
-    expect(response).toContain('Account 1');
-    expect(response).toContain('Unavailable accounts');
-    expect(response).toContain('Unavailable');
-    expect(response).toContain('Hiscores timed out');
+    expect(command.reply).toHaveBeenCalledWith({
+      content: 'This command can only be used in a Discord server.',
+    });
+    expect(services.requests).toEqual([]);
   });
 
-  it('keeps all leaderboard output within numbered embed pages', () => {
+  it('binds the selection to its guild and requester and rejects expired sessions', async () => {
+    const clock = new FakeClock();
+    const handler = new BossLeaderboardCommandHandler(
+      new LeaderboardServices(resultWithEntries(1)),
+      () => clock.now(),
+    );
+    const selection = handler.start('guild-one', 'member-one', null);
+    if (selection.kind !== 'boss_selection') throw new Error('Expected boss selection.');
+    const customId = selection.customIds[0];
+    if (customId === undefined) throw new Error('Expected boss selector.');
+
+    await expect(
+      handler.selectBoss('guild-one', 'member-two', customId, 'Abyssal Sire'),
+    ).resolves.toMatchObject({ kind: 'forbidden' });
+    const expiring = handler.start('guild-one', 'member-one', null);
+    if (expiring.kind !== 'boss_selection') throw new Error('Expected boss selection.');
+    clock.advance(5 * 60 * 1_000);
+    await expect(
+      handler.selectBoss('guild-one', 'member-one', expiring.customIds[0] ?? '', 'Abyssal Sire'),
+    ).resolves.toMatchObject({ kind: 'expired' });
+  });
+
+  it('renders unavailable accounts and splits oversized public leaderboard output', () => {
     const entries = Array.from({ length: 90 }, (_, index) => ({
       account: account({ displayUsername: `A very long account name ${index + 1}` }),
       boss: { id: 0, name: 'Abyssal Sire' as const, rank: index + 1, score: index + 1 },
     }));
-
     const embeds = bossLeaderboardEmbeds(
-      { entries, failures: [], boss: 'Abyssal Sire' },
+      {
+        entries,
+        failures: [
+          { account: account({ displayUsername: 'Unavailable' }), failure: { kind: 'timeout' } },
+        ],
+        boss: 'Abyssal Sire',
+      },
       undefined,
     );
 
     expect(embeds.length).toBeGreaterThan(1);
     expect(embeds.every((embed) => (embed.data.description?.length ?? 0) <= 4_096)).toBe(true);
-    expect(embeds[0]?.data.title).toContain('(1/');
-  });
-
-  it('rejects direct-message use before calling the leaderboard service', async () => {
-    const services = new LeaderboardServices(resultWithEntries(1));
-    const adapter = new DiscordBossLeaderboardCommandAdapter(
-      new BossLeaderboardCommandHandler(services),
-    );
-    const responses = responseInteractions();
-
-    await adapter.handle(interaction(responses, null, null) as never);
-
-    expect(services.requests).toEqual([]);
-    expect(responses.deferReply).not.toHaveBeenCalled();
-    expect(responses.reply).toHaveBeenCalledWith({
-      content: 'This command can only be used in a Discord server.',
-    });
+    expect(JSON.stringify(embeds)).toContain('Unavailable accounts');
   });
 });
 
 class LeaderboardServices {
   public readonly requests: unknown[] = [];
 
-  public constructor(private readonly result: BossLeaderboardResult) {}
+  public constructor(
+    private readonly result: BossLeaderboardResult,
+    private readonly onRequest: () => void = () => undefined,
+  ) {}
 
   public bossLeaderboard = {
     getLeaderboard: (request: unknown) => {
+      this.onRequest();
       this.requests.push(request);
-      return Promise.resolve(this.result);
+      return Promise.resolve({
+        ...this.result,
+        boss: (request as { boss: OsrsBossActivityName }).boss,
+      });
     },
   };
 }
 
-function interaction(
-  responses: ReturnType<typeof responseInteractions>,
-  results: string | null = null,
-  guildId: string | null = 'guild-one',
-  boss = 'Abyssal Sire',
-) {
+class FakeClock {
+  private current = new Date('2026-08-10T00:00:00.000Z');
+
+  public now(): Date {
+    return this.current;
+  }
+
+  public advance(milliseconds: number): void {
+    this.current = new Date(this.current.getTime() + milliseconds);
+  }
+}
+
+function commandInteraction(results: string | null = null, guildId: string | null = 'guild-one') {
   return {
     commandName: 'boss-leaderboard',
     guildId,
-    isAutocomplete: () => false,
     isChatInputCommand: () => true,
-    options: {
-      getString: (name: string) => {
-        if (name === 'boss') {
-          return boss;
-        }
-        return results;
-      },
-    },
-    ...responses,
+    options: { getString: () => results },
+    reply: vi.fn<(result: BossSelectionResponse) => Promise<void>>(() => Promise.resolve()),
+    user: { id: 'member-one' },
   };
 }
 
-function autocompleteInteraction(
-  responses: ReturnType<typeof responseInteractions>,
-  query: string,
-) {
-  return {
-    commandName: 'boss-leaderboard',
-    isAutocomplete: () => true,
-    options: {
-      getFocused: (required?: boolean) => (required ? { name: 'boss', value: query } : query),
-    },
-    ...responses,
-  };
+interface BossSelectionResponse {
+  components: ActionRowBuilder<StringSelectMenuBuilder>[];
+  content: string;
+  flags: MessageFlags;
 }
 
-function responseInteractions() {
+function selectInteraction(customId: string, value: string, order?: string[]) {
   return {
-    deferReply: vi.fn(() => Promise.resolve()),
-    editReply: vi.fn(() => Promise.resolve()),
-    followUp: vi.fn(() => Promise.resolve()),
-    reply: vi.fn(() => Promise.resolve()),
-    respond: vi.fn(() => Promise.resolve()),
+    channel: {
+      isSendable: () => true,
+      send: vi.fn(() => {
+        order?.push('send');
+        return Promise.resolve();
+      }),
+    },
+    customId,
+    deferUpdate: vi.fn(() => {
+      order?.push('defer');
+      return Promise.resolve();
+    }),
+    editReply: vi.fn(() => {
+      order?.push('edit');
+      return Promise.resolve();
+    }),
+    deleteReply: vi.fn(() => {
+      order?.push('delete');
+      return Promise.resolve();
+    }),
+    guildId: 'guild-one',
+    isChatInputCommand: () => false,
+    isStringSelectMenu: () => true,
+    user: { id: 'member-one' },
+    values: [value],
   };
 }
 
