@@ -19,6 +19,53 @@ import {
 export class PostgresTargetRaceClaimRepository implements TargetRaceClaimRepository {
   public constructor(private readonly database: Database) {}
 
+  public async listClaimableEntrants(request: {
+    canManageCompetitions: boolean;
+    guildId: string;
+    requesterDiscordUserId: string;
+  }): Promise<readonly { competitionId: string; displayName: string; entrantId: string }[]> {
+    const eligibility = request.canManageCompetitions
+      ? or(
+          eq(competitionEntrants.discordUserId, request.requesterDiscordUserId),
+          eq(guildMemberPresences.isPresent, false),
+        )
+      : eq(competitionEntrants.discordUserId, request.requesterDiscordUserId);
+    return this.database
+      .select({
+        competitionId: competitions.id,
+        displayName: competitions.displayName,
+        entrantId: competitionEntrants.id,
+      })
+      .from(competitions)
+      .innerJoin(
+        competitionEntrants,
+        and(
+          eq(competitionEntrants.guildId, competitions.guildId),
+          eq(competitionEntrants.competitionId, competitions.id),
+        ),
+      )
+      .leftJoin(
+        guildMemberPresences,
+        and(
+          eq(guildMemberPresences.guildId, competitionEntrants.guildId),
+          eq(guildMemberPresences.discordUserId, competitionEntrants.discordUserId),
+        ),
+      )
+      .where(
+        and(
+          eq(competitions.guildId, request.guildId),
+          eq(competitions.state, 'active'),
+          isNull(competitions.winningTargetClaimId),
+          or(
+            eq(competitions.type, 'skill_xp_target_race'),
+            eq(competitions.type, 'boss_kc_target_race'),
+          ),
+          eligibility,
+        ),
+      )
+      .orderBy(asc(competitions.startedAt), asc(competitions.id), asc(competitionEntrants.id));
+  }
+
   public async beginClaim(request: {
     canManageCompetitions: boolean;
     claimId: string;

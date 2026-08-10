@@ -27,7 +27,17 @@ merged.
 ## Current implementation stage
 
 Stage 8 - Competition draft creation, participation, start foundation, and
-manual-start adapter. The merged Discord-independent competition standings
+manual-start adapter. The merged Discord-independent target-race claim
+foundation durably records a stable claim ID and UTC receipt time before
+cache-bypassing Hiscores verification, combines immutable per-account starting
+snapshots, and finalizes the earliest verified claim deterministically. The
+current unmerged guild-only `/competition claim` adapter adds bounded,
+initiator- and guild-bound selection of eligible active target-race entrants;
+it acknowledges before verification, keeps unsuccessful outcomes private,
+publishes verified wins publicly, and delegates
+authorization, receipt ordering, verification, retry, and winner selection to
+the merged service. It deliberately leaves roles, recap integration, and the
+broader finish lifecycle deferred. The merged Discord-independent competition standings
 foundation adds active-competition progress collection with durable last-known
 values for partial Hiscores failures, combined linked-account scores, standalone
 watchlist entrants, shared ranks, and incomplete-score warnings. The merged
@@ -357,6 +367,15 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
+`d3a373e` (2026-08-10) - Merge target-race claim foundation.
+
+This merged the Discord-independent, guild-scoped target-race claim foundation.
+It persists a stable claim receipt before cache-bypassing Hiscores verification,
+calculates combined gains from immutable starting snapshots, preserves pending
+temporary failures for retry with their original receipt time, and deterministically
+chooses the earliest verified valid claim. It does not add a Discord claim
+adapter, roles, recap integration, or the broader finish lifecycle.
+
 `5672905` (2026-08-10) - Merge Discord competition standings command.
 
 This merged the guild-only `/competition standings` adapter. Any server member
@@ -564,22 +583,20 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-`codex/target-race-claim-foundation` (not merged) adds the
-Discord-independent target-race claim foundation. It durably records a stable
-claim ID and UTC receipt time before cache-bypassing Hiscores verification,
-then combines the contributing accounts' gains from immutable starting
-snapshots. A short, guild-scoped finalization transaction preserves earliest
-receipt-time ordering with claim-ID tie-breaking, while temporarily unavailable
-Hiscores results remain pending and can be retried using the original receipt.
-It intentionally does not add a Discord claim adapter, roles, recap
-integration, or the broader finish lifecycle.
+`codex/target-race-claim-command` (not merged) adds the guild-only
+`/competition claim` adapter. It shows only claimable active target-race
+entrants through bounded, initiator- and guild-bound interactions, acknowledges
+before fresh Hiscores verification, keeps unsuccessful outcomes private,
+publishes verified wins publicly, and exposes a short-lived retry control for
+temporary verification failures. It delegates
+authorization, receipt ordering, verification, retry, and winner selection to
+the merged target-race claim service. It does not add roles, recap integration,
+or the broader finish lifecycle.
 
 ## Next recommended branch-sized task
 
-After the target-race claim foundation is reviewed and merged, add the
-guild-only Discord claim adapter. It should select an eligible active
-target-race entrant through bounded interactions, acknowledge before fresh
-Hiscores verification, keep unmet-target and temporary-failure results
-private, and delegate all authorization, receipt ordering, retry, and winner
-selection to the existing claim service. Leave roles, recap integration, and
-the broader finish lifecycle deferred.
+After the target-race claim command is reviewed and merged, add the smallest
+finish-lifecycle foundation needed to durably complete a winning target race.
+It should preserve the verified claim and retained historical results, transition
+the competition out of `active`, and leave roles, recap integration, and timed
+competition finalization deferred.

@@ -31,6 +31,7 @@ describe('Discord competition create command', () => {
       'start',
       'schedule',
       'standings',
+      'claim',
     ]);
   });
 

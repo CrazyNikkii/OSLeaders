@@ -64,6 +64,9 @@ export const competitionCommandDefinitions = [
     .addSubcommand((subcommand) =>
       subcommand.setName('standings').setDescription('View active competition standings.'),
     )
+    .addSubcommand((subcommand) =>
+      subcommand.setName('claim').setDescription('Claim a target-race result.'),
+    )
     .toJSON(),
 ] as const;
 

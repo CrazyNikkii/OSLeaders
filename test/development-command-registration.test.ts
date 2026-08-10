@@ -40,6 +40,7 @@ describe('development Discord command registration', () => {
     );
     expect(competition?.options).toContainEqual(expect.objectContaining({ name: 'start' }));
     expect(competition?.options).toContainEqual(expect.objectContaining({ name: 'standings' }));
+    expect(competition?.options).toContainEqual(expect.objectContaining({ name: 'claim' }));
   });
 
   it('registers the production command set in its separate configured guild', async () => {

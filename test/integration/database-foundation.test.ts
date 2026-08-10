@@ -555,6 +555,42 @@ describe('database foundation', () => {
         .set({ state: 'active' })
         .where(and(eq(competitions.guildId, guildId), eq(competitions.id, competitionId)));
     });
+    await expect(
+      repository.listClaimableEntrants({
+        canManageCompetitions: false,
+        guildId,
+        requesterDiscordUserId: 'member-one',
+      }),
+    ).resolves.toEqual([
+      {
+        competitionId,
+        displayName: 'Weekend Woodcutting',
+        entrantId: 'target-claim-entrant-one',
+      },
+    ]);
+    await connection.database.insert(guildMemberPresences).values({
+      discordUserId: 'member-two',
+      guildId,
+      isPresent: false,
+    });
+    await expect(
+      repository.listClaimableEntrants({
+        canManageCompetitions: true,
+        guildId,
+        requesterDiscordUserId: 'member-one',
+      }),
+    ).resolves.toEqual([
+      {
+        competitionId,
+        displayName: 'Weekend Woodcutting',
+        entrantId: 'target-claim-entrant-one',
+      },
+      {
+        competitionId,
+        displayName: 'Weekend Woodcutting',
+        entrantId: 'target-claim-entrant-two',
+      },
+    ]);
     const firstReceipt = new Date('2026-08-10T13:00:00.000Z');
     const secondReceipt = new Date('2026-08-10T13:00:01.000Z');
     await expect(
@@ -609,6 +645,13 @@ describe('database foundation', () => {
         verifiedAt: new Date('2026-08-10T13:01:00.000Z'),
       },
     ]);
+    await expect(
+      repository.listClaimableEntrants({
+        canManageCompetitions: false,
+        guildId,
+        requesterDiscordUserId: 'member-one',
+      }),
+    ).resolves.toEqual([]);
     await expect(
       connection.database
         .select()

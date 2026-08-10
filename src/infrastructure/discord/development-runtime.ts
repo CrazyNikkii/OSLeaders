@@ -20,6 +20,7 @@ import { DailyRecapFailureAuditService } from '../../features/recaps/report-dail
 import { CompetitionCreationService } from '../../features/competitions/create-competition.js';
 import { CompetitionDraftParticipationService } from '../../features/competitions/manage-draft-participation.js';
 import { CompetitionStandingsService } from '../../features/competitions/competition-standings.js';
+import { TargetRaceClaimService } from '../../features/competitions/claim-target-race.js';
 import { createErrorReferenceId } from '../../features/audit/error-reference.js';
 import { GuildConfigurationService } from '../../features/guild-configuration/guild-configuration-service.js';
 import { GuildPermissionService } from '../../features/guild-configuration/guild-permission-service.js';
@@ -36,6 +37,7 @@ import { PostgresCompetitionCreationRepository } from '../database/postgres-comp
 import { PostgresCompetitionDraftParticipationRepository } from '../database/postgres-competition-draft-participation-repository.js';
 import { PostgresCompetitionStartRepository } from '../database/postgres-competition-start-repository.js';
 import { PostgresCompetitionStandingsRepository } from '../database/postgres-competition-standings-repository.js';
+import { PostgresTargetRaceClaimRepository } from '../database/postgres-target-race-claim-repository.js';
 import { OsrsHiscoreHttpClient } from '../hiscores/osrs-hiscore-http-client.js';
 import { OSRS_MODE_FETCH_STRATEGIES } from '../hiscores/osrs-hiscore-catalog.js';
 import { StdoutStructuredLocalLogger } from '../logging/structured-local-logger.js';
@@ -142,6 +144,11 @@ import {
   CompetitionStandingsCommandHandler,
   DiscordCompetitionStandingsCommandAdapter,
 } from './competition-standings-command.js';
+import {
+  bindDiscordCompetitionTargetRaceClaimCommandAdapter,
+  CompetitionTargetRaceClaimCommandHandler,
+  DiscordCompetitionTargetRaceClaimCommandAdapter,
+} from './competition-target-race-claim-command.js';
 import { CompetitionSchedulingService } from '../../features/competitions/schedule-competition.js';
 import { PostgresCompetitionSchedulingRepository } from '../database/postgres-competition-scheduling-repository.js';
 
@@ -371,6 +378,14 @@ export async function startDevelopmentDiscordRuntime(
         competitionStandingsRepository,
       ),
     );
+    const targetRaceClaimRepository = new PostgresTargetRaceClaimRepository(connection.database);
+    const targetRaceClaimAdapter = new DiscordCompetitionTargetRaceClaimCommandAdapter(
+      new CompetitionTargetRaceClaimCommandHandler(
+        new TargetRaceClaimService(targetRaceClaimRepository, permissions, hiscores, randomUUID),
+        targetRaceClaimRepository,
+        permissions,
+      ),
+    );
 
     bindDiscordAccountCommandAdapter(
       client,
@@ -459,6 +474,12 @@ export async function startDevelopmentDiscordRuntime(
     bindDiscordCompetitionStandingsCommandAdapter(
       client,
       competitionStandingsAdapter,
+      (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
+      (interaction) => interaction.guildId === configuration.discord.guildId,
+    );
+    bindDiscordCompetitionTargetRaceClaimCommandAdapter(
+      client,
+      targetRaceClaimAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.guildId,
     );
