@@ -31,11 +31,21 @@ export const competitionStates = [
 ] as const;
 export const competitionMetricKinds = ['skill', 'boss'] as const;
 export const competitionEntrantTypes = ['discord_member', 'watchlist'] as const;
+export const competitionTargetClaimStatuses = [
+  'pending',
+  'not_reached',
+  'verification_failed',
+  'verified',
+] as const;
 
 export const competitionType = pgEnum('competition_type', competitionTypes);
 export const competitionState = pgEnum('competition_state', competitionStates);
 export const competitionMetricKind = pgEnum('competition_metric_kind', competitionMetricKinds);
 export const competitionEntrantType = pgEnum('competition_entrant_type', competitionEntrantTypes);
+export const competitionTargetClaimStatus = pgEnum(
+  'competition_target_claim_status',
+  competitionTargetClaimStatuses,
+);
 
 export const competitions = pgTable(
   'competitions',
@@ -59,6 +69,7 @@ export const competitions = pgTable(
     lastStartFailureSummary: text('last_start_failure_summary'),
     startedAt: timestamp('started_at', { withTimezone: true }),
     endsAt: timestamp('ends_at', { withTimezone: true }),
+    winningTargetClaimId: text('winning_target_claim_id'),
     createdByDiscordUserId: text('created_by_discord_user_id').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -231,6 +242,43 @@ export const competitionContributingAccounts = pgTable(
       columns: [table.trackedAccountId, table.guildId],
       foreignColumns: [trackedAccounts.id, trackedAccounts.guildId],
       name: 'competition_contributing_accounts_tracked_account_guild_fk',
+    }).onDelete('restrict'),
+  ],
+);
+
+export const competitionTargetClaims = pgTable(
+  'competition_target_claims',
+  {
+    id: text('id').primaryKey(),
+    guildId: text('guild_id').notNull(),
+    competitionId: text('competition_id').notNull(),
+    entrantId: text('competition_entrant_id').notNull(),
+    receivedAt: timestamp('received_at', { withTimezone: true }).notNull(),
+    status: competitionTargetClaimStatus('status').notNull().default('pending'),
+    verificationAttemptCount: integer('verification_attempt_count').notNull().default(0),
+    lastFailureSummary: text('last_failure_summary'),
+    verifiedAt: timestamp('verified_at', { withTimezone: true }),
+    finalValue: bigint('final_value', { mode: 'bigint' }),
+  },
+  (table) => [
+    unique('competition_target_claims_id_guild_competition_unique').on(
+      table.id,
+      table.guildId,
+      table.competitionId,
+    ),
+    foreignKey({
+      columns: [table.competitionId, table.guildId],
+      foreignColumns: [competitions.id, competitions.guildId],
+      name: 'competition_target_claims_competition_guild_fk',
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.entrantId, table.guildId, table.competitionId],
+      foreignColumns: [
+        competitionEntrants.id,
+        competitionEntrants.guildId,
+        competitionEntrants.competitionId,
+      ],
+      name: 'competition_target_claims_entrant_guild_competition_fk',
     }).onDelete('restrict'),
   ],
 );

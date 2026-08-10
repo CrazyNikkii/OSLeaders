@@ -564,13 +564,22 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-None.
+`codex/target-race-claim-foundation` (not merged) adds the
+Discord-independent target-race claim foundation. It durably records a stable
+claim ID and UTC receipt time before cache-bypassing Hiscores verification,
+then combines the contributing accounts' gains from immutable starting
+snapshots. A short, guild-scoped finalization transaction preserves earliest
+receipt-time ordering with claim-ID tie-breaking, while temporarily unavailable
+Hiscores results remain pending and can be retried using the original receipt.
+It intentionally does not add a Discord claim adapter, roles, recap
+integration, or the broader finish lifecycle.
 
 ## Next recommended branch-sized task
 
-Add the Discord-independent target-race claim foundation. It should preserve
-first-valid-claim-wins semantics through a durable, guild-scoped transaction,
-fetch fresh cache-bypassing verification outside that transaction, record the
-verified claim timestamp and final value, and retain a safe retry path for
-temporary Hiscores failures. Leave the Discord claim adapter, roles, recap
-integration, and finish lifecycle work deferred.
+After the target-race claim foundation is reviewed and merged, add the
+guild-only Discord claim adapter. It should select an eligible active
+target-race entrant through bounded interactions, acknowledge before fresh
+Hiscores verification, keep unmet-target and temporary-failure results
+private, and delegate all authorization, receipt ordering, retry, and winner
+selection to the existing claim service. Leave roles, recap integration, and
+the broader finish lifecycle deferred.

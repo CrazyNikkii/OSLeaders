@@ -29,11 +29,13 @@ import { PostgresCompetitionDraftParticipationRepository } from '../../src/infra
 import { PostgresCompetitionStartRepository } from '../../src/infrastructure/database/postgres-competition-start-repository.js';
 import { PostgresCompetitionStandingsRepository } from '../../src/infrastructure/database/postgres-competition-standings-repository.js';
 import { PostgresCompetitionSchedulingRepository } from '../../src/infrastructure/database/postgres-competition-scheduling-repository.js';
+import { PostgresTargetRaceClaimRepository } from '../../src/infrastructure/database/postgres-target-race-claim-repository.js';
 import {
   competitionContributingAccounts,
   competitionAccountProgress,
   competitionAccountSnapshots,
   competitionEntrants,
+  competitionTargetClaims,
   competitions,
   guildConfigurations,
   guildMemberPresences,
@@ -74,7 +76,7 @@ describe('database foundation', () => {
   it('applies the committed database migrations to an empty test database', async () => {
     const committedMigrations = await readCommittedMigrations();
     const applicationTables = await connection.pool.query<{ table_name: string }>(
-      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('competition_account_snapshots', 'competition_contributing_accounts', 'competition_entrants', 'competitions', 'daily_recap_deliveries', 'daily_recap_runs', 'guild_configurations', 'guild_member_presences', 'guilds', 'recap_baselines', 'tracked_accounts') ORDER BY table_name",
+      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('competition_account_snapshots', 'competition_contributing_accounts', 'competition_entrants', 'competition_target_claims', 'competitions', 'daily_recap_deliveries', 'daily_recap_runs', 'guild_configurations', 'guild_member_presences', 'guilds', 'recap_baselines', 'tracked_accounts') ORDER BY table_name",
     );
     const migrationTables = await connection.pool.query<{ table_name: string }>(
       "SELECT table_name FROM information_schema.tables WHERE table_schema = 'drizzle' AND table_name = '__drizzle_migrations'",
@@ -87,6 +89,7 @@ describe('database foundation', () => {
       { table_name: 'competition_account_snapshots' },
       { table_name: 'competition_contributing_accounts' },
       { table_name: 'competition_entrants' },
+      { table_name: 'competition_target_claims' },
       { table_name: 'competitions' },
       { table_name: 'daily_recap_deliveries' },
       { table_name: 'daily_recap_runs' },
@@ -475,6 +478,164 @@ describe('database foundation', () => {
     await expect(
       standings.findActive({ competitionId, guildId: 'another-guild' }),
     ).resolves.toEqual({ kind: 'competition_not_found' });
+  });
+
+  it('persists target-race claim receipts and chooses one winner under concurrent finalization', async () => {
+    const creations = new PostgresCompetitionCreationRepository(connection.database);
+    const accounts = new PostgresAccountRegistrationRepository(connection.database);
+    const repository = new PostgresTargetRaceClaimRepository(connection.database);
+    const guildId = 'target-claim-guild';
+    const competitionId = 'target-claim-competition';
+    await creations.create(
+      competitionDraft({
+        durationSeconds: null,
+        guildId,
+        id: competitionId,
+        normalizedName: 'target claim competition',
+        targetValue: 50n,
+        type: 'skill_xp_target_race',
+      }),
+    );
+    await accounts.register(
+      account({ guildId, id: 'target-claim-account-one' }),
+      initialRecapBaseline(),
+    );
+    await accounts.register(
+      account({
+        association: { type: 'linked', discordUserId: 'member-two' },
+        guildId,
+        id: 'target-claim-account-two',
+        normalizedUsername: 'target claim two',
+        quotaOwnerDiscordUserId: 'member-two',
+        registeredByDiscordUserId: 'member-two',
+      }),
+      initialRecapBaseline(),
+    );
+    await connection.database.transaction(async (transaction) => {
+      await transaction.insert(competitionEntrants).values([
+        {
+          competitionId,
+          discordUserId: 'member-one',
+          entrantType: 'discord_member',
+          guildId,
+          id: 'target-claim-entrant-one',
+        },
+        {
+          competitionId,
+          discordUserId: 'member-two',
+          entrantType: 'discord_member',
+          guildId,
+          id: 'target-claim-entrant-two',
+        },
+      ]);
+      await transaction.insert(competitionAccountSnapshots).values([
+        {
+          accountMode: 'main',
+          competitionEntrantId: 'target-claim-entrant-one',
+          competitionId,
+          displayUsername: 'Rune Scape',
+          guildId,
+          startingObservedAt: new Date('2026-08-10T12:00:00.000Z'),
+          startingValue: 100n,
+          trackedAccountId: 'target-claim-account-one',
+        },
+        {
+          accountMode: 'main',
+          competitionEntrantId: 'target-claim-entrant-two',
+          competitionId,
+          displayUsername: 'Rune Scape',
+          guildId,
+          startingObservedAt: new Date('2026-08-10T12:00:00.000Z'),
+          startingValue: 100n,
+          trackedAccountId: 'target-claim-account-two',
+        },
+      ]);
+      await transaction
+        .update(competitions)
+        .set({ state: 'active' })
+        .where(and(eq(competitions.guildId, guildId), eq(competitions.id, competitionId)));
+    });
+    const firstReceipt = new Date('2026-08-10T13:00:00.000Z');
+    const secondReceipt = new Date('2026-08-10T13:00:01.000Z');
+    await expect(
+      repository.beginClaim({
+        canManageCompetitions: false,
+        claimId: 'target-claim-one',
+        competitionId,
+        entrantId: 'target-claim-entrant-one',
+        guildId,
+        receivedAt: firstReceipt,
+        requesterDiscordUserId: 'member-one',
+      }),
+    ).resolves.toMatchObject({ kind: 'ready', claim: { receivedAt: firstReceipt } });
+    await expect(
+      repository.beginClaim({
+        canManageCompetitions: false,
+        claimId: 'target-claim-two',
+        competitionId,
+        entrantId: 'target-claim-entrant-two',
+        guildId,
+        receivedAt: secondReceipt,
+        requesterDiscordUserId: 'member-two',
+      }),
+    ).resolves.toMatchObject({ kind: 'ready', claim: { receivedAt: secondReceipt } });
+    await expect(
+      repository.finalize({
+        claimId: 'target-claim-two',
+        finalValue: 50n,
+        guildId,
+        verifiedAt: secondReceipt,
+      }),
+    ).resolves.toEqual({ kind: 'earlier_claim_pending' });
+    const results = await Promise.all([
+      repository.finalize({
+        claimId: 'target-claim-one',
+        finalValue: 50n,
+        guildId,
+        verifiedAt: new Date('2026-08-10T13:01:00.000Z'),
+      }),
+      repository.finalize({
+        claimId: 'target-claim-two',
+        finalValue: 50n,
+        guildId,
+        verifiedAt: new Date('2026-08-10T13:01:00.000Z'),
+      }),
+    ]);
+    expect(results.filter((result) => result.kind === 'won')).toEqual([
+      {
+        kind: 'won',
+        claimId: 'target-claim-one',
+        finalValue: 50n,
+        verifiedAt: new Date('2026-08-10T13:01:00.000Z'),
+      },
+    ]);
+    await expect(
+      connection.database
+        .select()
+        .from(competitionTargetClaims)
+        .where(eq(competitionTargetClaims.competitionId, competitionId)),
+    ).resolves.toHaveLength(2);
+    await connection.database
+      .update(competitions)
+      .set({ endsAt: firstReceipt })
+      .where(and(eq(competitions.guildId, guildId), eq(competitions.id, competitionId)));
+    await expect(
+      repository.beginClaim({
+        canManageCompetitions: false,
+        claimId: 'target-claim-late',
+        competitionId,
+        entrantId: 'target-claim-entrant-two',
+        guildId,
+        receivedAt: secondReceipt,
+        requesterDiscordUserId: 'member-two',
+      }),
+    ).resolves.toEqual({ kind: 'deadline_passed' });
+    await expect(
+      connection.database
+        .select()
+        .from(competitionTargetClaims)
+        .where(eq(competitionTargetClaims.competitionId, competitionId)),
+    ).resolves.toHaveLength(2);
   });
 
   it('claims only due pending competition starts and persists the next retry state', async () => {
