@@ -120,6 +120,7 @@ export const OSRS_BOSS_ACTIVITY_NAMES = [
   "Kree'Arra",
   "K'ril Tsutsaroth",
   'Lunar Chests',
+  'Mad Angel',
   'Mimic',
   'Maggot King',
   'Nex',

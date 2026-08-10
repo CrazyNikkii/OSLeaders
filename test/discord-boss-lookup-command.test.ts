@@ -47,6 +47,7 @@ describe('Discord boss lookup command', () => {
     );
 
     expect(choices).toEqual(expect.arrayContaining([...OSRS_BOSS_ACTIVITY_NAMES]));
+    expect(choices).toContain('Mad Angel');
     expect(choices).toHaveLength(OSRS_BOSS_ACTIVITY_NAMES.length);
     expect(new Set(choices)).toHaveLength(OSRS_BOSS_ACTIVITY_NAMES.length);
     expect(bossChoiceGroups.every((group) => group.length <= 25)).toBe(true);

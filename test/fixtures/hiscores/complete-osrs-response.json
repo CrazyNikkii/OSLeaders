@@ -62,6 +62,7 @@
     { "id": 31, "name": "Kree'Arra", "rank": 231, "score": 81 },
     { "id": 32, "name": "K'ril Tsutsaroth", "rank": 232, "score": 82 },
     { "id": 33, "name": "Lunar Chests", "rank": 233, "score": 83 },
+    { "id": 90, "name": "Mad Angel", "rank": -1, "score": 0 },
     { "id": 34, "name": "Mimic", "rank": 234, "score": 84 },
     { "id": 35, "name": "Maggot King", "rank": -1, "score": -1 },
     { "id": 36, "name": "Nex", "rank": 236, "score": 86 },

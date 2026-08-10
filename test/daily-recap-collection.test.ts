@@ -122,6 +122,43 @@ describe('daily recap collection service', () => {
     }
     expect(hiscores.requests).toEqual([]);
   });
+
+  it('repairs a baseline missing a newly supported boss without reporting pre-baseline gains', async () => {
+    const entry = recapAccount(trackedAccount());
+    delete entry.baseline.bossKillCounts['Mad Angel'];
+    const service = new DailyRecapCollectionService(
+      new RepositoryStub([entry]),
+      new HiscoreStub({ 'Rune Scape': success({}, { 'Mad Angel': 15, Zulrah: 15 }) }),
+      () => new Date('2026-07-31T10:00:00.000Z'),
+    );
+
+    const result = await service.collect('guild-one');
+    const [outcome] = result.outcomes;
+    expect(outcome).toMatchObject({
+      candidateBaseline: { bossKillCounts: { 'Mad Angel': 15 } },
+      changes: { bosses: [{ boss: 'Zulrah', killCountGained: 3 }] },
+      kind: 'success',
+    });
+  });
+
+  it('still reports an established missing boss baseline without fetching', async () => {
+    const entry = recapAccount(trackedAccount());
+    delete entry.baseline.bossKillCounts.Zulrah;
+    const hiscores = new HiscoreStub({ 'Rune Scape': success({}, {}) });
+    const service = new DailyRecapCollectionService(
+      new RepositoryStub([entry]),
+      hiscores,
+      () => new Date('2026-07-31T10:00:00.000Z'),
+    );
+
+    const result = await service.collect('guild-one');
+    const [outcome] = result.outcomes;
+    expect(outcome).toMatchObject({
+      failure: { kind: 'baseline_incomplete', missing: ['bossKillCounts:Zulrah'] },
+      kind: 'failure',
+    });
+    expect(hiscores.requests).toEqual([]);
+  });
 });
 
 class RepositoryStub implements DailyRecapCollectionRepository {

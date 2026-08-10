@@ -86,7 +86,7 @@ describe('Discord competition create command', () => {
     const handler = new CompetitionCreateCommandHandler(competitions, new ConfigurationStub());
     const start = handler.start('guild-one', 'manager-one');
     if (start.kind !== 'name_required') throw new Error('Expected competition name input.');
-    const name = handler.submitName('guild-one', 'manager-one', start.customId, 'Zulrah goal');
+    const name = handler.submitName('guild-one', 'manager-one', start.customId, 'Mad Angel goal');
     if (name.kind !== 'type_selection') throw new Error('Expected type selection.');
     const type = handler.selectType(
       'guild-one',
@@ -99,7 +99,7 @@ describe('Discord competition create command', () => {
       'guild-one',
       'manager-one',
       type.customIdForGroup(0),
-      'Zulrah',
+      'Mad Angel',
     );
     if (metric.kind !== 'value_required') throw new Error('Expected target input.');
 
@@ -113,7 +113,7 @@ describe('Discord competition create command', () => {
     });
 
     expect(competitions.requests[0]).toMatchObject({
-      metric: { kind: 'boss', name: 'Zulrah' },
+      metric: { kind: 'boss', name: 'Mad Angel' },
       targetValue: 1_000_000_000_000n,
       type: 'boss_kc_target_race',
     });
