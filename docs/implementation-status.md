@@ -36,9 +36,10 @@ workflows. The merged Discord-independent competition-start foundation adds
 authorized manual start from a draft, durable per-account historical
 starting-value snapshots, durable actual start/deadline timestamps, and the
 `start_pending` retry path for incomplete initial Hiscores fetches. The current
-unmerged branch adds the guild-only Discord `/competition start` adapter for
-manual start and presentation of `started` or `start_pending` outcomes. It does
-not add scheduling, claims, standings, roles, or finish lifecycle work.
+unmerged branch corrects the Discord `/boss-leaderboard` selection flow to use
+the shared bounded boss menus already used by `/boss`, `/one-time-boss`, and
+competition creation. It does not alter leaderboard collection or the remaining
+competition lifecycle work.
 
 The merged skill-lookup foundation begins the lookup module with a
 Discord-independent, guild-scoped skill lookup service. It resolves a
@@ -345,6 +346,15 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
+`9a6a9dc` (2026-08-10) - Merge Discord competition start command.
+
+This merged the guild-only `/competition start` adapter for the durable start
+foundation. It presents bounded, guild- and initiator-bound selection menus for
+draft and `START_PENDING` competitions, acknowledges component interactions
+before fresh Hiscores work, and privately presents `started` or `start_pending`
+outcomes. It does not add automatic retry scheduling, claims, standings, roles,
+or finish lifecycle work.
+
 `bcb3540` (2026-08-10) - Merge competition start foundation.
 
 This merged the Discord-independent, guild-scoped competition-start foundation.
@@ -463,12 +473,11 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-`codex/discord-competition-start` - Add the guild-only Discord
-`/competition start` adapter for the merged start foundation. The branch limits
-the flow to authorized manual start and private presentation of `started` or
-`start_pending` outcomes; it does not add automatic retry scheduling,
-administrative-log delivery, claims, standings, roles, or finish lifecycle
-work.
+`codex/fix-boss-leaderboard-menu` - Correct the guild-only Discord
+`/boss-leaderboard` flow to use the existing bounded, alphabetically ordered
+boss select menus. The branch preserves public leaderboard results, the
+top-10/all option, guild and initiator session binding, and component-response
+deferral before leaderboard collection.
 
 ## Next recommended branch-sized task
 
