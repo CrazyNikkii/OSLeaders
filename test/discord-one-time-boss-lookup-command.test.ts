@@ -36,11 +36,16 @@ describe('Discord one-time boss lookup command', () => {
       'hardcore_ironman',
     );
     if (mode.kind !== 'boss_selection') throw new Error('Expected boss selection.');
-    await handler.selectBoss('guild-one', 'member-one', mode.customIds[0] ?? '', 'Abyssal Sire');
+    await handler.selectBoss(
+      'guild-one',
+      'member-one',
+      mode.customIds[0] ?? '',
+      'Tombs of Amascut',
+    );
 
     expect(lookups.requests).toEqual([
       {
-        boss: 'Abyssal Sire',
+        boss: 'Tombs of Amascut',
         guildId: 'guild-one',
         requesterDiscordUserId: 'member-one',
         target: {
@@ -142,7 +147,8 @@ describe('Discord one-time boss lookup command', () => {
     });
     await adapter.handle(selectInteraction(modeCustomId, 'ironman', update) as never);
     expect(bossPlaceholders).toEqual([
-      'Choose boss (A–D)',
+      'Choose raid',
+      'Choose boss (A–G)',
       'Choose boss (G–S)',
       'Choose boss (S–Z)',
     ]);

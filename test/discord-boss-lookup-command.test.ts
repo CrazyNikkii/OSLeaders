@@ -12,6 +12,7 @@ import {
 import {
   bossChoiceGroups,
   bossChoiceGroupLabel,
+  raidChoiceGroup,
 } from '../src/infrastructure/discord/boss-choice-menu.js';
 
 describe('Discord boss lookup command', () => {
@@ -40,17 +41,28 @@ describe('Discord boss lookup command', () => {
     await expect(handler.autocomplete(null, 'account', '')).resolves.toEqual([]);
   });
 
-  it('covers every boss in bounded alphabetical menus and sorts The Gauntlet under G', () => {
+  it('separates raids from bounded alphabetical boss menus and sorts The Gauntlet under G', () => {
     const choices = bossChoiceGroups.flatMap((group) => group.map((choice) => choice.value));
+    const raids = raidChoiceGroup.map((choice) => choice.value);
     const gauntletGroup = bossChoiceGroups.findIndex((group) =>
       group.some((choice) => choice.value === 'The Gauntlet'),
     );
 
-    expect(choices).toEqual(expect.arrayContaining([...OSRS_BOSS_ACTIVITY_NAMES]));
+    expect([...choices, ...raids]).toEqual(expect.arrayContaining([...OSRS_BOSS_ACTIVITY_NAMES]));
     expect(choices).toContain('Mad Angel');
-    expect(choices).toHaveLength(OSRS_BOSS_ACTIVITY_NAMES.length);
-    expect(new Set(choices)).toHaveLength(OSRS_BOSS_ACTIVITY_NAMES.length);
+    expect(raids).toEqual([
+      'Chambers of Xeric',
+      'Chambers of Xeric: Challenge Mode',
+      'Theatre of Blood',
+      'Theatre of Blood: Hard Mode',
+      'Tombs of Amascut',
+      'Tombs of Amascut: Expert Mode',
+    ]);
+    expect(choices).not.toEqual(expect.arrayContaining(raids));
+    expect([...choices, ...raids]).toHaveLength(OSRS_BOSS_ACTIVITY_NAMES.length);
+    expect(new Set([...choices, ...raids])).toHaveLength(OSRS_BOSS_ACTIVITY_NAMES.length);
     expect(bossChoiceGroups.every((group) => group.length <= 25)).toBe(true);
+    expect(raidChoiceGroup.length).toBeLessThanOrEqual(25);
     expect(bossChoiceGroupLabel(bossChoiceGroups[gauntletGroup] ?? [])).toContain('G');
     expect(choices.indexOf('The Gauntlet')).toBeLessThan(choices.indexOf('Giant Mole'));
   });
@@ -71,17 +83,19 @@ describe('Discord boss lookup command', () => {
     const response = command.reply.mock.calls[0]?.[0];
     if (response === undefined) throw new Error('Expected boss menu response.');
     const row = response.components.find((candidate) =>
-      candidate.toJSON().components[0]?.options.some((option) => option.value === 'The Gauntlet'),
+      candidate
+        .toJSON()
+        .components[0]?.options.some((option) => option.value === 'Tombs of Amascut'),
     );
     const customId = row?.toJSON().components[0]?.custom_id;
-    if (customId === undefined) throw new Error('Expected The Gauntlet selector.');
+    if (customId === undefined) throw new Error('Expected raid selector.');
 
-    const selection = selectInteraction(customId, 'The Gauntlet');
+    const selection = selectInteraction(customId, 'Tombs of Amascut');
     await adapter.handle(selection as never);
 
     expect(services.requests).toEqual([
       {
-        boss: 'The Gauntlet',
+        boss: 'Tombs of Amascut',
         guildId: 'guild-one',
         requesterDiscordUserId: 'member-one',
         target: { kind: 'default_account' },

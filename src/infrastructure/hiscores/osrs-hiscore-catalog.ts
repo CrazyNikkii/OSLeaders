@@ -160,3 +160,14 @@ export const OSRS_BOSS_ACTIVITY_NAMES = [
 ] as const;
 
 export type OsrsBossActivityName = (typeof OSRS_BOSS_ACTIVITY_NAMES)[number];
+
+// Keep raids separate from the alphabetical boss menus. When Jagex adds a new
+// raid that OSLeaders supports, add its activities here as well as above.
+export const OSRS_RAID_ACTIVITY_NAMES = [
+  'Chambers of Xeric',
+  'Chambers of Xeric: Challenge Mode',
+  'Theatre of Blood',
+  'Theatre of Blood: Hard Mode',
+  'Tombs of Amascut',
+  'Tombs of Amascut: Expert Mode',
+] as const satisfies readonly OsrsBossActivityName[];

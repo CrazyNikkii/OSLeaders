@@ -14,8 +14,11 @@ import {
 
 import { AccountRetrievalService } from '../../features/accounts/account-retrieval.js';
 import { BossLookupService, type BossLookupResult } from '../../features/lookups/boss-lookup.js';
-import { type OsrsBossActivityName } from '../hiscores/osrs-hiscore-catalog.js';
-import { bossChoiceGroups, bossChoiceMenuRows } from './boss-choice-menu.js';
+import {
+  OSRS_BOSS_ACTIVITY_NAMES,
+  type OsrsBossActivityName,
+} from '../hiscores/osrs-hiscore-catalog.js';
+import { bossChoiceMenuRows } from './boss-choice-menu.js';
 import {
   accountModeLabel,
   formatHiscoreRank,
@@ -303,7 +306,7 @@ export function bossLookupFailureMessage(
 }
 
 function isOsrsBossActivityName(value: string): value is OsrsBossActivityName {
-  return bossChoiceGroups.some((group) => group.some((choice) => choice.value === value));
+  return OSRS_BOSS_ACTIVITY_NAMES.includes(value as OsrsBossActivityName);
 }
 
 function encodeBossSelection(index: number, sessionId: string): string {
