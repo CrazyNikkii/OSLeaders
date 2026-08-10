@@ -36,8 +36,12 @@ initiator- and guild-bound selection of eligible active target-race entrants;
 it acknowledges before verification, keeps unsuccessful outcomes private,
 publishes verified wins publicly, and delegates
 authorization, receipt ordering, verification, retry, and winner selection to
-the merged service. It deliberately leaves roles, recap integration, and the
-broader finish lifecycle deferred. The merged Discord-independent competition standings
+the merged service. The merged target-race finish foundation atomically records
+the verified winning claim and transitions its competition from `active` to
+`finished`, retaining the claim's final value and immutable historical
+snapshots. Roles, recap integration, target-race deadline completion without a
+winner, and timed-competition finalization remain deferred. The merged
+Discord-independent competition standings
 foundation adds active-competition progress collection with durable last-known
 values for partial Hiscores failures, combined linked-account scores, standalone
 watchlist entrants, shared ranks, and incomplete-score warnings. The merged
@@ -367,6 +371,14 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
+`a78e626` (2026-08-10) - Merge target-race finish foundation.
+
+This merged the Discord-independent target-race finish foundation. When the
+earliest valid claim wins, it atomically preserves the verified claim and final
+value, records the winner, and transitions the competition from `active` to
+`finished`. It does not add roles, recap integration, target-race deadline
+completion without a winner, or timed-competition finalization.
+
 `472e18b` (2026-08-10) - Add Discord target-race claim command.
 
 This merged the guild-only `/competition claim` adapter. It shows only
@@ -592,17 +604,11 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-`codex/target-race-finish-foundation` (not merged) completes a target race
-when its winning claim is verified. It atomically preserves the verified claim
-and its final value, records the winning claim on the competition, and changes
-the competition from `active` to `finished`. It does not add roles, recap
-integration, target-race deadline completion without a winner, or timed
-competition finalization.
+None.
 
 ## Next recommended branch-sized task
 
-After the target-race finish foundation is reviewed and merged, add a durable
-target-race deadline-completion foundation for races with no valid claim. It
-should finish the race without a winner at its stored deadline and retain the
-data needed for final progress standings, while leaving roles, recap
-integration, and timed-competition finalization deferred.
+Add a durable target-race deadline-completion foundation for races with no
+valid claim. It should finish the race without a winner at its stored deadline
+and retain the data needed for final progress standings, while leaving roles,
+recap integration, and timed-competition finalization deferred.
