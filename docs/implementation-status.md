@@ -39,8 +39,11 @@ authorization, receipt ordering, verification, retry, and winner selection to
 the merged service. The merged target-race finish foundation atomically records
 the verified winning claim and transitions its competition from `active` to
 `finished`, retaining the claim's final value and immutable historical
-snapshots. Roles, recap integration, target-race deadline completion with its
-most-progress fallback, and timed-competition finalization remain deferred. The merged
+snapshots. The merged optional-deadline target-race finalization workflow claims
+due work, waits for pending on-time claims, collects cache-bypassing final
+values, persists shared exact-tie winners, and retries failed collection.
+Roles, recap integration, timed-competition finalization, and finished-result
+presentation remain deferred. The merged
 Discord-independent competition standings
 foundation adds active-competition progress collection with durable last-known
 values for partial Hiscores failures, combined linked-account scores, standalone
@@ -371,14 +374,21 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
+`1a3029d` (2026-08-11) - Merge target race deadline finalization.
+
+This merged the Discord-independent durable finalization workflow for optional
+target-race deadlines. It claims due fallback work, retries pending on-time
+claims before selecting the most-progress winners, fetches fresh final values,
+retains exact shared ties and final snapshots, and schedules restrained retries
+after failures. It does not add result presentation, roles, recap integration,
+or general timed-competition finalization.
+
 `86e393e` (2026-08-10) - Add optional target race deadlines.
 
 This is on `master` and permits target-race drafts to keep no deadline or
 store a validated positive duration. It persists that choice through a
 reviewed migration, collects the optional duration in the guided Discord
-creation flow, and derives `endsAt` from the successful starting snapshot. It
-does not implement deadline finalization, winner selection, roles, or recap
-integration.
+creation flow, and derives `endsAt` from the successful starting snapshot.
 
 `a78e626` (2026-08-10) - Merge target-race finish foundation.
 
@@ -613,17 +623,16 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-`codex/target-race-deadline-finalization` - Add the Discord-independent,
-durable deadline workflow for optional target races. It claims due work,
-collects fresh final values, retains final values and shared exact-tie winners,
-retries failed collection through the existing in-process scheduler pattern,
-and automatically retries pending pre-deadline claims before fallback
-finalization.
-It does not add Discord result presentation, roles, recap integration, or
-general timed-competition finalization.
+`codex/timed-competition-finalization` - Add the Discord-independent,
+durable automatic finalization workflow for timed most-XP and most-KC
+competitions. It claims due work, fetches final values without the cache,
+retains final values and shared exact-tie winners, records delayed results when
+collection happens after the stored deadline, and retries failed collection
+through the existing in-process scheduler pattern. It does not add Discord
+result presentation, roles, recap integration, or manual finalization.
 
 ## Next recommended branch-sized task
 
-After the deadline-finalization branch merges, add durable timed-competition
-finalization with delayed-result handling. Leave roles and recap integration
-deferred.
+After the timed-finalization branch merges, add guild-only Discord finished
+competition result presentation and history retrieval. Leave roles and recap
+integration deferred.

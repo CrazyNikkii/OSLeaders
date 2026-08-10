@@ -34,6 +34,7 @@ import { PostgresCompetitionStandingsRepository } from '../../src/infrastructure
 import { PostgresCompetitionSchedulingRepository } from '../../src/infrastructure/database/postgres-competition-scheduling-repository.js';
 import { PostgresTargetRaceClaimRepository } from '../../src/infrastructure/database/postgres-target-race-claim-repository.js';
 import { PostgresTargetRaceDeadlineFinalizationRepository } from '../../src/infrastructure/database/postgres-target-race-deadline-finalization-repository.js';
+import { PostgresTimedCompetitionFinalizationRepository } from '../../src/infrastructure/database/postgres-timed-competition-finalization-repository.js';
 import {
   competitionContributingAccounts,
   competitionAccountFinalValues,
@@ -959,6 +960,123 @@ describe('database foundation', () => {
       { entrantId: 'deadline-finalization-entrant-one', gain: 50n },
       { entrantId: 'deadline-finalization-entrant-two', gain: 50n },
     ]);
+  });
+
+  it('claims, retries, and finalizes only due timed competitions with delayed history', async () => {
+    const now = new Date('2026-08-10T15:00:00.000Z');
+    const repository = new PostgresTimedCompetitionFinalizationRepository(
+      connection.database,
+      () => now,
+    );
+    const creations = new PostgresCompetitionCreationRepository(connection.database);
+    const accounts = new PostgresAccountRegistrationRepository(connection.database);
+    const guildId = 'timed-finalization-guild';
+    const competitionId = 'timed-finalization-competition';
+    await creations.create(
+      competitionDraft({
+        durationSeconds: 60,
+        guildId,
+        id: competitionId,
+        normalizedName: 'timed finalization competition',
+        type: 'most_skill_xp',
+      }),
+    );
+    await accounts.register(
+      account({ guildId, id: 'timed-finalization-account' }),
+      initialRecapBaseline(),
+    );
+    await connection.database.transaction(async (transaction) => {
+      await transaction.insert(competitionEntrants).values({
+        competitionId,
+        discordUserId: 'member-one',
+        entrantType: 'discord_member',
+        guildId,
+        id: 'timed-finalization-entrant',
+      });
+      await transaction.insert(competitionContributingAccounts).values({
+        competitionEntrantId: 'timed-finalization-entrant',
+        competitionId,
+        guildId,
+        trackedAccountId: 'timed-finalization-account',
+      });
+      await transaction.insert(competitionAccountSnapshots).values({
+        accountMode: 'main',
+        competitionEntrantId: 'timed-finalization-entrant',
+        competitionId,
+        displayUsername: 'Rune Scape',
+        guildId,
+        startingObservedAt: now,
+        startingValue: 100n,
+        trackedAccountId: 'timed-finalization-account',
+      });
+      await transaction
+        .update(competitions)
+        .set({ endsAt: new Date(now.getTime() - 1), state: 'active' })
+        .where(and(eq(competitions.guildId, guildId), eq(competitions.id, competitionId)));
+    });
+
+    await expect(repository.claimDueFinalization()).resolves.toMatchObject({
+      competitionId,
+      finishAttemptCount: 1,
+      guildId,
+    });
+    await repository.scheduleRetry({
+      competitionId,
+      failureSummary: 'timeout',
+      guildId,
+      nextAttemptAt: new Date(now.getTime() + 60_000),
+    });
+    await expect(repository.claimDueFinalization()).resolves.toBeUndefined();
+    await expect(
+      repository.completeFinalization({
+        competitionId,
+        finalValues: [
+          {
+            accountId: 'timed-finalization-account',
+            entrantId: 'timed-finalization-entrant',
+            value: 150n,
+          },
+        ],
+        finalizedAt: now,
+        guildId,
+        isResultDelayed: true,
+      }),
+    ).resolves.toEqual({ kind: 'finished', winnerEntrantIds: ['timed-finalization-entrant'] });
+    await expect(
+      connection.database
+        .select({
+          delayed: competitions.isResultDelayed,
+          finishedAt: competitions.finishedAt,
+          state: competitions.state,
+        })
+        .from(competitions)
+        .where(and(eq(competitions.guildId, guildId), eq(competitions.id, competitionId))),
+    ).resolves.toEqual([{ delayed: true, finishedAt: now, state: 'finished' }]);
+    await expect(
+      connection.database
+        .select({ value: competitionAccountFinalValues.finalValue })
+        .from(competitionAccountFinalValues)
+        .where(
+          and(
+            eq(competitionAccountFinalValues.guildId, guildId),
+            eq(competitionAccountFinalValues.competitionId, competitionId),
+          ),
+        ),
+    ).resolves.toEqual([{ value: 150n }]);
+    await expect(
+      connection.database
+        .select({
+          entrantId: competitionWinners.competitionEntrantId,
+          gain: competitionWinners.finalGain,
+        })
+        .from(competitionWinners)
+        .where(
+          and(
+            eq(competitionWinners.guildId, guildId),
+            eq(competitionWinners.competitionId, competitionId),
+          ),
+        ),
+    ).resolves.toEqual([{ entrantId: 'timed-finalization-entrant', gain: 50n }]);
   });
 
   it('claims only due pending competition starts and persists the next retry state', async () => {

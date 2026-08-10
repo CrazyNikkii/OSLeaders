@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   bigint,
+  boolean,
   check,
   foreignKey,
   integer,
@@ -70,6 +71,8 @@ export const competitions = pgTable(
     finishAttemptCount: integer('finish_attempt_count').notNull().default(0),
     nextFinishAttemptAt: timestamp('next_finish_attempt_at', { withTimezone: true }),
     lastFinishFailureSummary: text('last_finish_failure_summary'),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+    isResultDelayed: boolean('is_result_delayed').notNull().default(false),
     startedAt: timestamp('started_at', { withTimezone: true }),
     endsAt: timestamp('ends_at', { withTimezone: true }),
     winningTargetClaimId: text('winning_target_claim_id'),
