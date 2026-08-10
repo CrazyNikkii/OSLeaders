@@ -119,6 +119,55 @@ describe('Discord competition create command', () => {
     });
   });
 
+  it('renders the shared Raids selector and accepts a raid metric', async () => {
+    const adapter = new DiscordCompetitionCreateCommandAdapter(
+      new CompetitionCreateCommandHandler(new CompetitionStub(), new ConfigurationStub()),
+    );
+    let nameCustomId = '';
+    await adapter.handle(
+      commandInteraction(
+        vi.fn((modal: { toJSON(): { custom_id: string } }) => {
+          nameCustomId = modal.toJSON().custom_id;
+          return Promise.resolve();
+        }),
+      ) as never,
+    );
+
+    let typeCustomId = '';
+    await adapter.handle(
+      nameModalInteraction(
+        nameCustomId,
+        vi.fn((response: { components: { components: { data: { custom_id: string } }[] }[] }) => {
+          typeCustomId = response.components[0]?.components[0]?.data.custom_id ?? '';
+          return Promise.resolve();
+        }),
+      ) as never,
+    );
+
+    let raidCustomId = '';
+    const update = vi.fn(
+      (response: {
+        components: { components: { data: { custom_id: string; placeholder?: string } }[] }[];
+      }) => {
+        expect(response.components.map((row) => row.components[0]?.data.placeholder)).toEqual([
+          'Choose raid',
+          'Choose boss (A–G)',
+          'Choose boss (G–S)',
+          'Choose boss (S–Z)',
+        ]);
+        raidCustomId = response.components[0]?.components[0]?.data.custom_id ?? '';
+        return Promise.resolve();
+      },
+    );
+    await adapter.handle(selectInteraction(typeCustomId, 'most_boss_kc', update) as never);
+
+    const showValueModal = vi.fn(() => Promise.resolve());
+    await adapter.handle(
+      selectInteraction(raidCustomId, 'Tombs of Amascut', update, showValueModal) as never,
+    );
+    expect(showValueModal).toHaveBeenCalledOnce();
+  });
+
   it('rejects another member and expired sessions before creation', () => {
     const clock = new FakeClock();
     const competitions = new CompetitionStub();

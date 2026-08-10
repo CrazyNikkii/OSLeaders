@@ -63,6 +63,9 @@ fixture activity count and add focused parser and shared-menu coverage. The
 catalog is deliberately the single source for boss parsing, lookups,
 leaderboards, competition metrics, and daily-recap baseline and gain handling;
 no per-command boss list should be added.
+When the supported activity is a raid, add it to
+`OSRS_RAID_ACTIVITY_NAMES` as well, so the shared Discord selector places it
+in the dedicated Raids menu; other bosses remain in the alphabetical menus.
 
 Existing recap baselines can predate a newly supported boss. Their next
 successful collection records the new current value but omits a gain for that

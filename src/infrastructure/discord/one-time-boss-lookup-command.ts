@@ -24,7 +24,7 @@ import {
   type OsrsBossActivityName,
 } from '../hiscores/osrs-hiscore-catalog.js';
 import { bossLookupEmbed, bossLookupFailureMessage } from './boss-lookup-command.js';
-import { bossChoiceGroups, bossChoiceMenuRows } from './boss-choice-menu.js';
+import { bossChoiceMenuRows } from './boss-choice-menu.js';
 
 const COMMAND_NAME = 'one-time-boss';
 const INTERACTION_PREFIX = 'osleaders:one-time-boss';
@@ -197,7 +197,9 @@ export class OneTimeBossLookupCommandHandler {
     if (typeof session !== 'object') return sessionFailure(session);
     return {
       kind: 'boss_selection',
-      customIds: bossChoiceGroups.map((_, index) => encodeBoss(index, sessionId)),
+      customIds: bossChoiceMenuRows((index) => encodeBoss(index, sessionId)).map(
+        (row) => row.components[0]?.data.custom_id ?? '',
+      ),
     };
   }
 

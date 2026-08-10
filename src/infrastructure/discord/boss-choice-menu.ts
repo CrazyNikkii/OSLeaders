@@ -2,6 +2,7 @@ import { ActionRowBuilder, StringSelectMenuBuilder } from 'discord.js';
 
 import {
   OSRS_BOSS_ACTIVITY_NAMES,
+  OSRS_RAID_ACTIVITY_NAMES,
   type OsrsBossActivityName,
 } from '../hiscores/osrs-hiscore-catalog.js';
 
@@ -12,20 +13,36 @@ export interface BossChoice {
   value: OsrsBossActivityName;
 }
 
-export const bossChoiceGroups: readonly (readonly BossChoice[])[] =
-  chunkBossChoices(OSRS_BOSS_ACTIVITY_NAMES);
+const raidNames = new Set<string>(OSRS_RAID_ACTIVITY_NAMES);
+
+export const raidChoiceGroup: readonly BossChoice[] = OSRS_RAID_ACTIVITY_NAMES.map((value) => ({
+  label: value,
+  value,
+}));
+
+export const bossChoiceGroups: readonly (readonly BossChoice[])[] = chunkBossChoices(
+  OSRS_BOSS_ACTIVITY_NAMES.filter((name) => !raidNames.has(name)),
+);
 
 export function bossChoiceMenuRows(
   customIdForGroup: (groupIndex: number) => string,
 ): ActionRowBuilder<StringSelectMenuBuilder>[] {
-  return bossChoiceGroups.map((choices, index) =>
+  return [
     new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
       new StringSelectMenuBuilder()
-        .setCustomId(customIdForGroup(index))
-        .setPlaceholder(`Choose boss (${bossChoiceGroupLabel(choices)})`)
-        .addOptions([...choices]),
+        .setCustomId(customIdForGroup(0))
+        .setPlaceholder('Choose raid')
+        .addOptions([...raidChoiceGroup]),
     ),
-  );
+    ...bossChoiceGroups.map((choices, index) =>
+      new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(customIdForGroup(index + 1))
+          .setPlaceholder(`Choose boss (${bossChoiceGroupLabel(choices)})`)
+          .addOptions([...choices]),
+      ),
+    ),
+  ];
 }
 
 export function chunkBossChoices(

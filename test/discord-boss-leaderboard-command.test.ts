@@ -38,9 +38,9 @@ describe('Discord boss leaderboard command', () => {
     if (firstReply === undefined) throw new Error('Expected boss menu response.');
     expect(
       firstReply.components.map((component) => component.toJSON().components[0]?.placeholder),
-    ).toEqual(['Choose boss (A–D)', 'Choose boss (G–S)', 'Choose boss (S–Z)']);
+    ).toEqual(['Choose raid', 'Choose boss (A–G)', 'Choose boss (G–S)', 'Choose boss (S–Z)']);
     expect(firstReply.flags).toBe(MessageFlags.Ephemeral);
-    const customId = firstReply.components[2]?.toJSON().components[0]?.custom_id;
+    const customId = firstReply.components[3]?.toJSON().components[0]?.custom_id;
     if (customId === undefined) throw new Error('Expected final boss selector.');
     const selection = selectInteraction(customId, 'Zulrah', order);
 

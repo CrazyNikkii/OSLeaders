@@ -36,10 +36,11 @@ workflows. The merged Discord-independent competition-start foundation adds
 authorized manual start from a draft, durable per-account historical
 starting-value snapshots, durable actual start/deadline timestamps, and the
 `start_pending` retry path for incomplete initial Hiscores fetches. The current
-unmerged branch adds the current Jagex `Mad Angel` activity to the central boss
-catalog, representative Hiscores fixture, and shared command-menu coverage. It
-does not alter leaderboard collection or the remaining competition lifecycle
-work.
+unmerged branch separates the six supported raid activities into a dedicated
+shared Discord selector, while all other supported bosses remain in bounded
+alphabetical selectors. That shared selector serves boss lookups, one-time
+boss lookups, boss leaderboards, and competition creation; it does not alter
+leaderboard collection or the remaining competition lifecycle work.
 
 The merged skill-lookup foundation begins the lookup module with a
 Discord-independent, guild-scoped skill lookup service. It resolves a
@@ -346,6 +347,14 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
+`4969e91` (2026-08-10) - Merge Mad Angel boss support.
+
+This merged Jagex's `Mad Angel` activity into the central boss catalog and
+representative Hiscores fixture, making it available through the parser, shared
+Discord menus, lookups, leaderboards, competition metrics, and daily recaps.
+It also safely repairs only the new field in legacy recap baselines, without
+misreporting all-time KC as a daily gain.
+
 `ee22d7b` (2026-08-10) - Merge boss leaderboard menu selection fix.
 
 This merged the guild-only `/boss-leaderboard` correction to use the shared
@@ -480,12 +489,12 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-`codex/add-mad-angel-boss` - Add Jagex's `Mad Angel` activity to the central
-OSRS boss catalog and representative fixture. This makes it available through
-the existing parser, shared Discord menus, lookups, leaderboards, competitions,
-and daily-recap baseline and gain processing; existing recap baselines repair
-the new field after their next successful collection without reporting an
-unmeasurable historical gain.
+`codex/separate-raid-boss-menu` - Separate the six supported raid activities
+into a dedicated Raids selector in the shared Discord boss menu. The remaining
+bosses stay in bounded alphabetical selectors. This changes the shared selector
+used by `/boss`, `/one-time-boss`, `/boss-leaderboard`, and competition
+creation, while preserving their existing authorization, guild isolation, and
+selection-session behaviour.
 
 ## Next recommended branch-sized task
 
