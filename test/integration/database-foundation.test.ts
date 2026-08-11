@@ -30,6 +30,7 @@ import { PostgresAutomaticDailyRecapCollectionRepository } from '../../src/infra
 import { PostgresCompetitionCreationRepository } from '../../src/infrastructure/database/postgres-competition-creation-repository.js';
 import { PostgresCompetitionDraftParticipationRepository } from '../../src/infrastructure/database/postgres-competition-draft-participation-repository.js';
 import { PostgresCompetitionStartRepository } from '../../src/infrastructure/database/postgres-competition-start-repository.js';
+import { PostgresCompetitionCancellationRepository } from '../../src/infrastructure/database/postgres-competition-cancellation-repository.js';
 import { PostgresCompetitionStandingsRepository } from '../../src/infrastructure/database/postgres-competition-standings-repository.js';
 import { PostgresCompetitionResultsHistoryRepository } from '../../src/infrastructure/database/postgres-competition-results-history-repository.js';
 import { PostgresCompetitionSchedulingRepository } from '../../src/infrastructure/database/postgres-competition-scheduling-repository.js';
@@ -380,6 +381,84 @@ describe('database foundation', () => {
         requesterDiscordUserId: 'another-manager',
       }),
     ).resolves.toEqual({ kind: 'membership_locked' });
+  });
+
+  it('cancels only an authorized guild competition and clears its retry work', async () => {
+    const creation = new PostgresCompetitionCreationRepository(connection.database);
+    const repository = new PostgresCompetitionCancellationRepository(
+      connection.database,
+      () => new Date('2026-08-11T12:00:00Z'),
+    );
+    await creation.create(
+      competitionDraft({
+        id: 'cancel-one',
+        guildId: 'cancel-guild-one',
+        displayName: 'Cancel one',
+        normalizedName: 'cancel one',
+        createdByDiscordUserId: 'creator-one',
+      }),
+    );
+    await creation.create(
+      competitionDraft({
+        id: 'cancel-two',
+        guildId: 'cancel-guild-two',
+        displayName: 'Cancel two',
+        normalizedName: 'cancel two',
+        createdByDiscordUserId: 'creator-two',
+      }),
+    );
+    await connection.database
+      .update(competitions)
+      .set({
+        state: 'start_pending',
+        nextStartAttemptAt: new Date('2026-08-12T00:00:00Z'),
+        lastStartFailureSummary: 'upstream',
+      })
+      .where(and(eq(competitions.id, 'cancel-one'), eq(competitions.guildId, 'cancel-guild-one')));
+    await expect(
+      repository.cancel({
+        canManageCompetitions: false,
+        competitionId: 'cancel-one',
+        guildId: 'cancel-guild-two',
+        requesterDiscordUserId: 'creator-one',
+      }),
+    ).resolves.toEqual({ kind: 'competition_not_found' });
+    await expect(
+      repository.cancel({
+        canManageCompetitions: false,
+        competitionId: 'cancel-one',
+        guildId: 'cancel-guild-one',
+        requesterDiscordUserId: 'other-member',
+      }),
+    ).resolves.toEqual({ kind: 'forbidden' });
+    await expect(
+      repository.cancel({
+        canManageCompetitions: false,
+        competitionId: 'cancel-one',
+        guildId: 'cancel-guild-one',
+        requesterDiscordUserId: 'creator-one',
+      }),
+    ).resolves.toMatchObject({ kind: 'cancelled' });
+    await expect(
+      connection.database
+        .select({
+          state: competitions.state,
+          retry: competitions.nextStartAttemptAt,
+          failure: competitions.lastStartFailureSummary,
+        })
+        .from(competitions)
+        .where(
+          and(eq(competitions.id, 'cancel-one'), eq(competitions.guildId, 'cancel-guild-one')),
+        ),
+    ).resolves.toEqual([{ state: 'cancelled', retry: null, failure: null }]);
+    await expect(
+      repository.cancel({
+        canManageCompetitions: true,
+        competitionId: 'cancel-one',
+        guildId: 'cancel-guild-one',
+        requesterDiscordUserId: 'manager',
+      }),
+    ).resolves.toEqual({ kind: 'cancellation_locked' });
   });
 
   it('durably starts a guild-scoped competition with historical starting snapshots and deadline', async () => {

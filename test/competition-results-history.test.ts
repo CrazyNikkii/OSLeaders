@@ -59,6 +59,31 @@ describe('competition results history service', () => {
       service.getFinishedResult({ competitionId: 'competition-one', guildId: 'guild-two' }),
     ).resolves.toEqual({ kind: 'competition_not_found' });
   });
+
+  it('returns cancelled competitions as history without fabricating results', async () => {
+    const service = new CompetitionResultsHistoryService({
+      findFinished: () =>
+        Promise.resolve({
+          kind: 'cancelled' as const,
+          displayName: 'Fishing',
+          cancelledAt: new Date('2026-08-11T12:00:00Z'),
+        }),
+      listFinished: () =>
+        Promise.resolve([
+          { id: 'competition-one', displayName: 'Fishing', state: 'cancelled' as const },
+        ]),
+    });
+    await expect(
+      service.getFinishedResult({ competitionId: 'competition-one', guildId: 'guild-one' }),
+    ).resolves.toEqual({
+      kind: 'cancelled_result',
+      displayName: 'Fishing',
+      cancelledAt: new Date('2026-08-11T12:00:00Z'),
+    });
+    await expect(service.listFinished('guild-one')).resolves.toEqual([
+      { id: 'competition-one', displayName: 'Fishing', state: 'cancelled' },
+    ]);
+  });
 });
 
 class Repository implements CompetitionResultsHistoryRepository {

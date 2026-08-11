@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray } from 'drizzle-orm';
 
 import type {
   CompetitionResultsHistoryRepository,
@@ -25,6 +25,12 @@ export class PostgresCompetitionResultsHistoryRepository implements CompetitionR
         and(eq(competitions.id, request.competitionId), eq(competitions.guildId, request.guildId)),
       );
     if (competition === undefined) return { kind: 'competition_not_found' as const };
+    if (competition.state === 'cancelled')
+      return {
+        kind: 'cancelled' as const,
+        displayName: competition.displayName,
+        cancelledAt: competition.updatedAt,
+      };
     if (competition.state !== 'finished') return { kind: 'not_finished' as const };
 
     const accounts = await this.database
@@ -125,11 +131,23 @@ export class PostgresCompetitionResultsHistoryRepository implements CompetitionR
 
   public async listFinished(
     guildId: string,
-  ): Promise<readonly { displayName: string; id: string }[]> {
+  ): Promise<readonly { displayName: string; id: string; state: 'finished' | 'cancelled' }[]> {
     return this.database
-      .select({ displayName: competitions.displayName, id: competitions.id })
+      .select({
+        displayName: competitions.displayName,
+        id: competitions.id,
+        state: competitions.state,
+      })
       .from(competitions)
-      .where(and(eq(competitions.guildId, guildId), eq(competitions.state, 'finished')))
-      .orderBy(desc(competitions.finishedAt), asc(competitions.id));
+      .where(
+        and(
+          eq(competitions.guildId, guildId),
+          inArray(competitions.state, ['finished', 'cancelled']),
+        ),
+      )
+      .orderBy(desc(competitions.updatedAt), asc(competitions.id))
+      .then((rows) =>
+        rows.map((row) => ({ ...row, state: row.state as 'finished' | 'cancelled' })),
+      );
   }
 }

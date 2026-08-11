@@ -20,7 +20,10 @@ export class DiscordCompetitionResultPublisher implements CompetitionResultPubli
 
   public async publish(
     delivery: PendingCompetitionResultDelivery,
-    result: Extract<CompetitionResultsHistoryResult, { kind: 'finished_result' }>,
+    result: Extract<
+      CompetitionResultsHistoryResult,
+      { kind: 'finished_result' | 'cancelled_result' }
+    >,
   ): Promise<{ discordMessageId: string }> {
     const guild = await this.client.guilds.fetch(delivery.guildId);
     const channel = await guild.channels.fetch(delivery.channelId);
@@ -35,13 +38,26 @@ export class DiscordCompetitionResultPublisher implements CompetitionResultPubli
           })
         : undefined;
     let message: { id: string } | undefined;
-    for (const embeds of chunk(competitionResultsHistoryEmbeds(result), 10)) {
+    const embeds = result.kind === 'finished_result' ? competitionResultsHistoryEmbeds(result) : [];
+    for (const batch of chunk(embeds, 10)) {
       const sent = await channel.send({
         allowedMentions: roleId === undefined ? { parse: [] } : { roles: [roleId] },
-        embeds,
-        ...(message === undefined && roleId !== undefined ? { content: `<@&${roleId}>` } : {}),
+        embeds: batch,
+        ...(message === undefined && result.kind === 'cancelled_result'
+          ? {
+              content: `${roleId === undefined ? '' : `<@&${roleId}> `}Competition **${result.displayName}** was cancelled.`,
+            }
+          : message === undefined && roleId !== undefined
+            ? { content: `<@&${roleId}>` }
+            : {}),
       });
       message ??= sent;
+    }
+    if (message === undefined && result.kind === 'cancelled_result') {
+      message = await channel.send({
+        content: `Competition **${result.displayName}** was cancelled.`,
+        allowedMentions: { parse: [] },
+      });
     }
     if (message === undefined)
       throw new Error('The competition result did not contain content to deliver.');

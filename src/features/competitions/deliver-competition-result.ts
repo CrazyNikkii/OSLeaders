@@ -25,7 +25,10 @@ export interface CompetitionResultDeliveryRepository {
 export interface CompetitionResultPublisher {
   publish(
     delivery: PendingCompetitionResultDelivery,
-    result: Extract<CompetitionResultsHistoryResult, { kind: 'finished_result' }>,
+    result: Extract<
+      CompetitionResultsHistoryResult,
+      { kind: 'finished_result' | 'cancelled_result' }
+    >,
   ): Promise<{ discordMessageId: string }>;
 }
 
@@ -47,10 +50,10 @@ export class CompetitionResultDeliveryService {
     if (delivery === undefined) return 'no_delivery';
     try {
       const result = await this.results.getFinishedResult(delivery);
-      if (result.kind !== 'finished_result') {
+      if (result.kind !== 'finished_result' && result.kind !== 'cancelled_result') {
         await this.recordFailure(
           delivery,
-          'Finished competition results are not available for delivery.',
+          'Completed competition notification is not available for delivery.',
         );
         return 'delivery_failed';
       }
