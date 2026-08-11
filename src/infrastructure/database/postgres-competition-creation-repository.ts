@@ -3,7 +3,7 @@ import type {
   CompetitionDraft,
 } from '../../features/competitions/create-competition.js';
 import type { Database } from './connection.js';
-import { competitions, guilds } from './schema/index.js';
+import { competitionRoles, competitions, guilds } from './schema/index.js';
 
 export class PostgresCompetitionCreationRepository implements CompetitionCreationRepository {
   public constructor(private readonly database: Database) {}
@@ -34,6 +34,12 @@ export class PostgresCompetitionCreationRepository implements CompetitionCreatio
         })
         .onConflictDoNothing({ target: [competitions.guildId, competitions.normalizedName] })
         .returning();
+      if (stored !== undefined) {
+        await transaction.insert(competitionRoles).values({
+          competitionId: stored.id,
+          guildId: stored.guildId,
+        });
+      }
       return stored === undefined
         ? { kind: 'name_taken' }
         : { kind: 'created', competition: toCompetitionDraft(stored) };

@@ -120,6 +120,20 @@
       "when": 1786433593255,
       "tag": "0016_far_titanium_man",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1786435702708,
+      "tag": "0017_massive_winter_soldier",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1786435733367,
+      "tag": "0018_odd_genesis",
+      "breakpoints": true
     }
   ]
 }
