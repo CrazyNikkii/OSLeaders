@@ -17,6 +17,7 @@ export interface GuildConfiguration {
   administrativeLogMode: AdministrativeLogMode;
   botManagerRoleId: string | null;
   competitionManagerRoleId: string | null;
+  competitionChannelId?: string | null;
   guildId: string;
   modeEmojis: GuildModeEmojis;
   recapChannelId: string | null;
@@ -30,6 +31,7 @@ export interface GuildConfigurationUpdate {
   administrativeLogMode?: AdministrativeLogMode;
   botManagerRoleId?: string | null;
   competitionManagerRoleId?: string | null;
+  competitionChannelId?: string | null;
   modeEmojis?: GuildModeEmojis;
   recapChannelId?: string | null;
   recapEnabled?: boolean;

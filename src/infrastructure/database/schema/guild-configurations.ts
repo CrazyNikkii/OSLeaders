@@ -14,6 +14,7 @@ export const guildConfigurations = pgTable('guild_configurations', {
     .references(() => guilds.guildId, { onDelete: 'cascade' }),
   botManagerRoleId: text('bot_manager_role_id'),
   competitionManagerRoleId: text('competition_manager_role_id'),
+  competitionChannelId: text('competition_channel_id'),
   administrativeLogChannelId: text('administrative_log_channel_id'),
   administrativeLogMode: administrativeLogMode('administrative_log_mode')
     .notNull()

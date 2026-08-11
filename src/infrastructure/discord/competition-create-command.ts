@@ -1,5 +1,6 @@
 import {
   ActionRowBuilder,
+  ChannelType,
   Events,
   MessageFlags,
   ModalBuilder,
@@ -70,6 +71,18 @@ export const competitionCommandDefinitions = [
     )
     .addSubcommand((subcommand) =>
       subcommand.setName('claim').setDescription('Claim a target-race result.'),
+    )
+    .addSubcommand((subcommand) =>
+      subcommand
+        .setName('configure-channel')
+        .setDescription('Set the channel for competition announcements.')
+        .addChannelOption((option) =>
+          option
+            .setName('channel')
+            .setDescription('Channel where finished competition results are posted.')
+            .addChannelTypes(ChannelType.GuildText)
+            .setRequired(true),
+        ),
     )
     .toJSON(),
 ] as const;

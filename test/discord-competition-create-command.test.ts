@@ -33,6 +33,7 @@ describe('Discord competition create command', () => {
       'standings',
       'history',
       'claim',
+      'configure-channel',
     ]);
   });
 

@@ -5,6 +5,7 @@ import {
   check,
   foreignKey,
   integer,
+  index,
   pgEnum,
   pgTable,
   primaryKey,
@@ -46,6 +47,16 @@ export const competitionEntrantType = pgEnum('competition_entrant_type', competi
 export const competitionTargetClaimStatus = pgEnum(
   'competition_target_claim_status',
   competitionTargetClaimStatuses,
+);
+export const competitionResultDeliveryStatuses = [
+  'pending',
+  'delivering',
+  'delivered',
+  'failed',
+] as const;
+export const competitionResultDeliveryStatus = pgEnum(
+  'competition_result_delivery_status',
+  competitionResultDeliveryStatuses,
 );
 
 export const competitions = pgTable(
@@ -342,5 +353,42 @@ export const competitionTargetClaims = pgTable(
       ],
       name: 'competition_target_claims_entrant_guild_competition_fk',
     }).onDelete('restrict'),
+  ],
+);
+
+/** Durable, at-least-once final-result posts. A record is created before Discord delivery. */
+export const competitionResultDeliveries = pgTable(
+  'competition_result_deliveries',
+  {
+    id: text('id').primaryKey(),
+    guildId: text('guild_id')
+      .notNull()
+      .references(() => guilds.guildId, { onDelete: 'cascade' }),
+    competitionId: text('competition_id').notNull(),
+    channelId: text('channel_id').notNull(),
+    status: competitionResultDeliveryStatus('status').notNull().default('pending'),
+    attemptCount: integer('attempt_count').notNull().default(0),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }),
+    lastFailureSummary: text('last_failure_summary'),
+    discordMessageId: text('discord_message_id'),
+    deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('competition_result_deliveries_competition_guild_unique').on(
+      table.competitionId,
+      table.guildId,
+    ),
+    foreignKey({
+      columns: [table.competitionId, table.guildId],
+      foreignColumns: [competitions.id, competitions.guildId],
+      name: 'competition_result_deliveries_competition_guild_fk',
+    }).onDelete('cascade'),
+    index('competition_result_deliveries_status_next_attempt_at_index').on(
+      table.status,
+      table.nextAttemptAt,
+    ),
+    check('competition_result_deliveries_attempt_count_check', sql`${table.attemptCount} >= 0`),
   ],
 );
