@@ -42,8 +42,7 @@ the verified winning claim and transitions its competition from `active` to
 snapshots. The merged optional-deadline target-race finalization workflow claims
 due work, waits for pending on-time claims, collects cache-bypassing final
 values, persists shared exact-tie winners, and retries failed collection.
-Recap integration remains deferred. The current unmerged competition-role
-lifecycle work is described below. The merged
+Recap integration remains deferred. The merged
 Discord-independent competition standings
 foundation adds active-competition progress collection with durable last-known
 values for partial Hiscores failures, combined linked-account scores, standalone
@@ -374,6 +373,19 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
+`65dc3d6` (2026-08-11) - Merge competition role lifecycle.
+
+This merged durable, guild-scoped temporary competition-role state. New and
+migrated competitions receive an optional role record; constrained startup and
+periodic recovery create, assign, synchronize, and clean up roles only after
+the owning competition state is durable. Watchlist entrants and absent members
+are excluded, draft departures lose the role, and completion removes members
+before deleting the role. Deterministic per-competition role names let recovery
+adopt a role created before its ID was persisted rather than creating a
+duplicate. Discord permission failures warn the creator, emit a structured
+role-management audit event, and retain retry state. Finished-result delivery
+mentions the temporary role only on its first attempt.
+
 `90c7876` (2026-08-11) - Merge competition result delivery recovery.
 
 This merged the separately configured guild competition channel and durable
@@ -660,20 +672,7 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-`codex/competition-role-lifecycle` - Add durable, guild-scoped temporary
-competition-role state. New and migrated competitions receive an optional role
-record; a constrained startup and periodic recovery loop creates, assigns,
-synchronizes, and cleans up roles only after the owning competition state is
-durable. Watchlist entrants and absent members are excluded, draft departures
-lose the role, and completion or cancellation removes members before deleting
-the role. Role creation uses a deterministic per-competition Discord name, so
-recovery adopts a role created before its ID was persisted instead of creating
-a duplicate. Role failures retain sanitized retry state, while manually deleted
-roles are recreated safely. Discord permission failures warn the creator and
-emit a structured role-management audit event without interrupting retries.
-Finished-result delivery mentions the temporary role only on its first attempt,
-so at-least-once recovery cannot repeat a ping. Recap integration and
-cancellation remain deferred.
+None.
 
 ## Next recommended branch-sized task
 
