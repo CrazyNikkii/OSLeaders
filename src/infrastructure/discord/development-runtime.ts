@@ -26,6 +26,8 @@ import { TargetRaceDeadlineFinalizationService } from '../../features/competitio
 import { TimedCompetitionFinalizationService } from '../../features/competitions/finalize-timed-competition.js';
 import { TargetRaceDeadlineFailureAuditService } from '../../features/competitions/report-target-race-deadline-failures.js';
 import { TimedCompetitionFinalizationFailureAuditService } from '../../features/competitions/report-timed-competition-finalization-failures.js';
+import { ConfigureCompetitionChannelService } from '../../features/competitions/configure-competition-channel.js';
+import { CompetitionResultDeliveryService } from '../../features/competitions/deliver-competition-result.js';
 import { createErrorReferenceId } from '../../features/audit/error-reference.js';
 import { GuildConfigurationService } from '../../features/guild-configuration/guild-configuration-service.js';
 import { GuildPermissionService } from '../../features/guild-configuration/guild-permission-service.js';
@@ -46,6 +48,7 @@ import { PostgresCompetitionResultsHistoryRepository } from '../database/postgre
 import { PostgresTargetRaceClaimRepository } from '../database/postgres-target-race-claim-repository.js';
 import { PostgresTargetRaceDeadlineFinalizationRepository } from '../database/postgres-target-race-deadline-finalization-repository.js';
 import { PostgresTimedCompetitionFinalizationRepository } from '../database/postgres-timed-competition-finalization-repository.js';
+import { PostgresCompetitionResultDeliveryRepository } from '../database/postgres-competition-result-delivery-repository.js';
 import { OsrsHiscoreHttpClient } from '../hiscores/osrs-hiscore-http-client.js';
 import { OSRS_MODE_FETCH_STRATEGIES } from '../hiscores/osrs-hiscore-catalog.js';
 import { StdoutStructuredLocalLogger } from '../logging/structured-local-logger.js';
@@ -166,6 +169,15 @@ import {
 } from './competition-target-race-claim-command.js';
 import { CompetitionSchedulingService } from '../../features/competitions/schedule-competition.js';
 import { PostgresCompetitionSchedulingRepository } from '../database/postgres-competition-scheduling-repository.js';
+import { DiscordCompetitionResultPublisher } from './competition-result-discord-publisher.js';
+import {
+  InProcessCompetitionResultDeliveryRecoveryScheduler,
+  type CompetitionResultDeliveryRecoveryScheduler,
+} from './competition-result-delivery-recovery-scheduler.js';
+import {
+  bindDiscordCompetitionChannelConfigurationCommandAdapter,
+  DiscordCompetitionChannelConfigurationCommandAdapter,
+} from './competition-channel-configuration-command.js';
 
 export interface DevelopmentDiscordRuntime {
   close(): Promise<void>;
@@ -191,6 +203,10 @@ export interface DevelopmentDiscordRuntimeDependencies {
     starts: CompetitionStartService,
     logger: StructuredLocalLogger,
   ): CompetitionStartRetryScheduler;
+  createCompetitionResultDeliveryRecoveryScheduler?(
+    deliveries: CompetitionResultDeliveryService,
+    logger: StructuredLocalLogger,
+  ): CompetitionResultDeliveryRecoveryScheduler;
   createTargetRaceDeadlineFinalizationScheduler?(
     finalizations: TargetRaceDeadlineFinalizationService,
     logger: StructuredLocalLogger,
@@ -215,6 +231,8 @@ const defaultDependencies: DevelopmentDiscordRuntimeDependencies = {
     new InProcessAutomaticDailyRecapCollectionScheduler(collection, logger),
   createCompetitionStartRetryScheduler: (starts, logger) =>
     new InProcessCompetitionStartRetryScheduler(starts, logger),
+  createCompetitionResultDeliveryRecoveryScheduler: (deliveries, logger) =>
+    new InProcessCompetitionResultDeliveryRecoveryScheduler(deliveries, logger),
   createTargetRaceDeadlineFinalizationScheduler: (finalizations, logger, claims) =>
     new InProcessTargetRaceDeadlineFinalizationScheduler(finalizations, logger, claims),
   createTimedCompetitionFinalizationScheduler: (finalizations, logger) =>
@@ -414,6 +432,19 @@ export async function startDevelopmentDiscordRuntime(
         new CompetitionResultsHistoryService(competitionResultsHistoryRepository),
       ),
     );
+    const competitionChannelConfigurationAdapter =
+      new DiscordCompetitionChannelConfigurationCommandAdapter(
+        new ConfigureCompetitionChannelService(configurationRepository, permissions),
+      );
+    const competitionResultDeliveryRecoveryScheduler =
+      dependencies.createCompetitionResultDeliveryRecoveryScheduler?.(
+        new CompetitionResultDeliveryService(
+          new PostgresCompetitionResultDeliveryRepository(connection.database),
+          new CompetitionResultsHistoryService(competitionResultsHistoryRepository),
+          new DiscordCompetitionResultPublisher(client),
+        ),
+        logger,
+      );
     const targetRaceClaimRepository = new PostgresTargetRaceClaimRepository(connection.database);
     const targetRaceClaimService = new TargetRaceClaimService(
       targetRaceClaimRepository,
@@ -552,6 +583,12 @@ export async function startDevelopmentDiscordRuntime(
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.guildId,
     );
+    bindDiscordCompetitionChannelConfigurationCommandAdapter(
+      client,
+      competitionChannelConfigurationAdapter,
+      (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
+      (interaction) => interaction.guildId === configuration.discord.guildId,
+    );
     bindDiscordCompetitionTargetRaceClaimCommandAdapter(
       client,
       targetRaceClaimAdapter,
@@ -580,6 +617,7 @@ export async function startDevelopmentDiscordRuntime(
     });
 
     await client.login(configuration.discord.token);
+    await competitionResultDeliveryRecoveryScheduler?.start();
     await deliveryRecoveryScheduler.start();
     await automaticSchedulingScheduler.start();
     await automaticCollectionScheduler.start();
@@ -596,6 +634,7 @@ export async function startDevelopmentDiscordRuntime(
       competitionStartRetryScheduler,
       targetRaceDeadlineFinalizationScheduler,
       timedCompetitionFinalizationScheduler,
+      competitionResultDeliveryRecoveryScheduler,
     );
   } catch (error) {
     await client.destroy();
@@ -640,6 +679,8 @@ async function closeRuntime(
   targetRaceDeadlineFinalizationScheduler:
     InProcessTargetRaceDeadlineFinalizationScheduler | undefined,
   timedCompetitionFinalizationScheduler: InProcessTimedCompetitionFinalizationScheduler | undefined,
+  competitionResultDeliveryRecoveryScheduler:
+    CompetitionResultDeliveryRecoveryScheduler | undefined,
 ): Promise<void> {
   deliveryRecoveryScheduler.stop();
   automaticSchedulingScheduler.stop();
@@ -647,6 +688,7 @@ async function closeRuntime(
   competitionStartRetryScheduler.stop();
   targetRaceDeadlineFinalizationScheduler?.stop();
   timedCompetitionFinalizationScheduler?.stop();
+  competitionResultDeliveryRecoveryScheduler?.stop();
   await client.destroy();
   await connection.close();
   logger.write({
@@ -667,6 +709,8 @@ function createRuntime(
   targetRaceDeadlineFinalizationScheduler:
     InProcessTargetRaceDeadlineFinalizationScheduler | undefined,
   timedCompetitionFinalizationScheduler: InProcessTimedCompetitionFinalizationScheduler | undefined,
+  competitionResultDeliveryRecoveryScheduler:
+    CompetitionResultDeliveryRecoveryScheduler | undefined,
 ): DevelopmentDiscordRuntime {
   let closePromise: Promise<void> | undefined;
   return {
@@ -681,6 +725,7 @@ function createRuntime(
         competitionStartRetryScheduler,
         targetRaceDeadlineFinalizationScheduler,
         timedCompetitionFinalizationScheduler,
+        competitionResultDeliveryRecoveryScheduler,
       );
       return closePromise;
     },

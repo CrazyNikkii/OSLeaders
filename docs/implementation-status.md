@@ -42,8 +42,7 @@ the verified winning claim and transitions its competition from `active` to
 snapshots. The merged optional-deadline target-race finalization workflow claims
 due work, waits for pending on-time claims, collects cache-bypassing final
 values, persists shared exact-tie winners, and retries failed collection.
-Roles and recap integration remain deferred. The current unmerged
-finished-result presentation and history-retrieval slice is described below. The merged
+Roles and recap integration remain deferred. The merged
 Discord-independent competition standings
 foundation adds active-competition progress collection with durable last-known
 values for partial Hiscores failures, combined linked-account scores, standalone
@@ -374,6 +373,17 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
+`8c2fe90` (2026-08-11) - Merge competition results history.
+
+This merged the guild-only `/competition history` flow for finished
+competitions. It adds a Discord-independent immutable results read model and
+PostgreSQL repository, bounded guild- and initiator-bound selection, and
+public split-safe result embeds. It reads stored starting and final values,
+winner records, completion time, and delayed-result status without a new
+migration. It also corrects direct target-race completion to persist its
+verified per-account final values, winner record, and completion timestamp,
+matching the existing timed and deadline-finalization paths.
+
 `fcf04b1` (2026-08-11) - Fix daily recap overall XP totals.
 
 This merged correction makes every-account recap totals add only the displayed
@@ -639,19 +649,17 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-`codex/competition-results-history` - Add a guild-only Discord
-`/competition history` flow for finished competitions. The work adds a
-Discord-independent immutable results read model and PostgreSQL repository,
-with bounded guild- and initiator-bound selection and public split-safe result
-embeds. It reads stored starting and final values, winner records, completion
-time, and delayed-result status without a new migration. It also corrects
-direct target-race completion to persist its verified per-account final values,
-winner record, and completion timestamp, matching the existing timed and
-deadline-finalization paths. Roles, recap integration, cancellation, and
-automatic final-result delivery remain deferred.
+`codex/competition-result-delivery-recovery` - Add a separately configured
+guild competition channel and durable automatic finished-competition result
+delivery. The work adds `/competition configure-channel`, a reviewed migration
+for guild-scoped at-least-once delivery records, split-safe result publishing,
+and startup plus periodic recovery. Each delivery stores its selected channel
+before Discord is called, tracks attempts and failures, and can safely retry a
+stale in-progress attempt after a process interruption. Roles, recap
+integration, cancellation, and delivery-failure administrative audit remain
+deferred.
 
 ## Next recommended branch-sized task
 
-After this branch merges, add durable automatic finished-competition result
-delivery and recovery. Leave roles, recap integration, and cancellation
-deferred.
+After this branch merges, add the competition-role lifecycle and its important
+event notifications. Leave recap integration and cancellation deferred.

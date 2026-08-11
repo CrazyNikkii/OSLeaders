@@ -69,6 +69,7 @@ function toGuildConfiguration(
     administrativeLogMode: configuration.administrativeLogMode,
     botManagerRoleId: configuration.botManagerRoleId,
     competitionManagerRoleId: configuration.competitionManagerRoleId,
+    competitionChannelId: configuration.competitionChannelId,
     guildId: configuration.guildId,
     modeEmojis: configuration.modeEmojis,
     recapChannelId: configuration.recapChannelId,
