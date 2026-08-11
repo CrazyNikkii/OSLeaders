@@ -24,11 +24,17 @@ export interface FinishedCompetitionRecord {
 }
 
 export interface CompetitionResultsHistoryRepository {
-  findFinished(request: {
-    competitionId: string;
-    guildId: string;
-  }): Promise<FinishedCompetitionRecord | { kind: 'competition_not_found' | 'not_finished' }>;
-  listFinished(guildId: string): Promise<readonly { displayName: string; id: string }[]>;
+  findFinished(request: { competitionId: string; guildId: string }): Promise<
+    | FinishedCompetitionRecord
+    | {
+        kind: 'competition_not_found' | 'not_finished' | 'cancelled';
+        displayName?: string;
+        cancelledAt?: Date;
+      }
+  >;
+  listFinished(
+    guildId: string,
+  ): Promise<readonly { displayName: string; id: string; state?: 'finished' | 'cancelled' }[]>;
 }
 
 export interface FinishedCompetitionResultEntry {
@@ -57,6 +63,7 @@ export type CompetitionResultsHistoryResult =
       metric: CompetitionMetric;
       targetValue: bigint | null;
     }
+  | { kind: 'cancelled_result'; displayName: string; cancelledAt: Date }
   | { kind: 'competition_not_found' | 'not_finished' };
 
 /** Builds a read-only, immutable view of a completed competition. */
@@ -72,7 +79,19 @@ export class CompetitionResultsHistoryService {
     guildId: string;
   }): Promise<CompetitionResultsHistoryResult> {
     const competition = await this.repository.findFinished(request);
-    if ('kind' in competition) return competition;
+    if ('kind' in competition) {
+      if (
+        competition.kind === 'cancelled' &&
+        competition.displayName !== undefined &&
+        competition.cancelledAt !== undefined
+      )
+        return {
+          kind: 'cancelled_result',
+          displayName: competition.displayName,
+          cancelledAt: competition.cancelledAt,
+        };
+      return competition as { kind: 'competition_not_found' | 'not_finished' };
+    }
 
     const winnerGains = new Map(
       competition.winners.map((winner) => [winner.entrantId, winner.finalGain]),

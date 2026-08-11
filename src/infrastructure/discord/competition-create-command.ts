@@ -73,6 +73,9 @@ export const competitionCommandDefinitions = [
       subcommand.setName('claim').setDescription('Claim a target-race result.'),
     )
     .addSubcommand((subcommand) =>
+      subcommand.setName('cancel').setDescription('Cancel a competition.'),
+    )
+    .addSubcommand((subcommand) =>
       subcommand
         .setName('configure-channel')
         .setDescription('Set the channel for competition announcements.')

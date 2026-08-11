@@ -42,7 +42,7 @@ export class PostgresCompetitionResultDeliveryRepository implements CompetitionR
             )
             .where(
               and(
-                eq(competitions.state, 'finished'),
+                inArray(competitions.state, ['finished', 'cancelled']),
                 isNull(competitionResultDeliveries.id),
                 sql`${guildConfigurations.competitionChannelId} IS NOT NULL`,
               ),
@@ -116,7 +116,7 @@ export class PostgresCompetitionResultDeliveryRepository implements CompetitionR
         .where(
           and(
             eq(competitions.guildId, guildId),
-            eq(competitions.state, 'finished'),
+            inArray(competitions.state, ['finished', 'cancelled']),
             isNull(competitionResultDeliveries.id),
             sql`${guildConfigurations.competitionChannelId} IS NOT NULL`,
           ),

@@ -61,6 +61,24 @@ describe('competition result delivery', () => {
       },
     ]);
   });
+
+  it('delivers a durable cancelled-competition notification', async () => {
+    const repository = new RepositoryStub(delivery());
+    const service = new CompetitionResultDeliveryService(
+      repository,
+      {
+        getFinishedResult: () =>
+          Promise.resolve({
+            kind: 'cancelled_result' as const,
+            displayName: 'Fishing',
+            cancelledAt: new Date('2026-08-11T12:00:00Z'),
+          }),
+      },
+      new PublisherStub(),
+    );
+    await expect(service.recoverDue()).resolves.toBe('delivered');
+    expect(repository.successes).toHaveLength(1);
+  });
 });
 
 class RepositoryStub implements CompetitionResultDeliveryRepository {

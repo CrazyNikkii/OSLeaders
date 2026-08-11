@@ -672,9 +672,18 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-None.
+`codex/competition-cancellation` adds the Stage 8 cancellation foundation and
+guild-only `/competition cancel` flow. It durably transitions draft,
+start-pending, active, and finish-pending competitions only after creator or
+competition-manager authorization, clearing pending retry due times so existing
+schedulers cannot continue the cancelled lifecycle. The Discord adapter binds
+selection and explicit initiator- and guild-bound confirmation to the new
+service. Cancelled competitions are viewable through history and durable
+configured-channel delivery uses the existing retry recovery path. Existing
+role recovery observes `cancelled` and performs durable role cleanup. This
+work is unmerged.
 
 ## Next recommended branch-sized task
 
-After this branch merges, add the competition-cancellation lifecycle and its
-Discord command. Leave recap integration deferred.
+After this branch merges, add focused cancellation recovery and audit-delivery
+acceptance coverage. Leave recap integration deferred.

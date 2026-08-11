@@ -172,6 +172,10 @@ export class DiscordCompetitionResultsHistoryCommandAdapter {
       guildId: interaction.guildId,
       requesterDiscordUserId: interaction.user.id,
     });
+    if (isCancelledResult(result)) {
+      await interaction.editReply({ components: [], embeds: [cancelledHistoryEmbed(result)] });
+      return;
+    }
     if (!isFinishedResult(result)) {
       await interaction.editReply(response(result));
       return;
@@ -351,6 +355,26 @@ function isFinishedResult(
     'kind' in result &&
     result.kind === 'finished_result'
   );
+}
+function isCancelledResult(
+  result: unknown,
+): result is Extract<CompetitionResultsHistoryResult, { kind: 'cancelled_result' }> {
+  return (
+    typeof result === 'object' &&
+    result !== null &&
+    'kind' in result &&
+    result.kind === 'cancelled_result'
+  );
+}
+function cancelledHistoryEmbed(
+  result: Extract<CompetitionResultsHistoryResult, { kind: 'cancelled_result' }>,
+): EmbedBuilder {
+  return new EmbedBuilder()
+    .setColor(OSLEADERS_EMBED_COLOR)
+    .setTitle(`${competitionResultsHistoryChoiceLabel(result.displayName)} cancelled`)
+    .setDescription(
+      `Cancelled <t:${Math.floor(result.cancelledAt.getTime() / 1_000)}:R>. No final results were recorded.`,
+    );
 }
 async function publishResults(
   interaction: StringSelectMenuInteraction,

@@ -30,6 +30,7 @@ import { ConfigureCompetitionChannelService } from '../../features/competitions/
 import { CompetitionResultDeliveryService } from '../../features/competitions/deliver-competition-result.js';
 import { CompetitionRoleLifecycleService } from '../../features/competitions/manage-competition-role.js';
 import { CompetitionRoleFailureAuditService } from '../../features/competitions/report-competition-role-failures.js';
+import { CompetitionCancellationService } from '../../features/competitions/cancel-competition.js';
 import { createErrorReferenceId } from '../../features/audit/error-reference.js';
 import { GuildConfigurationService } from '../../features/guild-configuration/guild-configuration-service.js';
 import { GuildPermissionService } from '../../features/guild-configuration/guild-permission-service.js';
@@ -52,6 +53,7 @@ import { PostgresTargetRaceDeadlineFinalizationRepository } from '../database/po
 import { PostgresTimedCompetitionFinalizationRepository } from '../database/postgres-timed-competition-finalization-repository.js';
 import { PostgresCompetitionResultDeliveryRepository } from '../database/postgres-competition-result-delivery-repository.js';
 import { PostgresCompetitionRoleRepository } from '../database/postgres-competition-role-repository.js';
+import { PostgresCompetitionCancellationRepository } from '../database/postgres-competition-cancellation-repository.js';
 import { OsrsHiscoreHttpClient } from '../hiscores/osrs-hiscore-http-client.js';
 import { OSRS_MODE_FETCH_STRATEGIES } from '../hiscores/osrs-hiscore-catalog.js';
 import { StdoutStructuredLocalLogger } from '../logging/structured-local-logger.js';
@@ -187,6 +189,11 @@ import {
   bindDiscordCompetitionChannelConfigurationCommandAdapter,
   DiscordCompetitionChannelConfigurationCommandAdapter,
 } from './competition-channel-configuration-command.js';
+import {
+  bindDiscordCompetitionCancellationCommandAdapter,
+  CompetitionCancellationCommandHandler,
+  DiscordCompetitionCancellationCommandAdapter,
+} from './competition-cancellation-command.js';
 
 export interface DevelopmentDiscordRuntime {
   close(): Promise<void>;
@@ -417,6 +424,15 @@ export async function startDevelopmentDiscordRuntime(
     const competitionStartAdapter = new DiscordCompetitionStartCommandAdapter(
       new CompetitionStartCommandHandler(competitionStartService, competitionStartRepository),
     );
+    const competitionCancellationRepository = new PostgresCompetitionCancellationRepository(
+      connection.database,
+    );
+    const competitionCancellationAdapter = new DiscordCompetitionCancellationCommandAdapter(
+      new CompetitionCancellationCommandHandler(
+        new CompetitionCancellationService(competitionCancellationRepository, permissions, audit),
+        competitionCancellationRepository,
+      ),
+    );
     const competitionStartRetryScheduler = dependencies.createCompetitionStartRetryScheduler(
       competitionStartService,
       logger,
@@ -520,6 +536,12 @@ export async function startDevelopmentDiscordRuntime(
     bindDiscordAccountCommandAdapter(
       client,
       adapter,
+      (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
+      (interaction) => interaction.guildId === configuration.discord.guildId,
+    );
+    bindDiscordCompetitionCancellationCommandAdapter(
+      client,
+      competitionCancellationAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.guildId,
     );
