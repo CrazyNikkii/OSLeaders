@@ -31,6 +31,7 @@ import { PostgresCompetitionCreationRepository } from '../../src/infrastructure/
 import { PostgresCompetitionDraftParticipationRepository } from '../../src/infrastructure/database/postgres-competition-draft-participation-repository.js';
 import { PostgresCompetitionStartRepository } from '../../src/infrastructure/database/postgres-competition-start-repository.js';
 import { PostgresCompetitionStandingsRepository } from '../../src/infrastructure/database/postgres-competition-standings-repository.js';
+import { PostgresCompetitionResultsHistoryRepository } from '../../src/infrastructure/database/postgres-competition-results-history-repository.js';
 import { PostgresCompetitionSchedulingRepository } from '../../src/infrastructure/database/postgres-competition-scheduling-repository.js';
 import { PostgresTargetRaceClaimRepository } from '../../src/infrastructure/database/postgres-target-race-claim-repository.js';
 import { PostgresTargetRaceDeadlineFinalizationRepository } from '../../src/infrastructure/database/postgres-target-race-deadline-finalization-repository.js';
@@ -726,7 +727,7 @@ describe('database foundation', () => {
     await expect(
       repository.finalize({
         claimId: 'target-claim-two',
-        finalValue: 50n,
+        finalValues: [{ accountId: 'target-claim-account-two', value: 150n }],
         guildId,
         verifiedAt: secondReceipt,
       }),
@@ -734,13 +735,13 @@ describe('database foundation', () => {
     const results = await Promise.all([
       repository.finalize({
         claimId: 'target-claim-one',
-        finalValue: 50n,
+        finalValues: [{ accountId: 'target-claim-account-one', value: 150n }],
         guildId,
         verifiedAt: new Date('2026-08-10T13:01:00.000Z'),
       }),
       repository.finalize({
         claimId: 'target-claim-two',
-        finalValue: 50n,
+        finalValues: [{ accountId: 'target-claim-account-two', value: 150n }],
         guildId,
         verifiedAt: new Date('2026-08-10T13:01:00.000Z'),
       }),
@@ -756,12 +757,19 @@ describe('database foundation', () => {
     await expect(
       connection.database
         .select({
+          finishedAt: competitions.finishedAt,
           state: competitions.state,
           winningTargetClaimId: competitions.winningTargetClaimId,
         })
         .from(competitions)
         .where(and(eq(competitions.guildId, guildId), eq(competitions.id, competitionId))),
-    ).resolves.toEqual([{ state: 'finished', winningTargetClaimId: 'target-claim-one' }]);
+    ).resolves.toEqual([
+      {
+        finishedAt: new Date('2026-08-10T13:01:00.000Z'),
+        state: 'finished',
+        winningTargetClaimId: 'target-claim-one',
+      },
+    ]);
     await expect(
       connection.database
         .select({
@@ -777,6 +785,26 @@ describe('database foundation', () => {
           ),
         ),
     ).resolves.toEqual([{ finalValue: 50n, id: 'target-claim-one', status: 'verified' }]);
+    await expect(
+      connection.database
+        .select({
+          accountId: competitionAccountFinalValues.trackedAccountId,
+          value: competitionAccountFinalValues.finalValue,
+        })
+        .from(competitionAccountFinalValues)
+        .where(eq(competitionAccountFinalValues.competitionId, competitionId)),
+    ).resolves.toEqual([{ accountId: 'target-claim-account-one', value: 150n }]);
+    const history = await new PostgresCompetitionResultsHistoryRepository(
+      connection.database,
+    ).findFinished({ competitionId, guildId });
+    if ('kind' in history) throw new Error('Expected finished competition history.');
+    expect(
+      history.accounts.find((account) => account.id === 'target-claim-account-one'),
+    ).toMatchObject({
+      entrantId: 'target-claim-entrant-one',
+      finalValue: 150n,
+    });
+    expect(history.winners).toEqual([{ entrantId: 'target-claim-entrant-one', finalGain: 50n }]);
     await expect(
       repository.listClaimableEntrants({
         canManageCompetitions: false,

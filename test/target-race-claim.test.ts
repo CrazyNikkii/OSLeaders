@@ -23,7 +23,13 @@ describe('target-race claim service', () => {
       receivedAt: new Date('2026-08-10T14:00:00.000Z'),
     });
     expect(hiscores.options).toEqual([{ cacheMode: 'bypass' }, { cacheMode: 'bypass' }]);
-    expect(repository.finalized[0]).toMatchObject({ claimId: 'claim-one', finalValue: 60n });
+    expect(repository.finalized[0]).toMatchObject({
+      claimId: 'claim-one',
+      finalValues: [
+        { accountId: 'account-alpha', value: 140n },
+        { accountId: 'account-bravo', value: 70n },
+      ],
+    });
   });
 
   it('leaves a temporary Hiscores failure pending and safely retries the same receipt', async () => {
@@ -98,7 +104,10 @@ describe('target-race claim service', () => {
 class Repository implements TargetRaceClaimRepository {
   public readonly begun: { claimId: string; receivedAt: Date }[] = [];
   public readonly failures: { claimId: string; failureSummary: string; guildId: string }[] = [];
-  public readonly finalized: { claimId: string; finalValue: bigint }[] = [];
+  public readonly finalized: {
+    claimId: string;
+    finalValues: readonly { accountId: string; value: bigint }[];
+  }[] = [];
 
   public dueClaim: ReturnType<typeof ready> | undefined;
   public claimDueRetry() {
@@ -141,9 +150,22 @@ class Repository implements TargetRaceClaimRepository {
     this.verificationFailures.push(request);
     return Promise.resolve();
   }
-  public finalize(request: { claimId: string; finalValue: bigint; verifiedAt: Date }) {
+  public finalize(request: {
+    claimId: string;
+    finalValues: readonly { accountId: string; value: bigint }[];
+    verifiedAt: Date;
+  }) {
     this.finalized.push(request);
-    return Promise.resolve({ kind: 'won' as const, ...request });
+    return Promise.resolve({
+      claimId: request.claimId,
+      finalValue: request.finalValues.reduce(
+        (total, value) =>
+          total + (value.accountId === 'account-alpha' ? value.value - 100n : value.value - 50n),
+        0n,
+      ),
+      kind: 'won' as const,
+      verifiedAt: request.verifiedAt,
+    });
   }
 }
 

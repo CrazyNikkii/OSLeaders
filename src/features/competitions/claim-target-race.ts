@@ -54,7 +54,7 @@ export interface TargetRaceClaimRepository {
   }): Promise<void>;
   finalize(request: {
     claimId: string;
-    finalValue: bigint;
+    finalValues: readonly { accountId: string; value: bigint }[];
     guildId: string;
     verifiedAt: Date;
   }): Promise<TargetRaceClaimFinalizeResult>;
@@ -191,11 +191,11 @@ export class TargetRaceClaimService {
     }
     return this.repository.finalize({
       claimId: claim.claimId,
-      finalValue: outcomes.reduce((total, outcome) => {
+      finalValues: outcomes.map((outcome) => {
         if (outcome.kind !== 'success')
           throw new Error('Successful verification must have values.');
-        return total + nonNegativeGain(outcome.value, outcome.account.startingValue);
-      }, 0n),
+        return { accountId: outcome.account.id, value: outcome.value };
+      }),
       guildId: claim.guildId,
       verifiedAt: this.now(),
     });
@@ -231,10 +231,6 @@ export class TargetRaceClaimService {
       value: BigInt(metric.kind === 'boss' ? Math.max(value, 0) : value),
     };
   }
-}
-
-function nonNegativeGain(currentValue: bigint, startingValue: bigint): bigint {
-  return currentValue > startingValue ? currentValue - startingValue : 0n;
 }
 
 function isPermanentFailure(failure: HiscoreFailure): boolean {
