@@ -42,6 +42,7 @@ import {
   competitionAccountProgress,
   competitionAccountSnapshots,
   competitionEntrants,
+  competitionRoles,
   competitionTargetClaims,
   competitionWinners,
   competitions,
@@ -84,7 +85,7 @@ describe('database foundation', () => {
   it('applies the committed database migrations to an empty test database', async () => {
     const committedMigrations = await readCommittedMigrations();
     const applicationTables = await connection.pool.query<{ table_name: string }>(
-      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('competition_account_snapshots', 'competition_contributing_accounts', 'competition_entrants', 'competition_target_claims', 'competitions', 'daily_recap_deliveries', 'daily_recap_runs', 'guild_configurations', 'guild_member_presences', 'guilds', 'recap_baselines', 'tracked_accounts') ORDER BY table_name",
+      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('competition_account_snapshots', 'competition_contributing_accounts', 'competition_entrants', 'competition_roles', 'competition_target_claims', 'competitions', 'daily_recap_deliveries', 'daily_recap_runs', 'guild_configurations', 'guild_member_presences', 'guilds', 'recap_baselines', 'tracked_accounts') ORDER BY table_name",
     );
     const migrationTables = await connection.pool.query<{ table_name: string }>(
       "SELECT table_name FROM information_schema.tables WHERE table_schema = 'drizzle' AND table_name = '__drizzle_migrations'",
@@ -97,6 +98,7 @@ describe('database foundation', () => {
       { table_name: 'competition_account_snapshots' },
       { table_name: 'competition_contributing_accounts' },
       { table_name: 'competition_entrants' },
+      { table_name: 'competition_roles' },
       { table_name: 'competition_target_claims' },
       { table_name: 'competitions' },
       { table_name: 'daily_recap_deliveries' },
@@ -136,6 +138,43 @@ describe('database foundation', () => {
       targetValue: null,
       type: 'most_skill_xp',
     });
+  });
+
+  it('creates one isolated durable role record with each competition draft', async () => {
+    const repository = new PostgresCompetitionCreationRepository(connection.database);
+    await repository.create(
+      competitionDraft({
+        guildId: 'competition-role-guild-one',
+        id: 'competition-role-one',
+        displayName: 'Role one',
+        normalizedName: 'role one',
+      }),
+    );
+    await repository.create(
+      competitionDraft({
+        guildId: 'competition-role-guild-two',
+        id: 'competition-role-two',
+        displayName: 'Role two',
+        normalizedName: 'role two',
+      }),
+    );
+
+    await expect(
+      connection.database
+        .select({
+          competitionId: competitionRoles.competitionId,
+          guildId: competitionRoles.guildId,
+          status: competitionRoles.status,
+        })
+        .from(competitionRoles)
+        .where(eq(competitionRoles.guildId, 'competition-role-guild-one')),
+    ).resolves.toEqual([
+      {
+        competitionId: 'competition-role-one',
+        guildId: 'competition-role-guild-one',
+        status: 'pending_create',
+      },
+    ]);
   });
 
   it('persists an optional duration for a target-race draft', async () => {

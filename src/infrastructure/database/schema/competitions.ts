@@ -58,6 +58,15 @@ export const competitionResultDeliveryStatus = pgEnum(
   'competition_result_delivery_status',
   competitionResultDeliveryStatuses,
 );
+export const competitionRoleStatuses = [
+  'pending_create',
+  'creating',
+  'active',
+  'cleanup_pending',
+  'cleaning',
+  'cleaned',
+] as const;
+export const competitionRoleStatus = pgEnum('competition_role_status', competitionRoleStatuses);
 
 export const competitions = pgTable(
   'competitions',
@@ -390,5 +399,31 @@ export const competitionResultDeliveries = pgTable(
       table.nextAttemptAt,
     ),
     check('competition_result_deliveries_attempt_count_check', sql`${table.attemptCount} >= 0`),
+  ],
+);
+
+/** Durable state for an optional temporary Discord role owned by one competition. */
+export const competitionRoles = pgTable(
+  'competition_roles',
+  {
+    competitionId: text('competition_id').notNull(),
+    guildId: text('guild_id').notNull(),
+    discordRoleId: text('discord_role_id'),
+    status: competitionRoleStatus('status').notNull().default('pending_create'),
+    attemptCount: integer('attempt_count').notNull().default(0),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }),
+    lastFailureSummary: text('last_failure_summary'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.competitionId, table.guildId] }),
+    foreignKey({
+      columns: [table.competitionId, table.guildId],
+      foreignColumns: [competitions.id, competitions.guildId],
+      name: 'competition_roles_competition_guild_fk',
+    }).onDelete('cascade'),
+    index('competition_roles_status_next_attempt_at_index').on(table.status, table.nextAttemptAt),
+    check('competition_roles_attempt_count_check', sql`${table.attemptCount} >= 0`),
   ],
 );

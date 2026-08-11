@@ -42,7 +42,8 @@ the verified winning claim and transitions its competition from `active` to
 snapshots. The merged optional-deadline target-race finalization workflow claims
 due work, waits for pending on-time claims, collects cache-bypassing final
 values, persists shared exact-tie winners, and retries failed collection.
-Roles and recap integration remain deferred. The merged
+Recap integration remains deferred. The current unmerged competition-role
+lifecycle work is described below. The merged
 Discord-independent competition standings
 foundation adds active-competition progress collection with durable last-known
 values for partial Hiscores failures, combined linked-account scores, standalone
@@ -373,6 +374,16 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
+`90c7876` (2026-08-11) - Merge competition result delivery recovery.
+
+This merged the separately configured guild competition channel and durable
+automatic finished-competition result delivery. It adds
+`/competition configure-channel`, reviewed guild-scoped at-least-once delivery
+records, split-safe result publishing, and startup plus periodic recovery.
+Each delivery stores its selected channel before Discord is called, tracks
+attempts and failures, and safely retries a stale in-progress attempt after a
+process interruption.
+
 `8c2fe90` (2026-08-11) - Merge competition results history.
 
 This merged the guild-only `/competition history` flow for finished
@@ -649,17 +660,22 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-`codex/competition-result-delivery-recovery` - Add a separately configured
-guild competition channel and durable automatic finished-competition result
-delivery. The work adds `/competition configure-channel`, a reviewed migration
-for guild-scoped at-least-once delivery records, split-safe result publishing,
-and startup plus periodic recovery. Each delivery stores its selected channel
-before Discord is called, tracks attempts and failures, and can safely retry a
-stale in-progress attempt after a process interruption. Roles, recap
-integration, cancellation, and delivery-failure administrative audit remain
-deferred.
+`codex/competition-role-lifecycle` - Add durable, guild-scoped temporary
+competition-role state. New and migrated competitions receive an optional role
+record; a constrained startup and periodic recovery loop creates, assigns,
+synchronizes, and cleans up roles only after the owning competition state is
+durable. Watchlist entrants and absent members are excluded, draft departures
+lose the role, and completion or cancellation removes members before deleting
+the role. Role creation uses a deterministic per-competition Discord name, so
+recovery adopts a role created before its ID was persisted instead of creating
+a duplicate. Role failures retain sanitized retry state, while manually deleted
+roles are recreated safely. Discord permission failures warn the creator and
+emit a structured role-management audit event without interrupting retries.
+Finished-result delivery mentions the temporary role only on its first attempt,
+so at-least-once recovery cannot repeat a ping. Recap integration and
+cancellation remain deferred.
 
 ## Next recommended branch-sized task
 
-After this branch merges, add the competition-role lifecycle and its important
-event notifications. Leave recap integration and cancellation deferred.
+After this branch merges, add the competition-cancellation lifecycle and its
+Discord command. Leave recap integration deferred.
