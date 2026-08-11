@@ -182,6 +182,45 @@ describe('manual daily recap send service', () => {
       '**Activity**\n\nNo notable activity today.\n\n**Unavailable accounts**\n\n**Rune Scape** (Main) — Hiscores timed out',
     );
   });
+
+  it('uses Overall as the XP total without rendering or counting it as a skill gain', () => {
+    const content = renderDailyRecapDeliveryContent({
+      failures: [],
+      linkedMembers: [
+        {
+          accounts: [
+            {
+              account: trackedAccount(),
+              changes: {
+                bosses: [],
+                skills: [
+                  {
+                    currentLevel: 2277,
+                    experienceGained: 598_000,
+                    levelGained: 1,
+                    skill: 'Overall',
+                  },
+                  { currentLevel: 90, experienceGained: 598_000, levelGained: 1, skill: 'Sailing' },
+                ],
+              },
+              previousBaselineCapturedAt: new Date('2026-07-30T10:00:00.000Z'),
+            },
+          ],
+          discordUserId: 'member-one',
+        },
+      ],
+      noActivity: false,
+      watchlistAccounts: [],
+    });
+
+    expect(content).toContain('**598K XP gained**');
+    expect(content).toContain('**1 level**');
+    expect(content).toContain('**+598K XP**');
+    expect(content).toContain('Sailing: +598K XP');
+    expect(content).not.toContain('Overall:');
+    expect(content).not.toContain('1.2M XP');
+    expect(content).not.toContain('**2 levels**');
+  });
 });
 
 class RepositoryStub implements ManualDailyRecapSendRepository {

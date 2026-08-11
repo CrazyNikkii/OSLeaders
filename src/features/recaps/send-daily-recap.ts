@@ -160,14 +160,14 @@ function accountLines(entry: DailyRecapAccountPresentation): string {
     ),
     ...(entry.changes.skills.length === 0
       ? []
-      : [`**+${formatCompactNumber(totalExperience(entry))} XP**`]),
-    ...entry.changes.skills.map(formatSkillExperience),
-    ...entry.changes.skills.flatMap(formatLevelUp),
+      : [`**+${formatCompactNumber(overallExperience(entry))} XP**`]),
+    ...entry.changes.skills.filter(isNonOverallSkill).map(formatSkillExperience),
+    ...entry.changes.skills.filter(isNonOverallSkill).flatMap(formatLevelUp),
   ].join('\n');
 }
 
 function summaryLines(accounts: readonly DailyRecapAccountPresentation[]): string[] {
-  const totalXp = accounts.reduce((total, account) => total + totalExperience(account), 0);
+  const totalXp = accounts.reduce((total, account) => total + overallExperience(account), 0);
   const totalBossKills = accounts.reduce(
     (total, account) => total + totalBossKillCount(account),
     0,
@@ -175,7 +175,9 @@ function summaryLines(accounts: readonly DailyRecapAccountPresentation[]): strin
   const totalLevels = accounts.reduce(
     (total, account) =>
       total +
-      account.changes.skills.reduce((skillTotal, skill) => skillTotal + skill.levelGained, 0),
+      account.changes.skills
+        .filter(isNonOverallSkill)
+        .reduce((skillTotal, skill) => skillTotal + skill.levelGained, 0),
     0,
   );
   const gains = [
@@ -188,8 +190,20 @@ function summaryLines(accounts: readonly DailyRecapAccountPresentation[]): strin
   return gains;
 }
 
-function totalExperience(entry: DailyRecapAccountPresentation): number {
-  return entry.changes.skills.reduce((total, change) => total + change.experienceGained, 0);
+function overallExperience(entry: DailyRecapAccountPresentation): number {
+  const overall = entry.changes.skills.find((change) => change.skill === 'Overall');
+  return (
+    overall?.experienceGained ??
+    entry.changes.skills
+      .filter(isNonOverallSkill)
+      .reduce((total, change) => total + change.experienceGained, 0)
+  );
+}
+
+function isNonOverallSkill(
+  change: DailyRecapAccountPresentation['changes']['skills'][number],
+): boolean {
+  return change.skill !== 'Overall';
 }
 
 function totalBossKillCount(entry: DailyRecapAccountPresentation): number {

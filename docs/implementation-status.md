@@ -42,8 +42,7 @@ the verified winning claim and transitions its competition from `active` to
 snapshots. The merged optional-deadline target-race finalization workflow claims
 due work, waits for pending on-time claims, collects cache-bypassing final
 values, persists shared exact-tie winners, and retries failed collection.
-Roles, recap integration, timed-competition finalization, and finished-result
-presentation remain deferred. The merged
+Roles, recap integration, and finished-result presentation remain deferred. The merged
 Discord-independent competition standings
 foundation adds active-competition progress collection with durable last-known
 values for partial Hiscores failures, combined linked-account scores, standalone
@@ -374,6 +373,16 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
+`1482a9c` (2026-08-11) - Merge timed competition finalization.
+
+This merged the Discord-independent durable automatic finalization workflow for
+timed most-XP and most-KC competitions. It claims due work, fetches final
+values without the cache, retains final values and shared exact-tie winners,
+records delayed results when collection happens after the stored deadline, and
+retries failed collection through the existing in-process scheduler pattern. It
+does not add Discord result presentation, roles, recap integration, or manual
+finalization.
+
 `1a3029d` (2026-08-11) - Merge target race deadline finalization.
 
 This merged the Discord-independent durable finalization workflow for optional
@@ -621,18 +630,7 @@ Discord and database configuration, guarded production migrations, systemd
 runtime and backup-timer units, protected unattended PostgreSQL credentials,
 and Debian backup, restore-rehearsal, and acceptance guidance.
 
-## Current unmerged implementation work
-
-`codex/timed-competition-finalization` - Add the Discord-independent,
-durable automatic finalization workflow for timed most-XP and most-KC
-competitions. It claims due work, fetches final values without the cache,
-retains final values and shared exact-tie winners, records delayed results when
-collection happens after the stored deadline, and retries failed collection
-through the existing in-process scheduler pattern. It does not add Discord
-result presentation, roles, recap integration, or manual finalization.
-
 ## Next recommended branch-sized task
 
-After the timed-finalization branch merges, add guild-only Discord finished
-competition result presentation and history retrieval. Leave roles and recap
-integration deferred.
+Add guild-only Discord finished-competition result presentation and history
+retrieval. Leave roles and recap integration deferred.
