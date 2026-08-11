@@ -10,8 +10,10 @@ import type {
 import type { Database, Transaction } from './connection.js';
 import {
   competitionAccountSnapshots,
+  competitionAccountFinalValues,
   competitionEntrants,
   competitionTargetClaims,
+  competitionWinners,
   competitions,
   guildMemberPresences,
 } from './schema/index.js';
@@ -226,7 +228,7 @@ export class PostgresTargetRaceClaimRepository implements TargetRaceClaimReposit
 
   public async finalize(request: {
     claimId: string;
-    finalValue: bigint;
+    finalValues: readonly { accountId: string; value: bigint }[];
     guildId: string;
     verifiedAt: Date;
   }): Promise<TargetRaceClaimFinalizeResult> {
@@ -259,11 +261,46 @@ export class PostgresTargetRaceClaimRepository implements TargetRaceClaimReposit
       ) {
         return { kind: 'claim_not_active' };
       }
-      if (request.finalValue < competition.targetValue) {
+      const starts = await transaction
+        .select({
+          accountId: competitionAccountSnapshots.trackedAccountId,
+          startingValue: competitionAccountSnapshots.startingValue,
+        })
+        .from(competitionAccountSnapshots)
+        .where(
+          and(
+            eq(competitionAccountSnapshots.guildId, request.guildId),
+            eq(competitionAccountSnapshots.competitionId, claim.competitionId),
+            eq(competitionAccountSnapshots.competitionEntrantId, claim.entrantId),
+          ),
+        );
+      if (
+        starts.length !== request.finalValues.length ||
+        new Set(request.finalValues.map((finalValue) => finalValue.accountId)).size !==
+          request.finalValues.length
+      ) {
+        return { kind: 'claim_not_active' };
+      }
+      const finalGain = request.finalValues.reduce((total, finalValue) => {
+        const start = starts.find((snapshot) => snapshot.accountId === finalValue.accountId);
+        if (start === undefined) return total;
+        return (
+          total +
+          (finalValue.value > start.startingValue ? finalValue.value - start.startingValue : 0n)
+        );
+      }, 0n);
+      if (
+        request.finalValues.some(
+          (finalValue) => !starts.some((snapshot) => snapshot.accountId === finalValue.accountId),
+        )
+      ) {
+        return { kind: 'claim_not_active' };
+      }
+      if (finalGain < competition.targetValue) {
         await transaction
           .update(competitionTargetClaims)
           .set({
-            finalValue: request.finalValue,
+            finalValue: finalGain,
             lastFailureSummary: null,
             status: 'not_reached',
             verifiedAt: request.verifiedAt,
@@ -277,7 +314,7 @@ export class PostgresTargetRaceClaimRepository implements TargetRaceClaimReposit
           );
         return {
           kind: 'target_not_reached',
-          finalValue: request.finalValue,
+          finalValue: finalGain,
           targetValue: competition.targetValue,
         };
       }
@@ -304,6 +341,8 @@ export class PostgresTargetRaceClaimRepository implements TargetRaceClaimReposit
       const [won] = await transaction
         .update(competitions)
         .set({
+          finishedAt: request.verifiedAt,
+          isResultDelayed: false,
           state: 'finished',
           winningTargetClaimId: request.claimId,
           updatedAt: request.verifiedAt,
@@ -318,10 +357,25 @@ export class PostgresTargetRaceClaimRepository implements TargetRaceClaimReposit
         )
         .returning({ id: competitions.id });
       if (won === undefined) return { kind: 'claim_not_active' };
+      await transaction.insert(competitionAccountFinalValues).values(
+        request.finalValues.map((finalValue) => ({
+          competitionId: claim.competitionId,
+          finalObservedAt: request.verifiedAt,
+          finalValue: finalValue.value,
+          guildId: request.guildId,
+          trackedAccountId: finalValue.accountId,
+        })),
+      );
+      await transaction.insert(competitionWinners).values({
+        competitionEntrantId: claim.entrantId,
+        competitionId: claim.competitionId,
+        finalGain,
+        guildId: request.guildId,
+      });
       await transaction
         .update(competitionTargetClaims)
         .set({
-          finalValue: request.finalValue,
+          finalValue: finalGain,
           lastFailureSummary: null,
           status: 'verified',
           verifiedAt: request.verifiedAt,
@@ -335,7 +389,7 @@ export class PostgresTargetRaceClaimRepository implements TargetRaceClaimReposit
       return {
         kind: 'won',
         claimId: request.claimId,
-        finalValue: request.finalValue,
+        finalValue: finalGain,
         verifiedAt: request.verifiedAt,
       };
     });

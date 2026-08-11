@@ -42,7 +42,8 @@ the verified winning claim and transitions its competition from `active` to
 snapshots. The merged optional-deadline target-race finalization workflow claims
 due work, waits for pending on-time claims, collects cache-bypassing final
 values, persists shared exact-tie winners, and retries failed collection.
-Roles, recap integration, and finished-result presentation remain deferred. The merged
+Roles and recap integration remain deferred. The current unmerged
+finished-result presentation and history-retrieval slice is described below. The merged
 Discord-independent competition standings
 foundation adds active-competition progress collection with durable last-known
 values for partial Hiscores failures, combined linked-account scores, standalone
@@ -373,6 +374,12 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
+`fcf04b1` (2026-08-11) - Fix daily recap overall XP totals.
+
+This merged correction makes every-account recap totals add only the displayed
+positive XP gains. It preserves the established display threshold and does not
+alter baseline collection, delivery, or competition work.
+
 `1482a9c` (2026-08-11) - Merge timed competition finalization.
 
 This merged the Discord-independent durable automatic finalization workflow for
@@ -630,7 +637,21 @@ Discord and database configuration, guarded production migrations, systemd
 runtime and backup-timer units, protected unattended PostgreSQL credentials,
 and Debian backup, restore-rehearsal, and acceptance guidance.
 
+## Current unmerged implementation work
+
+`codex/competition-results-history` - Add a guild-only Discord
+`/competition history` flow for finished competitions. The work adds a
+Discord-independent immutable results read model and PostgreSQL repository,
+with bounded guild- and initiator-bound selection and public split-safe result
+embeds. It reads stored starting and final values, winner records, completion
+time, and delayed-result status without a new migration. It also corrects
+direct target-race completion to persist its verified per-account final values,
+winner record, and completion timestamp, matching the existing timed and
+deadline-finalization paths. Roles, recap integration, cancellation, and
+automatic final-result delivery remain deferred.
+
 ## Next recommended branch-sized task
 
-Add guild-only Discord finished-competition result presentation and history
-retrieval. Leave roles and recap integration deferred.
+After this branch merges, add durable automatic finished-competition result
+delivery and recovery. Leave roles, recap integration, and cancellation
+deferred.

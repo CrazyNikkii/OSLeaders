@@ -20,6 +20,7 @@ import { DailyRecapFailureAuditService } from '../../features/recaps/report-dail
 import { CompetitionCreationService } from '../../features/competitions/create-competition.js';
 import { CompetitionDraftParticipationService } from '../../features/competitions/manage-draft-participation.js';
 import { CompetitionStandingsService } from '../../features/competitions/competition-standings.js';
+import { CompetitionResultsHistoryService } from '../../features/competitions/competition-results-history.js';
 import { TargetRaceClaimService } from '../../features/competitions/claim-target-race.js';
 import { TargetRaceDeadlineFinalizationService } from '../../features/competitions/finalize-target-race-deadline.js';
 import { TimedCompetitionFinalizationService } from '../../features/competitions/finalize-timed-competition.js';
@@ -41,6 +42,7 @@ import { PostgresCompetitionCreationRepository } from '../database/postgres-comp
 import { PostgresCompetitionDraftParticipationRepository } from '../database/postgres-competition-draft-participation-repository.js';
 import { PostgresCompetitionStartRepository } from '../database/postgres-competition-start-repository.js';
 import { PostgresCompetitionStandingsRepository } from '../database/postgres-competition-standings-repository.js';
+import { PostgresCompetitionResultsHistoryRepository } from '../database/postgres-competition-results-history-repository.js';
 import { PostgresTargetRaceClaimRepository } from '../database/postgres-target-race-claim-repository.js';
 import { PostgresTargetRaceDeadlineFinalizationRepository } from '../database/postgres-target-race-deadline-finalization-repository.js';
 import { PostgresTimedCompetitionFinalizationRepository } from '../database/postgres-timed-competition-finalization-repository.js';
@@ -152,6 +154,11 @@ import {
   CompetitionStandingsCommandHandler,
   DiscordCompetitionStandingsCommandAdapter,
 } from './competition-standings-command.js';
+import {
+  bindDiscordCompetitionResultsHistoryCommandAdapter,
+  CompetitionResultsHistoryCommandHandler,
+  DiscordCompetitionResultsHistoryCommandAdapter,
+} from './competition-results-history-command.js';
 import {
   bindDiscordCompetitionTargetRaceClaimCommandAdapter,
   CompetitionTargetRaceClaimCommandHandler,
@@ -399,6 +406,14 @@ export async function startDevelopmentDiscordRuntime(
         competitionStandingsRepository,
       ),
     );
+    const competitionResultsHistoryRepository = new PostgresCompetitionResultsHistoryRepository(
+      connection.database,
+    );
+    const competitionResultsHistoryAdapter = new DiscordCompetitionResultsHistoryCommandAdapter(
+      new CompetitionResultsHistoryCommandHandler(
+        new CompetitionResultsHistoryService(competitionResultsHistoryRepository),
+      ),
+    );
     const targetRaceClaimRepository = new PostgresTargetRaceClaimRepository(connection.database);
     const targetRaceClaimService = new TargetRaceClaimService(
       targetRaceClaimRepository,
@@ -528,6 +543,12 @@ export async function startDevelopmentDiscordRuntime(
     bindDiscordCompetitionStandingsCommandAdapter(
       client,
       competitionStandingsAdapter,
+      (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
+      (interaction) => interaction.guildId === configuration.discord.guildId,
+    );
+    bindDiscordCompetitionResultsHistoryCommandAdapter(
+      client,
+      competitionResultsHistoryAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.guildId,
     );
