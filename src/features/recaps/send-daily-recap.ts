@@ -10,8 +10,9 @@ import {
   type DailyRecapAccountPresentation,
   type DailyRecapFailurePresentation,
   type DailyRecapPresentation,
-  presentDailyRecap,
+  presentDailyRecapWithCompetitionSummaries,
 } from './daily-recap-presentation.js';
+import type { DailyRecapCompetitionSummaryProvider } from './active-competition-recap-summary.js';
 import type { DailyRecapFailureReporter } from './report-daily-recap-failures.js';
 
 export interface PendingDailyRecapRun {
@@ -61,6 +62,9 @@ export class ManualDailyRecapSendService {
     private readonly failureReporter: DailyRecapFailureReporter = {
       report: () => Promise.resolve(),
     },
+    private readonly competitions: DailyRecapCompetitionSummaryProvider = {
+      summarize: () => Promise.resolve({ summaries: [], unavailableCompetitionNames: [] }),
+    },
   ) {}
 
   public async send(guildId: string): Promise<ManualDailyRecapSendResult> {
@@ -72,7 +76,10 @@ export class ManualDailyRecapSendService {
     try {
       const collection = await this.collector.collect(guildId);
       assertCollectionBelongsToGuild(collection, guildId);
-      const presentation = presentDailyRecap(collection);
+      const presentation = await presentDailyRecapWithCompetitionSummaries(
+        collection,
+        this.competitions,
+      );
       await this.repository.finalizeManualRun({
         collection,
         deliveryContent: renderDailyRecapDeliveryContent(presentation),
@@ -141,7 +148,42 @@ export function renderDailyRecapDeliveryContent(presentation: DailyRecapPresenta
     ...(presentation.failures.length === 0
       ? []
       : ['**Unavailable accounts**', ...presentation.failures.map(formatFailure)]),
+    ...competitionSummaryLines(presentation),
   ].join('\n\n');
+}
+
+function competitionSummaryLines(presentation: DailyRecapPresentation): string[] {
+  if (
+    (presentation.activeCompetitionSummaries?.length ?? 0) === 0 &&
+    (presentation.unavailableCompetitionNames?.length ?? 0) === 0
+  )
+    return [];
+  return [
+    '**Active competitions**',
+    ...(presentation.activeCompetitionSummaries ?? []).map((summary) => {
+      const metric = `${summary.metric.name} ${summary.metric.kind === 'skill' ? 'XP' : 'KC'}`;
+      const timing =
+        summary.targetValue === null
+          ? summary.endsAt === null
+            ? 'Deadline unavailable'
+            : `Ends <t:${Math.floor(summary.endsAt.getTime() / 1_000)}:R>`
+          : `Target: ${summary.targetValue.toLocaleString('en-US')} ${summary.metric.kind === 'skill' ? 'XP' : 'KC'}`;
+      const leaders =
+        summary.entries.length === 0
+          ? 'No entrants yet.'
+          : summary.entries
+              .map(
+                (entry) =>
+                  `#${entry.rank} ${entry.discordUserId === null ? 'Watchlist account' : `<@${entry.discordUserId}>`} +${entry.gain.toLocaleString('en-US')}`,
+              )
+              .join(' Â· ');
+      return `**${summary.displayName}** Â· ${metric} Â· ${timing}\n${leaders}${summary.hasIncompleteScores ? ' (some values are last known)' : ''}`;
+    }),
+    ...(presentation.unavailableCompetitionNames ?? []).map(
+      (name) => `**${name}** Â· standings unavailable`,
+    ),
+    'Use `/competition standings` for full standings.',
+  ];
 }
 
 const PLAYER_DIVIDER = '──────────────';

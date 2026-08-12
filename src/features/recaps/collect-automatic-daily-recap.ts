@@ -3,7 +3,8 @@ import {
   assertCollectionBelongsToGuild,
   renderDailyRecapDeliveryContent,
 } from './send-daily-recap.js';
-import { presentDailyRecap } from './daily-recap-presentation.js';
+import { presentDailyRecapWithCompetitionSummaries } from './daily-recap-presentation.js';
+import type { DailyRecapCompetitionSummaryProvider } from './active-competition-recap-summary.js';
 import type { DailyRecapFailureReporter } from './report-daily-recap-failures.js';
 
 export interface ClaimedAutomaticDailyRecapRun {
@@ -49,6 +50,9 @@ export class AutomaticDailyRecapCollectionService {
     private readonly failureReporter: DailyRecapFailureReporter = {
       report: () => Promise.resolve(),
     },
+    private readonly competitions: DailyRecapCompetitionSummaryProvider = {
+      summarize: () => Promise.resolve({ summaries: [], unavailableCompetitionNames: [] }),
+    },
   ) {}
 
   public async collectDue(): Promise<AutomaticDailyRecapCollectionResult> {
@@ -62,7 +66,9 @@ export class AutomaticDailyRecapCollectionService {
       assertCollectionBelongsToGuild(collection, run.guildId);
       await this.repository.finalizeRun({
         collection,
-        deliveryContent: renderDailyRecapDeliveryContent(presentDailyRecap(collection)),
+        deliveryContent: renderDailyRecapDeliveryContent(
+          await presentDailyRecapWithCompetitionSummaries(collection, this.competitions),
+        ),
         guildId: run.guildId,
         recapChannelId: run.recapChannelId,
         recapRunId: run.recapRunId,

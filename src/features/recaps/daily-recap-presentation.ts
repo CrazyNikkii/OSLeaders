@@ -4,6 +4,10 @@ import type {
   DailyRecapCollectionFailure,
   DailyRecapCollectionResult,
 } from './daily-recap-collection.js';
+import type {
+  DailyRecapCompetitionSummary,
+  DailyRecapCompetitionSummaryProvider,
+} from './active-competition-recap-summary.js';
 
 export interface DailyRecapAccountPresentation {
   account: TrackedAccount;
@@ -22,9 +26,11 @@ export interface DailyRecapFailurePresentation {
 }
 
 export interface DailyRecapPresentation {
+  activeCompetitionSummaries?: readonly DailyRecapCompetitionSummary[];
   failures: readonly DailyRecapFailurePresentation[];
   linkedMembers: readonly DailyRecapLinkedMemberPresentation[];
   noActivity: boolean;
+  unavailableCompetitionNames?: readonly string[];
   watchlistAccounts: readonly DailyRecapAccountPresentation[];
 }
 
@@ -40,11 +46,17 @@ export interface DailyRecapPreviewCollector {
 }
 
 export class DailyRecapPreviewService {
-  public constructor(private readonly collector: DailyRecapPreviewCollector) {}
+  public constructor(
+    private readonly collector: DailyRecapPreviewCollector,
+    private readonly competitions: DailyRecapCompetitionSummaryProvider = noCompetitionSummaries,
+  ) {}
 
   public async preview(guildId: string): Promise<DailyRecapPreview> {
     const collection = await this.collector.collect(guildId);
-    const presentation = presentDailyRecap(collection);
+    const presentation = await presentDailyRecapWithCompetitionSummaries(
+      collection,
+      this.competitions,
+    );
     return { collection, presentation };
   }
 }
@@ -85,12 +97,35 @@ export function presentDailyRecap(collection: DailyRecapCollectionResult): Daily
     discordUserId,
   }));
   return {
+    activeCompetitionSummaries: [],
     failures,
     linkedMembers: members,
     noActivity: members.length === 0 && watchlistAccounts.length === 0,
+    unavailableCompetitionNames: [],
     watchlistAccounts,
   };
 }
+
+export async function presentDailyRecapWithCompetitionSummaries(
+  collection: DailyRecapCollectionResult,
+  competitions: DailyRecapCompetitionSummaryProvider,
+): Promise<DailyRecapPresentation> {
+  const presentation = presentDailyRecap(collection);
+  try {
+    const summaries = await competitions.summarize(collection.guildId);
+    return {
+      ...presentation,
+      activeCompetitionSummaries: summaries.summaries,
+      unavailableCompetitionNames: summaries.unavailableCompetitionNames,
+    };
+  } catch {
+    return { ...presentation, unavailableCompetitionNames: ['active competitions'] };
+  }
+}
+
+const noCompetitionSummaries: DailyRecapCompetitionSummaryProvider = {
+  summarize: () => Promise.resolve({ summaries: [], unavailableCompetitionNames: [] }),
+};
 
 function visibleChanges(changes: DailyRecapAccountChanges): DailyRecapAccountChanges {
   return {

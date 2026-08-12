@@ -10,6 +10,7 @@ import {
 } from '../src/features/recaps/collect-automatic-daily-recap.js';
 import type { DailyRecapCollectionResult } from '../src/features/recaps/daily-recap-collection.js';
 import type { DailyRecapFailureReporter } from '../src/features/recaps/report-daily-recap-failures.js';
+import type { DailyRecapCompetitionSummaryProvider } from '../src/features/recaps/active-competition-recap-summary.js';
 
 describe('automatic daily recap collection service', () => {
   it('finalizes a due run with a durable delivery payload', async () => {
@@ -98,6 +99,53 @@ describe('automatic daily recap collection service', () => {
     expect(repository.failed).toEqual([]);
   });
 
+  it('includes active-competition summaries in the durable automatic delivery payload', async () => {
+    const repository = new RepositoryStub(claimedRun());
+    const summaries = new CompetitionSummaryStub({
+      summaries: [
+        {
+          displayName: 'Magic sprint',
+          endsAt: new Date('2026-08-06T12:00:00.000Z'),
+          entries: [{ discordUserId: 'member-one', gain: 500_000n, rank: 1 }],
+          hasIncompleteScores: false,
+          metric: { kind: 'skill', name: 'Magic' },
+          targetValue: null,
+        },
+      ],
+      unavailableCompetitionNames: [],
+    });
+    const service = new AutomaticDailyRecapCollectionService(
+      repository,
+      new CollectorStub(collection()),
+      undefined,
+      undefined,
+      summaries,
+    );
+
+    await expect(service.collectDue()).resolves.toMatchObject({ kind: 'ready_for_delivery' });
+    expect(summaries.guildIds).toEqual(['guild-one']);
+    expect(repository.finalized[0]?.deliveryContent).toContain('**Active competitions**');
+    expect(repository.finalized[0]?.deliveryContent).toContain('**Magic sprint** Â· Magic XP');
+  });
+
+  it('still finalizes automatic recap delivery when competition summaries fail', async () => {
+    const repository = new RepositoryStub(claimedRun());
+    const summaries = new CompetitionSummaryStub(undefined, new Error('standings unavailable'));
+    const service = new AutomaticDailyRecapCollectionService(
+      repository,
+      new CollectorStub(collection()),
+      undefined,
+      undefined,
+      summaries,
+    );
+
+    await expect(service.collectDue()).resolves.toMatchObject({ kind: 'ready_for_delivery' });
+    expect(repository.failed).toEqual([]);
+    expect(repository.finalized[0]?.deliveryContent).toContain(
+      '**active competitions** Â· standings unavailable',
+    );
+  });
+
   it('uses restrained retry delays', () => {
     expect(retryDelayMs(1)).toBe(60_000);
     expect(retryDelayMs(2)).toBe(5 * 60_000);
@@ -147,6 +195,23 @@ class CollectorStub {
 class ThrowingCollector {
   public collect(): Promise<DailyRecapCollectionResult> {
     return Promise.reject(new Error('Hiscores crashed.'));
+  }
+}
+
+class CompetitionSummaryStub implements DailyRecapCompetitionSummaryProvider {
+  public readonly guildIds: string[] = [];
+
+  public constructor(
+    private readonly result:
+      Awaited<ReturnType<DailyRecapCompetitionSummaryProvider['summarize']>> | undefined,
+    private readonly error?: Error,
+  ) {}
+
+  public summarize(guildId: string) {
+    this.guildIds.push(guildId);
+    return this.error === undefined
+      ? Promise.resolve(this.result ?? { summaries: [], unavailableCompetitionNames: [] })
+      : Promise.reject(this.error);
   }
 }
 

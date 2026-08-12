@@ -9,6 +9,7 @@ import { SkillLeaderboardService } from '../../features/leaderboards/skill-leade
 import { BossLeaderboardService } from '../../features/leaderboards/boss-leaderboard.js';
 import { BossLookupService } from '../../features/lookups/boss-lookup.js';
 import { DailyRecapCollectionService } from '../../features/recaps/daily-recap-collection.js';
+import { DailyRecapCompetitionSummaryService } from '../../features/recaps/active-competition-recap-summary.js';
 import { DailyRecapPreviewService } from '../../features/recaps/daily-recap-presentation.js';
 import { PreviewDailyRecapService } from '../../features/recaps/preview-daily-recap.js';
 import { ManualDailyRecapSendService } from '../../features/recaps/send-daily-recap.js';
@@ -329,6 +330,17 @@ export async function startDevelopmentDiscordRuntime(
         new BossLookupService(accountRepository, hiscores),
       ),
     );
+    const competitionStandingsRepository = new PostgresCompetitionStandingsRepository(
+      connection.database,
+    );
+    const competitionStandings = new CompetitionStandingsService(
+      competitionStandingsRepository,
+      hiscores,
+    );
+    const recapCompetitionSummaries = new DailyRecapCompetitionSummaryService(
+      competitionStandingsRepository,
+      competitionStandings,
+    );
     const dailyRecapPreviewAdapter = new DiscordDailyRecapPreviewCommandAdapter(
       new PreviewDailyRecapService(
         new DailyRecapPreviewService(
@@ -336,6 +348,7 @@ export async function startDevelopmentDiscordRuntime(
             new PostgresDailyRecapCollectionRepository(connection.database),
             hiscores,
           ),
+          recapCompetitionSummaries,
         ),
       ),
     );
@@ -356,6 +369,7 @@ export async function startDevelopmentDiscordRuntime(
         ),
         undefined,
         failureAudit,
+        recapCompetitionSummaries,
       ),
       delivery,
       permissions,
@@ -379,6 +393,7 @@ export async function startDevelopmentDiscordRuntime(
         ),
         undefined,
         failureAudit,
+        recapCompetitionSummaries,
       ),
       logger,
     );
@@ -446,14 +461,8 @@ export async function startDevelopmentDiscordRuntime(
         competitionSchedulingRepository,
       ),
     );
-    const competitionStandingsRepository = new PostgresCompetitionStandingsRepository(
-      connection.database,
-    );
     const competitionStandingsAdapter = new DiscordCompetitionStandingsCommandAdapter(
-      new CompetitionStandingsCommandHandler(
-        new CompetitionStandingsService(competitionStandingsRepository, hiscores),
-        competitionStandingsRepository,
-      ),
+      new CompetitionStandingsCommandHandler(competitionStandings, competitionStandingsRepository),
     );
     const competitionResultsHistoryRepository = new PostgresCompetitionResultsHistoryRepository(
       connection.database,
