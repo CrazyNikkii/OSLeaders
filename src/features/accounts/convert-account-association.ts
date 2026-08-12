@@ -10,6 +10,7 @@ export interface ConvertAccountAssociationRequest {
 
 export type ConvertAccountAssociationResult =
   | { kind: 'converted'; account: TrackedAccount }
+  | { kind: 'active_competition_locked' }
   | { kind: 'forbidden' }
   | { kind: 'account_not_found' }
   | { kind: 'association_unchanged' }
@@ -20,6 +21,7 @@ export interface AccountAssociationConversionRepository {
     request: ConvertAccountAssociationRequest,
   ): Promise<
     | { kind: 'converted'; account: TrackedAccount }
+    | { kind: 'active_competition_locked' }
     | { kind: 'forbidden' }
     | { kind: 'account_not_found' }
     | { kind: 'association_unchanged' }

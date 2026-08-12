@@ -42,7 +42,12 @@ the verified winning claim and transitions its competition from `active` to
 snapshots. The merged optional-deadline target-race finalization workflow claims
 due work, waits for pending on-time claims, collects cache-bypassing final
 values, persists shared exact-tie winners, and retries failed collection.
-Recap integration remains deferred. The merged
+The merged active-competition recap summary adds the required compact section
+to daily recaps. It reuses the guild-scoped standings read model, shows up to
+three ranked entrants per active competition, preserves incomplete-score
+context, and treats unavailable competition data as an optional warning so
+recap collection, baseline advancement, and durable delivery remain successful.
+The merged
 Discord-independent competition standings
 foundation adds active-competition progress collection with durable last-known
 values for partial Hiscores failures, combined linked-account scores, standalone
@@ -382,6 +387,14 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
+`31b4601` (2026-08-12) - Merge active competition recap summaries.
+
+This merged the required compact active-competition section into automatic and
+manual daily recaps. It reuses guild-scoped standings, shows up to three ranked
+entrants per active competition, preserves incomplete-score context, and makes
+competition-summary failures optional so recap collection, baseline advancement,
+and durable delivery remain successful.
+
 `57b1736` (2026-08-12) - Merge competition cancellation recovery audit.
 
 This merged focused cancellation-recovery acceptance coverage. Failed
@@ -696,17 +709,19 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-`codex/recap-active-competition-summary` adds the required compact active-
-competition section to daily recaps. It reuses the established guild-scoped
-standings read model, shows up to three ranked entrants per active competition,
-preserves incomplete-score context, and treats unavailable competition data as
-an optional warning so recap collection, baseline advancement, and durable
-delivery remain successful.
+`codex/active-competition-account-mutation-guards` blocks deletion, game-mode
+changes, and association conversion when an account contributes to an active
+competition or awaits final-value collection in `finish_pending`. It also blocks normal self-service renames while retaining the
+validated, administrator-authorized genuine-RSN rename path and its existing
+administrative audit event. The PostgreSQL checks run inside each existing
+guild-scoped mutation transaction, preserving guild isolation and preventing a
+competition from becoming active between a guard check and its mutation.
 
 ## Next recommended branch-sized task
 
-After this branch merges, add the active-competition guards to account
-mutation operations: block deletion, game-mode changes, association conversion,
-and normal self-service renames when an account contributes to an active
-competition, while retaining the specified administrator-approved genuine-RSN
-rename path and audit record.
+After this branch merges, allow deletion of an account that appears only in
+finished or cancelled competitions while preserving the immutable historical
+account snapshots and results required by the product specification. Review the
+existing restrictive account foreign keys and completed-competition contributor
+records, add a reviewed migration only if necessary, and cover active versus
+completed history explicitly.
