@@ -382,6 +382,13 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
+`57b1736` (2026-08-12) - Merge competition cancellation recovery audit.
+
+This merged focused cancellation-recovery acceptance coverage. Failed
+cancelled-result delivery remains retryable, failed temporary-role cleanup
+remains retryable, and optional audit logging cannot make a durable
+cancellation fail.
+
 `fdc8e68` (2026-08-11) - Merge competition cancellation lifecycle.
 
 This merged the Stage 8 cancellation foundation and guild-only
@@ -689,13 +696,17 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-`codex/competition-cancellation-recovery-audit` adds focused acceptance
-coverage for cancellation recovery: failed cancelled-result delivery remains
-retryable, failed temporary-role cleanup remains retryable, and optional audit
-logging cannot make a durable cancellation fail.
+`codex/recap-active-competition-summary` adds the required compact active-
+competition section to daily recaps. It reuses the established guild-scoped
+standings read model, shows up to three ranked entrants per active competition,
+preserves incomplete-score context, and treats unavailable competition data as
+an optional warning so recap collection, baseline advancement, and durable
+delivery remain successful.
 
 ## Next recommended branch-sized task
 
-After this branch merges, add the compact active-competition section to daily
-recaps, using the established standings read model and preserving successful
-recap collection when competition data is incomplete or unavailable.
+After this branch merges, add the active-competition guards to account
+mutation operations: block deletion, game-mode changes, association conversion,
+and normal self-service renames when an account contributes to an active
+competition, while retaining the specified administrator-approved genuine-RSN
+rename path and audit record.

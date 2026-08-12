@@ -7,6 +7,7 @@ import {
   type DailyRecapPreviewCollector,
 } from '../src/features/recaps/daily-recap-presentation.js';
 import type { DailyRecapCollectionResult } from '../src/features/recaps/daily-recap-collection.js';
+import type { DailyRecapCompetitionSummaryProvider } from '../src/features/recaps/active-competition-recap-summary.js';
 
 describe('daily recap presentation', () => {
   it('groups changed linked accounts by member and keeps watchlists separate', () => {
@@ -118,6 +119,33 @@ describe('daily recap presentation', () => {
     });
     expect(collector.guildIds).toEqual(['guild-one']);
     await expect(service.preview('guild-one')).resolves.not.toHaveProperty('content');
+  });
+
+  it('includes optional competition summaries in a preview without changing recap collection', async () => {
+    const collector = new CollectorStub(result([]));
+    const competitions: DailyRecapCompetitionSummaryProvider = {
+      summarize: (guildId) =>
+        Promise.resolve({
+          summaries: [
+            {
+              displayName: 'Magic sprint',
+              endsAt: null,
+              entries: [{ discordUserId: 'member-one', gain: 100_000n, rank: 1 }],
+              hasIncompleteScores: false,
+              metric: { kind: 'skill', name: 'Magic' },
+              targetValue: null,
+            },
+          ],
+          unavailableCompetitionNames: guildId === 'guild-one' ? [] : ['wrong guild'],
+        }),
+    };
+
+    await expect(
+      new DailyRecapPreviewService(collector, competitions).preview('guild-one'),
+    ).resolves.toMatchObject({
+      presentation: { activeCompetitionSummaries: [{ displayName: 'Magic sprint' }] },
+    });
+    expect(collector.guildIds).toEqual(['guild-one']);
   });
 });
 

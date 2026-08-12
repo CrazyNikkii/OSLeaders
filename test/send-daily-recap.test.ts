@@ -221,6 +221,56 @@ describe('manual daily recap send service', () => {
     expect(content).not.toContain('1.2M XP');
     expect(content).not.toContain('**2 levels**');
   });
+
+  it('renders compact active-competition standings without obscuring recap activity', () => {
+    const content = renderDailyRecapDeliveryContent({
+      activeCompetitionSummaries: [
+        {
+          displayName: 'Magic sprint',
+          endsAt: new Date('2026-08-12T18:00:00.000Z'),
+          entries: [{ discordUserId: 'member-one', gain: 500_000n, rank: 1 }],
+          hasIncompleteScores: true,
+          metric: { kind: 'skill', name: 'Magic' },
+          targetValue: null,
+        },
+      ],
+      failures: [],
+      linkedMembers: [],
+      noActivity: true,
+      unavailableCompetitionNames: ['Zulrah race'],
+      watchlistAccounts: [],
+    });
+
+    expect(content).toContain('**Active competitions**');
+    expect(content).toContain('**Magic sprint** Â· Magic XP Â· Ends <t:1786557600:R>');
+    expect(content).toContain('#1 <@member-one> +500,000');
+    expect(content).toContain('some values are last known');
+    expect(content).toContain('**Zulrah race** Â· standings unavailable');
+    expect(content).toContain('No notable activity today.');
+    expect(content).toContain('Use `/competition standings` for full standings.');
+  });
+
+  it('renders a target race target with the current closest entrants', () => {
+    const content = renderDailyRecapDeliveryContent({
+      activeCompetitionSummaries: [
+        {
+          displayName: 'Zulrah race',
+          endsAt: null,
+          entries: [{ discordUserId: null, gain: 44n, rank: 1 }],
+          hasIncompleteScores: false,
+          metric: { kind: 'boss', name: 'Zulrah' },
+          targetValue: 50n,
+        },
+      ],
+      failures: [],
+      linkedMembers: [],
+      noActivity: true,
+      watchlistAccounts: [],
+    });
+
+    expect(content).toContain('**Zulrah race** Â· Zulrah KC Â· Target: 50 KC');
+    expect(content).toContain('#1 Watchlist account +44');
+  });
 });
 
 class RepositoryStub implements ManualDailyRecapSendRepository {
