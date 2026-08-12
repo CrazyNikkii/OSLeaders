@@ -69,6 +69,35 @@ describe('account rename service', () => {
     ).resolves.toMatchObject({ kind: 'renamed' });
   });
 
+  it('blocks self-service active-competition renames but retains the manager-approved path', async () => {
+    const repository = new RecordingRepository([account()], undefined, true);
+    const service = new AccountRenameService(
+      new StubValidator(success('Approved Rename')),
+      repository,
+      repository,
+    );
+
+    await expect(
+      service.rename({
+        accountId: 'account-one',
+        canManageAccounts: false,
+        guildId: 'guild-one',
+        requesterDiscordUserId: 'member-one',
+        username: 'Approved Rename',
+      }),
+    ).resolves.toEqual({ kind: 'active_competition_locked' });
+    await expect(
+      service.rename({
+        accountId: 'account-one',
+        canManageAccounts: true,
+        guildId: 'guild-one',
+        requesterDiscordUserId: 'manager-one',
+        activeCompetitionRenameConfirmed: true,
+        username: 'Approved Rename',
+      }),
+    ).resolves.toMatchObject({ kind: 'renamed', previousDisplayUsername: 'Rune Scape' });
+  });
+
   it('rejects unauthorized, cross-guild, invalid, and failed validation requests without renaming', async () => {
     const repository = new RecordingRepository([
       account(),
@@ -147,6 +176,7 @@ class RecordingRepository implements AccountRetrievalRepository, AccountRenameRe
   public constructor(
     private readonly accounts: TrackedAccount[],
     private readonly renameResult: 'username_taken' | undefined = undefined,
+    private readonly activeCompetition = false,
   ) {}
 
   public getById(guildId: string, accountId: string): Promise<TrackedAccount | undefined> {
@@ -171,6 +201,7 @@ class RecordingRepository implements AccountRetrievalRepository, AccountRenameRe
     guildId: string,
     accountId: string,
     username: { displayUsername: string; normalizedUsername: string },
+    canManageAccounts = false,
   ) {
     const selected = await this.getById(guildId, accountId);
     if (selected === undefined) {
@@ -178,6 +209,9 @@ class RecordingRepository implements AccountRetrievalRepository, AccountRenameRe
     }
     if (this.renameResult !== undefined) {
       return { kind: this.renameResult };
+    }
+    if (this.activeCompetition && !canManageAccounts) {
+      return { kind: 'active_competition_locked' as const };
     }
     this.renames.push({ accountId, guildId, username: username.normalizedUsername });
     selected.displayUsername = username.displayUsername;

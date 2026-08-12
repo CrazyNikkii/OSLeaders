@@ -33,7 +33,14 @@ import {
 } from '../../features/accounts/register-account.js';
 import type { OsrsAccountMode } from '../hiscores/osrs-hiscore-catalog.js';
 import type { Database, Transaction } from './connection.js';
-import { guildMemberPresences, guilds, recapBaselines, trackedAccounts } from './schema/index.js';
+import {
+  competitionContributingAccounts,
+  competitions,
+  guildMemberPresences,
+  guilds,
+  recapBaselines,
+  trackedAccounts,
+} from './schema/index.js';
 
 export class PostgresAccountRegistrationRepository
   implements
@@ -247,8 +254,12 @@ export class PostgresAccountRegistrationRepository
     guildId: string,
     accountId: string,
     username: { displayUsername: string; normalizedUsername: string },
+    canManageAccounts = false,
+    activeCompetitionRenameConfirmed = false,
   ): Promise<
     | { kind: 'renamed'; account: TrackedAccount }
+    | { kind: 'active_competition_locked' }
+    | { kind: 'active_competition_confirmation_required' }
     | { kind: 'account_not_found' }
     | { kind: 'username_taken' }
   > {
@@ -260,6 +271,14 @@ export class PostgresAccountRegistrationRepository
         .where(and(eq(trackedAccounts.guildId, guildId), eq(trackedAccounts.id, accountId)));
       if (account === undefined) {
         return { kind: 'account_not_found' };
+      }
+      if (await this.contributesToLockedCompetition(transaction, guildId, accountId)) {
+        if (!canManageAccounts) {
+          return { kind: 'active_competition_locked' };
+        }
+        if (!activeCompetitionRenameConfirmed) {
+          return { kind: 'active_competition_confirmation_required' };
+        }
       }
 
       const existing = await this.findByNormalizedUsername(
@@ -287,9 +306,16 @@ export class PostgresAccountRegistrationRepository
     guildId: string,
     accountId: string,
     accountMode: OsrsAccountMode,
-  ): Promise<{ kind: 'mode_changed'; account: TrackedAccount } | { kind: 'account_not_found' }> {
+  ): Promise<
+    | { kind: 'mode_changed'; account: TrackedAccount }
+    | { kind: 'active_competition_locked' }
+    | { kind: 'account_not_found' }
+  > {
     return this.database.transaction(async (transaction) => {
       await transaction.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${guildId}, 0))`);
+      if (await this.contributesToLockedCompetition(transaction, guildId, accountId)) {
+        return { kind: 'active_competition_locked' };
+      }
       const [changed] = await transaction
         .update(trackedAccounts)
         .set({ accountMode })
@@ -305,6 +331,7 @@ export class PostgresAccountRegistrationRepository
     request: ConvertAccountAssociationRequest,
   ): Promise<
     | { kind: 'converted'; account: TrackedAccount }
+    | { kind: 'active_competition_locked' }
     | { kind: 'forbidden' }
     | { kind: 'account_not_found' }
     | { kind: 'association_unchanged' }
@@ -327,6 +354,9 @@ export class PostgresAccountRegistrationRepository
       }
       if (!canConvertAccountAssociation(account, request)) {
         return { kind: 'forbidden' };
+      }
+      if (await this.contributesToLockedCompetition(transaction, guildId, accountId)) {
+        return { kind: 'active_competition_locked' };
       }
 
       const quotaOwnerDiscordUserId =
@@ -529,6 +559,9 @@ export class PostgresAccountRegistrationRepository
       if (!canRemoveAccount(account, request)) {
         return { kind: 'forbidden' };
       }
+      if (await this.contributesToLockedCompetition(transaction, guildId, accountId)) {
+        return { kind: 'active_competition_locked' };
+      }
 
       await transaction
         .delete(trackedAccounts)
@@ -567,6 +600,32 @@ export class PostgresAccountRegistrationRepository
         replacementDefaultAccount: toTrackedAccount(selected),
       };
     });
+  }
+
+  private async contributesToLockedCompetition(
+    database: Transaction,
+    guildId: string,
+    accountId: string,
+  ): Promise<boolean> {
+    const [contribution] = await database
+      .select({ competitionId: competitions.id })
+      .from(competitionContributingAccounts)
+      .innerJoin(
+        competitions,
+        and(
+          eq(competitions.id, competitionContributingAccounts.competitionId),
+          eq(competitions.guildId, competitionContributingAccounts.guildId),
+        ),
+      )
+      .where(
+        and(
+          eq(competitionContributingAccounts.guildId, guildId),
+          eq(competitionContributingAccounts.trackedAccountId, accountId),
+          sql`${competitions.state} IN ('active', 'finish_pending')`,
+        ),
+      )
+      .limit(1);
+    return contribution !== undefined;
   }
 
   private async findByNormalizedUsername(

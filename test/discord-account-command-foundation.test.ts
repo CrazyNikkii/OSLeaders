@@ -337,6 +337,7 @@ describe('Discord account command foundation', () => {
     expect(services.renameRequests).toEqual([
       {
         accountId: 'account-one',
+        activeCompetitionRenameConfirmed: false,
         canManageAccounts: false,
         guildId: 'guild-one',
         requesterDiscordUserId: 'member-one',
@@ -360,6 +361,42 @@ describe('Discord account command foundation', () => {
     ).resolves.toMatchObject({
       kind: 'not_in_guild',
     });
+  });
+
+  it('requires a manager to confirm an unresolved-competition RSN rename', async () => {
+    const services = new RenameStubServices([account()]);
+    services.canManageAccounts = true;
+    services.renameResult = { kind: 'active_competition_confirmation_required' };
+    const handler = new AccountRenameCommandHandler(services);
+
+    const prompt = await handler.rename(
+      context({ requesterDiscordUserId: 'manager-one' }),
+      'account-one',
+      'Approved Rename',
+    );
+    expect(prompt).toMatchObject({ kind: 'confirmation_required' });
+    expect(services.renameRequests).toEqual([
+      expect.objectContaining({ activeCompetitionRenameConfirmed: false }),
+    ]);
+    if (prompt.kind !== 'confirmation_required') {
+      throw new Error('Expected an RSN rename confirmation.');
+    }
+
+    services.renameResult = {
+      account: account({ displayUsername: 'Approved Rename' }),
+      kind: 'renamed',
+      previousDisplayUsername: 'Account One',
+    };
+    await expect(
+      handler.confirmActiveCompetitionRename(
+        context({ requesterDiscordUserId: 'manager-one' }),
+        prompt.customId,
+      ),
+    ).resolves.toMatchObject({ kind: 'renamed' });
+    expect(services.renameRequests).toEqual([
+      expect.objectContaining({ activeCompetitionRenameConfirmed: false }),
+      expect.objectContaining({ activeCompetitionRenameConfirmed: true }),
+    ]);
   });
 
   it('creates the rename handler from shared account repositories', () => {
@@ -1274,6 +1311,8 @@ class RenameStubServices
 {
   public readonly auditEvents: Parameters<AuditService['record']>[0][] = [];
   public canManageAccounts = false;
+  public readonly clock = new MutableClock();
+  public readonly confirmations = new InMemoryDestructiveConfirmationStore(this.clock);
   public readonly permissions = this;
   public readonly renameRequests: object[] = [];
   public renameResult: RenameAccountResult = {

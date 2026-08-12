@@ -84,6 +84,7 @@ const RENAME_SUBCOMMAND_NAME = 'rename';
 const MODE_SUBCOMMAND_NAME = 'mode';
 const ACCOUNT_OPTION_NAME = 'account';
 const REMOVAL_CONFIRMATION_PREFIX = 'osleaders:account-remove';
+const ACTIVE_COMPETITION_RENAME_CONFIRMATION_PREFIX = 'osleaders:account-rename-confirm';
 const MAX_AUTOCOMPLETE_CHOICES = 25;
 const MAX_PENDING_DESTRUCTIVE_CONFIRMATIONS = 1_000;
 const REMOVAL_CONFIRMATION_LIFETIME_MS = 5 * 60 * 1000;
@@ -184,10 +185,11 @@ export interface Clock {
 
 export interface DestructiveConfirmation {
   accountId: string;
-  action: 'account_remove';
+  action: 'account_remove' | 'active_competition_rename';
   expiresAt: Date;
   guildId: string;
   requesterDiscordUserId: string;
+  username?: string;
 }
 
 export interface DestructiveConfirmationStore {
@@ -273,6 +275,7 @@ export type AccountRemovalCommandResult =
   | { kind: 'confirmation_required'; customId: string; message: string }
   | { kind: 'confirmation_expired'; message: string }
   | { kind: 'removed'; message: string }
+  | { kind: 'active_competition_locked'; message: string }
   | { kind: 'forbidden'; message: string }
   | { kind: 'account_not_found'; message: string }
   | { kind: 'not_in_guild'; message: string };
@@ -505,11 +508,16 @@ export interface AccountRenameCommandServices {
   accountRetrieval: Pick<AccountRetrievalService, 'listForGuild'>;
   accountRename: Pick<AccountRenameService, 'rename'>;
   audit: Pick<AuditService, 'record'>;
+  clock: Clock;
+  confirmations: DestructiveConfirmationStore;
   permissions: AccountCommandPermissionEvaluator;
 }
 
 export type AccountRenameCommandResult =
   | { kind: 'renamed'; message: string; auditEntry: StructuredLogEntry }
+  | { kind: 'confirmation_required'; customId: string; message: string }
+  | { kind: 'confirmation_expired'; message: string }
+  | { kind: 'active_competition_locked'; message: string }
   | { kind: 'forbidden'; message: string }
   | { kind: 'account_not_found'; message: string }
   | { kind: 'invalid_username'; message: string }
@@ -524,6 +532,7 @@ export class AccountRenameCommandHandler {
     context: GuildInteractionContext,
     accountId: string,
     username: string,
+    activeCompetitionRenameConfirmed = false,
   ): Promise<AccountRenameCommandResult> {
     const authorization = await this.authorize(context);
     if (authorization === undefined) {
@@ -535,15 +544,67 @@ export class AccountRenameCommandHandler {
 
     const result = await this.services.accountRename.rename({
       accountId,
+      activeCompetitionRenameConfirmed,
       canManageAccounts: authorization.canManageAccounts,
       guildId: authorization.guildId,
       requesterDiscordUserId: authorization.requesterDiscordUserId,
       username,
     });
+    if (result.kind === 'active_competition_confirmation_required') {
+      return {
+        customId: encodeActiveCompetitionRenameConfirmation(
+          this.services.confirmations.create({
+            accountId,
+            action: 'active_competition_rename',
+            expiresAt: new Date(
+              this.services.clock.now().getTime() + REMOVAL_CONFIRMATION_LIFETIME_MS,
+            ),
+            guildId: authorization.guildId,
+            requesterDiscordUserId: authorization.requesterDiscordUserId,
+            username,
+          }),
+        ),
+        kind: 'confirmation_required',
+        message:
+          'This account contributes to an unresolved competition. Confirm the validated RSN change.',
+      };
+    }
     return renameCommandResult(result, (event) => this.services.audit.record(event), {
       guildId: authorization.guildId,
       requesterDiscordUserId: authorization.requesterDiscordUserId,
     });
+  }
+
+  public async confirmActiveCompetitionRename(
+    context: GuildInteractionContext,
+    customId: string,
+  ): Promise<AccountRenameCommandResult> {
+    const authorization = await this.authorize(context);
+    if (authorization === undefined) {
+      return {
+        kind: 'not_in_guild',
+        message: 'This command can only be used in a Discord server.',
+      };
+    }
+    const confirmationId = decodeActiveCompetitionRenameConfirmation(customId);
+    if (confirmationId === undefined) {
+      return { kind: 'forbidden', message: 'You are not allowed to rename that account.' };
+    }
+    const confirmation = this.services.confirmations.consume(confirmationId, {
+      action: 'active_competition_rename',
+      guildId: authorization.guildId,
+      requesterDiscordUserId: authorization.requesterDiscordUserId,
+    });
+    if (confirmation === 'expired') {
+      return {
+        kind: 'confirmation_expired',
+        message: 'This rename confirmation has expired. Run `/account rename` again.',
+      };
+    }
+    if (confirmation === 'mismatch' || confirmation?.username === undefined) {
+      return { kind: 'forbidden', message: 'You are not allowed to rename that account.' };
+    }
+    return this.rename(context, confirmation.accountId, confirmation.username, true);
   }
 
   public async autocomplete(
@@ -602,6 +663,7 @@ export interface AccountModeCommandServices {
 
 export type AccountModeCommandResult =
   | { kind: 'mode_changed'; message: string; auditEntry: StructuredLogEntry }
+  | { kind: 'active_competition_locked'; message: string }
   | { kind: 'forbidden'; message: string }
   | { kind: 'account_not_found'; message: string }
   | { kind: 'hiscores_failure'; message: string }
@@ -1053,7 +1115,10 @@ class NoopRegistrationAdministrativeLogPublisher implements RegistrationAdminist
 }
 
 export interface RenameAdministrativeLogPublisher {
-  publish(interaction: ModalSubmitInteraction, auditEntry: StructuredLogEntry): Promise<void>;
+  publish(
+    interaction: ModalSubmitInteraction | ButtonInteraction,
+    auditEntry: StructuredLogEntry,
+  ): Promise<void>;
 }
 
 export interface ModeAdministrativeLogPublisher {
@@ -1349,16 +1414,34 @@ export class DiscordAccountCommandAdapter {
   }
 
   private async handleButton(interaction: ButtonInteraction): Promise<void> {
-    if (!interaction.customId.startsWith(`${REMOVAL_CONFIRMATION_PREFIX}:`)) {
+    if (interaction.customId.startsWith(`${REMOVAL_CONFIRMATION_PREFIX}:`)) {
+      await interaction.deferUpdate();
+      const result = await this.removalHandler.confirmRemoval(
+        toGuildInteractionContext(interaction),
+        interaction.customId,
+      );
+      await interaction.editReply({ components: [], content: result.message });
       return;
     }
-
+    if (
+      !interaction.customId.startsWith(`${ACTIVE_COMPETITION_RENAME_CONFIRMATION_PREFIX}:`) ||
+      this.renameHandler === undefined
+    ) {
+      return;
+    }
     await interaction.deferUpdate();
-    const result = await this.removalHandler.confirmRemoval(
+    const result = await this.renameHandler.confirmActiveCompetitionRename(
       toGuildInteractionContext(interaction),
       interaction.customId,
     );
     await interaction.editReply({ components: [], content: result.message });
+    if (result.kind === 'renamed') {
+      try {
+        await this.renameAdministrativeLogPublisher.publish(interaction, result.auditEntry);
+      } catch {
+        // Administrative delivery is an optional side effect and must not undo a rename.
+      }
+    }
   }
 
   private async handleRegistrationStart(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -1381,6 +1464,21 @@ export class DiscordAccountCommandAdapter {
         renameAccountId,
         interaction.fields.getTextInputValue(USERNAME_INPUT_ID),
       );
+      if (result.kind === 'confirmation_required') {
+        await interaction.reply({
+          components: [
+            new ActionRowBuilder<ButtonBuilder>().addComponents(
+              new ButtonBuilder()
+                .setCustomId(result.customId)
+                .setLabel('Confirm RSN change')
+                .setStyle(ButtonStyle.Danger),
+            ),
+          ],
+          content: result.message,
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
       await interaction.reply({ content: result.message, flags: MessageFlags.Ephemeral });
       if (result.kind === 'renamed') {
         try {
@@ -1572,6 +1670,8 @@ export function createAccountRenameCommandHandler(
       accountRepository,
     ),
     audit,
+    clock: systemClock,
+    confirmations: new InMemoryDestructiveConfirmationStore(),
     permissions,
   });
 }
@@ -1654,6 +1754,19 @@ function encodeRemovalConfirmation(confirmationId: string): string {
   return `${REMOVAL_CONFIRMATION_PREFIX}:${confirmationId}`;
 }
 
+function encodeActiveCompetitionRenameConfirmation(confirmationId: string): string {
+  return `${ACTIVE_COMPETITION_RENAME_CONFIRMATION_PREFIX}:${confirmationId}`;
+}
+
+function decodeActiveCompetitionRenameConfirmation(customId: string): string | undefined {
+  const prefix = `${ACTIVE_COMPETITION_RENAME_CONFIRMATION_PREFIX}:`;
+  if (!customId.startsWith(prefix)) {
+    return undefined;
+  }
+  const confirmationId = customId.slice(prefix.length);
+  return confirmationId.length > 0 && !confirmationId.includes(':') ? confirmationId : undefined;
+}
+
 function decodeRemovalConfirmation(customId: string): string | undefined {
   if (!customId.startsWith(`${REMOVAL_CONFIRMATION_PREFIX}:`)) {
     return undefined;
@@ -1679,6 +1792,11 @@ function toCommandResult(result: RemoveAccountResult): AccountRemovalCommandResu
       };
     case 'account_not_found':
       return accountNotFound();
+    case 'active_competition_locked':
+      return {
+        kind: 'active_competition_locked',
+        message: 'This account contributes to an active competition and cannot be removed.',
+      };
     case 'forbidden':
       return forbidden();
   }
@@ -2000,6 +2118,16 @@ function renameCommandResult(
       return { kind: 'account_not_found', message: 'That tracked account is no longer available.' };
     case 'forbidden':
       return { kind: 'forbidden', message: 'You are not allowed to rename that account.' };
+    case 'active_competition_locked':
+      return {
+        kind: 'active_competition_locked',
+        message:
+          'This account contributes to an active competition and can only be renamed by an account administrator.',
+      };
+    case 'active_competition_confirmation_required':
+      throw new Error(
+        'Active competition rename confirmation must be handled before presentation.',
+      );
     case 'invalid_username':
       return { kind: 'invalid_username', message: 'That OSRS username is invalid.' };
     case 'username_taken':
@@ -2054,6 +2182,12 @@ function modeCommandResult(
       };
     case 'account_not_found':
       return { kind: 'account_not_found', message: 'That tracked account is no longer available.' };
+    case 'active_competition_locked':
+      return {
+        kind: 'active_competition_locked',
+        message:
+          'This account contributes to an active competition and its game mode cannot be changed.',
+      };
     case 'forbidden':
       return { kind: 'forbidden', message: 'You are not allowed to change that account mode.' };
     case 'hiscores_failure':

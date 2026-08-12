@@ -8,6 +8,7 @@ import type { HiscoreResult } from '../../infrastructure/hiscores/hiscore-result
 
 export interface RenameAccountRequest {
   accountId: string;
+  activeCompetitionRenameConfirmed?: boolean;
   canManageAccounts: boolean;
   guildId: string;
   requesterDiscordUserId: string;
@@ -16,6 +17,8 @@ export interface RenameAccountRequest {
 
 export type RenameAccountResult =
   | { kind: 'renamed'; account: TrackedAccount; previousDisplayUsername: string }
+  | { kind: 'active_competition_locked' }
+  | { kind: 'active_competition_confirmation_required' }
   | { kind: 'forbidden' }
   | { kind: 'account_not_found' }
   | { kind: 'invalid_username' }
@@ -27,8 +30,12 @@ export interface AccountRenameRepository {
     guildId: string,
     accountId: string,
     username: { displayUsername: string; normalizedUsername: string },
+    canManageAccounts?: boolean,
+    activeCompetitionRenameConfirmed?: boolean,
   ): Promise<
     | { kind: 'renamed'; account: TrackedAccount }
+    | { kind: 'active_competition_locked' }
+    | { kind: 'active_competition_confirmation_required' }
     | { kind: 'account_not_found' }
     | { kind: 'username_taken' }
   >;
@@ -65,10 +72,13 @@ export class AccountRenameService {
       return { kind: 'invalid_username' };
     }
 
-    const result = await this.repository.rename(request.guildId, account.id, {
-      displayUsername,
-      normalizedUsername,
-    });
+    const result = await this.repository.rename(
+      request.guildId,
+      account.id,
+      { displayUsername, normalizedUsername },
+      request.canManageAccounts,
+      request.activeCompetitionRenameConfirmed,
+    );
     return result.kind === 'renamed' ? { ...result, previousDisplayUsername } : result;
   }
 }

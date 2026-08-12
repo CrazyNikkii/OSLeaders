@@ -9,6 +9,7 @@ export interface RemoveAccountRequest {
 
 export type RemoveAccountResult =
   | { kind: 'removed'; account: TrackedAccount; replacementDefaultAccount?: TrackedAccount }
+  | { kind: 'active_competition_locked' }
   | { kind: 'forbidden' }
   | { kind: 'account_not_found' };
 

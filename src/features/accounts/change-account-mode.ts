@@ -13,6 +13,7 @@ export interface ChangeAccountModeRequest {
 
 export type ChangeAccountModeResult =
   | { kind: 'mode_changed'; account: TrackedAccount }
+  | { kind: 'active_competition_locked' }
   | { kind: 'forbidden' }
   | { kind: 'account_not_found' }
   | { kind: 'hiscores_failure'; failure: Exclude<HiscoreResult, { kind: 'success' }> };
@@ -22,7 +23,11 @@ export interface AccountModeChangeRepository {
     guildId: string,
     accountId: string,
     accountMode: OsrsAccountMode,
-  ): Promise<{ kind: 'mode_changed'; account: TrackedAccount } | { kind: 'account_not_found' }>;
+  ): Promise<
+    | { kind: 'mode_changed'; account: TrackedAccount }
+    | { kind: 'active_competition_locked' }
+    | { kind: 'account_not_found' }
+  >;
 }
 
 export class AccountModeChangeService {

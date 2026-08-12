@@ -2580,6 +2580,121 @@ describe('database foundation', () => {
     ).resolves.toHaveLength(1);
   });
 
+  it('blocks active-competition account mutations except an account-manager RSN rename', async () => {
+    const accounts = new PostgresAccountRegistrationRepository(connection.database);
+    const competitionsRepository = new PostgresCompetitionCreationRepository(connection.database);
+    const conversion = new AccountAssociationConversionService(accounts);
+    const removal = new AccountRemovalService(accounts);
+    const guildId = 'active-competition-account-guard-guild';
+    const accountId = 'active-competition-account-guard-account';
+    const competitionId = 'active-competition-account-guard-competition';
+
+    await accounts.register(
+      account({
+        displayUsername: 'Active Competition Account',
+        guildId,
+        id: accountId,
+        normalizedUsername: 'active competition account',
+      }),
+      initialRecapBaseline(),
+    );
+    await competitionsRepository.create(
+      competitionDraft({ guildId, id: competitionId, normalizedName: competitionId }),
+    );
+    await connection.database.transaction(async (transaction) => {
+      await transaction.insert(competitionEntrants).values({
+        competitionId,
+        discordUserId: 'member-one',
+        entrantType: 'discord_member',
+        guildId,
+        id: 'active-competition-account-guard-entrant',
+        watchlistAccountId: null,
+      });
+      await transaction.insert(competitionContributingAccounts).values({
+        competitionEntrantId: 'active-competition-account-guard-entrant',
+        competitionId,
+        guildId,
+        trackedAccountId: accountId,
+      });
+      await transaction
+        .update(competitions)
+        .set({ state: 'active' })
+        .where(and(eq(competitions.guildId, guildId), eq(competitions.id, competitionId)));
+    });
+
+    await expect(accounts.changeMode(guildId, accountId, 'ironman')).resolves.toEqual({
+      kind: 'active_competition_locked',
+    });
+    await expect(
+      accounts.rename(guildId, accountId, {
+        displayUsername: 'Blocked Rename',
+        normalizedUsername: 'blocked rename',
+      }),
+    ).resolves.toEqual({ kind: 'active_competition_locked' });
+    await expect(
+      conversion.convert({
+        accountId,
+        canManageAccounts: true,
+        guildId,
+        requesterDiscordUserId: 'manager-one',
+        targetAssociation: { type: 'watchlist' },
+      }),
+    ).resolves.toEqual({ kind: 'active_competition_locked' });
+    await expect(
+      removal.remove({
+        accountId,
+        canManageAccounts: true,
+        guildId,
+        requesterDiscordUserId: 'manager-one',
+      }),
+    ).resolves.toEqual({ kind: 'active_competition_locked' });
+    await expect(
+      accounts.rename(
+        guildId,
+        accountId,
+        {
+          displayUsername: 'Approved RSN Change',
+          normalizedUsername: 'approved rsn change',
+        },
+        true,
+        true,
+      ),
+    ).resolves.toMatchObject({
+      kind: 'renamed',
+      account: { id: accountId, displayUsername: 'Approved RSN Change' },
+    });
+    await connection.database
+      .update(competitions)
+      .set({ state: 'finish_pending' })
+      .where(and(eq(competitions.guildId, guildId), eq(competitions.id, competitionId)));
+    await expect(accounts.changeMode(guildId, accountId, 'ironman')).resolves.toEqual({
+      kind: 'active_competition_locked',
+    });
+    await expect(
+      accounts.rename(guildId, accountId, {
+        displayUsername: 'Finish Pending Rename',
+        normalizedUsername: 'finish pending rename',
+      }),
+    ).resolves.toEqual({ kind: 'active_competition_locked' });
+    await expect(
+      conversion.convert({
+        accountId,
+        canManageAccounts: true,
+        guildId,
+        requesterDiscordUserId: 'manager-one',
+        targetAssociation: { type: 'watchlist' },
+      }),
+    ).resolves.toEqual({ kind: 'active_competition_locked' });
+    await expect(
+      removal.remove({
+        accountId,
+        canManageAccounts: true,
+        guildId,
+        requesterDiscordUserId: 'manager-one',
+      }),
+    ).resolves.toEqual({ kind: 'active_competition_locked' });
+  });
+
   it('converts account associations atomically while preserving baselines and defaults', async () => {
     const repository = new PostgresAccountRegistrationRepository(connection.database);
     const conversion = new AccountAssociationConversionService(repository);
