@@ -68,6 +68,15 @@ alphabetical selectors. That shared selector serves boss lookups, one-time
 boss lookups, boss leaderboards, and competition creation; it does not alter
 leaderboard collection or the remaining competition lifecycle work.
 
+`fdc8e68` (2026-08-11) merged the competition cancellation lifecycle. Creator
+or competition-manager authorized cancellation durably moves draft,
+start-pending, active, and finish-pending competitions to `cancelled`, clears
+start and finish retry state, and prevents schedulers from resuming the prior
+lifecycle. The guild-only `/competition cancel` flow uses bounded,
+initiator- and guild-bound selection plus explicit confirmation. Cancelled
+competitions remain in history, use the existing durable configured-channel
+delivery path, and trigger temporary-role cleanup recovery.
+
 The merged skill-lookup foundation begins the lookup module with a
 Discord-independent, guild-scoped skill lookup service. It resolves a
 caller's default tracked account, an explicit tracked account, or a transient
@@ -373,6 +382,14 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
+`fdc8e68` (2026-08-11) - Merge competition cancellation lifecycle.
+
+This merged the Stage 8 cancellation foundation and guild-only
+`/competition cancel` flow. It durably transitions draft, start-pending,
+active, and finish-pending competitions after creator-or-manager
+authorization, clears lifecycle retry work, retains cancelled history, and
+uses existing durable result delivery and role cleanup recovery.
+
 `65dc3d6` (2026-08-11) - Merge competition role lifecycle.
 
 This merged durable, guild-scoped temporary competition-role state. New and
@@ -672,18 +689,13 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-`codex/competition-cancellation` adds the Stage 8 cancellation foundation and
-guild-only `/competition cancel` flow. It durably transitions draft,
-start-pending, active, and finish-pending competitions only after creator or
-competition-manager authorization, clearing pending retry due times so existing
-schedulers cannot continue the cancelled lifecycle. The Discord adapter binds
-selection and explicit initiator- and guild-bound confirmation to the new
-service. Cancelled competitions are viewable through history and durable
-configured-channel delivery uses the existing retry recovery path. Existing
-role recovery observes `cancelled` and performs durable role cleanup. This
-work is unmerged.
+`codex/competition-cancellation-recovery-audit` adds focused acceptance
+coverage for cancellation recovery: failed cancelled-result delivery remains
+retryable, failed temporary-role cleanup remains retryable, and optional audit
+logging cannot make a durable cancellation fail.
 
 ## Next recommended branch-sized task
 
-After this branch merges, add focused cancellation recovery and audit-delivery
-acceptance coverage. Leave recap integration deferred.
+After this branch merges, add the compact active-competition section to daily
+recaps, using the established standings read model and preserving successful
+recap collection when competition data is incomplete or unavailable.

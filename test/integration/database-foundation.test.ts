@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 
-import { and, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { loadTestDatabaseConfiguration } from '../../src/infrastructure/config/database-environment.js';
@@ -383,7 +383,7 @@ describe('database foundation', () => {
     ).resolves.toEqual({ kind: 'membership_locked' });
   });
 
-  it('cancels only an authorized guild competition and clears its retry work', async () => {
+  it('cancels only authorized guild competitions and clears start and finish retry work', async () => {
     const creation = new PostgresCompetitionCreationRepository(connection.database);
     const repository = new PostgresCompetitionCancellationRepository(
       connection.database,
@@ -407,6 +407,15 @@ describe('database foundation', () => {
         createdByDiscordUserId: 'creator-two',
       }),
     );
+    await creation.create(
+      competitionDraft({
+        id: 'cancel-finish',
+        guildId: 'cancel-guild-one',
+        displayName: 'Cancel finish',
+        normalizedName: 'cancel finish',
+        createdByDiscordUserId: 'creator-one',
+      }),
+    );
     await connection.database
       .update(competitions)
       .set({
@@ -415,6 +424,16 @@ describe('database foundation', () => {
         lastStartFailureSummary: 'upstream',
       })
       .where(and(eq(competitions.id, 'cancel-one'), eq(competitions.guildId, 'cancel-guild-one')));
+    await connection.database
+      .update(competitions)
+      .set({
+        state: 'finish_pending',
+        nextFinishAttemptAt: new Date('2026-08-12T00:00:00Z'),
+        lastFinishFailureSummary: 'upstream',
+      })
+      .where(
+        and(eq(competitions.id, 'cancel-finish'), eq(competitions.guildId, 'cancel-guild-one')),
+      );
     await expect(
       repository.cancel({
         canManageCompetitions: false,
@@ -440,17 +459,49 @@ describe('database foundation', () => {
       }),
     ).resolves.toMatchObject({ kind: 'cancelled' });
     await expect(
+      repository.cancel({
+        canManageCompetitions: false,
+        competitionId: 'cancel-finish',
+        guildId: 'cancel-guild-one',
+        requesterDiscordUserId: 'creator-one',
+      }),
+    ).resolves.toMatchObject({ kind: 'cancelled' });
+    await expect(
       connection.database
         .select({
+          id: competitions.id,
           state: competitions.state,
-          retry: competitions.nextStartAttemptAt,
-          failure: competitions.lastStartFailureSummary,
+          finishFailure: competitions.lastFinishFailureSummary,
+          finishRetry: competitions.nextFinishAttemptAt,
+          startFailure: competitions.lastStartFailureSummary,
+          startRetry: competitions.nextStartAttemptAt,
         })
         .from(competitions)
         .where(
-          and(eq(competitions.id, 'cancel-one'), eq(competitions.guildId, 'cancel-guild-one')),
-        ),
-    ).resolves.toEqual([{ state: 'cancelled', retry: null, failure: null }]);
+          and(
+            eq(competitions.guildId, 'cancel-guild-one'),
+            inArray(competitions.id, ['cancel-one', 'cancel-finish']),
+          ),
+        )
+        .orderBy(asc(competitions.id)),
+    ).resolves.toEqual([
+      {
+        id: 'cancel-finish',
+        state: 'cancelled',
+        finishFailure: null,
+        finishRetry: null,
+        startFailure: null,
+        startRetry: null,
+      },
+      {
+        id: 'cancel-one',
+        state: 'cancelled',
+        finishFailure: null,
+        finishRetry: null,
+        startFailure: null,
+        startRetry: null,
+      },
+    ]);
     await expect(
       repository.cancel({
         canManageCompetitions: true,

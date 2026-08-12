@@ -79,6 +79,34 @@ describe('competition result delivery', () => {
     await expect(service.recoverDue()).resolves.toBe('delivered');
     expect(repository.successes).toHaveLength(1);
   });
+
+  it('keeps a cancelled-competition notification recoverable after a delivery failure', async () => {
+    const repository = new RepositoryStub(delivery());
+    const now = new Date('2026-08-11T12:00:00.000Z');
+    const service = new CompetitionResultDeliveryService(
+      repository,
+      {
+        getFinishedResult: () =>
+          Promise.resolve({
+            kind: 'cancelled_result' as const,
+            displayName: 'Fishing',
+            cancelledAt: now,
+          }),
+      },
+      new PublisherStub(new Error('channel unavailable')),
+      () => now,
+    );
+
+    await expect(service.recoverDue()).resolves.toBe('delivery_failed');
+    expect(repository.failures).toEqual([
+      {
+        competitionId: 'competition-one',
+        failureSummary: 'channel unavailable',
+        guildId: 'guild-one',
+        nextAttemptAt: new Date('2026-08-11T12:01:00.000Z'),
+      },
+    ]);
+  });
 });
 
 class RepositoryStub implements CompetitionResultDeliveryRepository {

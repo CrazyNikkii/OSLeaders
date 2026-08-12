@@ -55,17 +55,21 @@ export class CompetitionCancellationService {
       requesterDiscordUserId: request.requesterDiscordUserId,
     });
     if (result.kind === 'cancelled')
-      this.audit?.record({
-        type: 'competition-lifecycle',
-        severity: 'info',
-        operation: 'competition.cancelled',
-        occurredAt: new Date(),
-        guildId: result.guildId,
-        context: {
-          competitionId: result.competitionId,
-          requesterDiscordUserId: request.requesterDiscordUserId,
-        },
-      });
+      try {
+        this.audit?.record({
+          type: 'competition-lifecycle',
+          severity: 'info',
+          operation: 'competition.cancelled',
+          occurredAt: new Date(),
+          guildId: result.guildId,
+          context: {
+            competitionId: result.competitionId,
+            requesterDiscordUserId: request.requesterDiscordUserId,
+          },
+        });
+      } catch {
+        // Administrative logging is optional and must not undo a durable cancellation.
+      }
     return result;
   }
 }
