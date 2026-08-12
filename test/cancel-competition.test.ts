@@ -47,6 +47,36 @@ describe('CompetitionCancellationService', () => {
       }),
     );
   });
+
+  it('retains a durable cancellation when optional audit delivery fails', async () => {
+    const cancel = vi.fn<CompetitionCancellationRepository['cancel']>().mockResolvedValue({
+      kind: 'cancelled',
+      competitionId: 'competition-1',
+      displayName: 'Fishing',
+      guildId: 'guild-1',
+    });
+    const audit = {
+      record: vi.fn(() => {
+        throw new Error('log unavailable');
+      }),
+    };
+    const service = new CompetitionCancellationService(
+      { cancel },
+      { evaluate: vi.fn().mockResolvedValue({ canManageCompetitions: true }) },
+      audit,
+    );
+
+    await expect(
+      service.cancel({
+        competitionId: 'competition-1',
+        guildId: 'guild-1',
+        hasAdministratorPermission: false,
+        memberRoleIds: [],
+        requesterDiscordUserId: 'member-1',
+      }),
+    ).resolves.toMatchObject({ kind: 'cancelled' });
+    expect(audit.record).toHaveBeenCalledOnce();
+  });
 });
 
 describe('CompetitionCancellationCommandHandler', () => {

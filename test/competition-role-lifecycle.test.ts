@@ -97,6 +97,30 @@ describe('CompetitionRoleLifecycleService', () => {
     await expect(service.recoverDue()).resolves.toBe('failed');
     expect(failures.report).toHaveBeenCalledWith(operation, 'Permission denied');
   });
+
+  it('keeps cancelled-competition role cleanup recoverable after Discord failure', async () => {
+    const cleanup = vi.fn().mockRejectedValue(new Error('role hierarchy changed'));
+    const repository = fakeRepository({
+      ...operation,
+      discordRoleId: 'role-1',
+      operation: 'cleanup',
+    });
+    const service = new CompetitionRoleLifecycleService(
+      repository,
+      { cleanup, createAndAssign: vi.fn(), syncAssignments: vi.fn() },
+      () => new Date(1_000),
+    );
+
+    await expect(service.recoverDue()).resolves.toBe('failed');
+    expect(cleanup).toHaveBeenCalledOnce();
+    expect(repository.recordFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        competitionId: 'competition-1',
+        nextAttemptAt: new Date(61_000),
+        operation: 'cleanup',
+      }),
+    );
+  });
 });
 
 function fakeRepository(next: PendingCompetitionRoleOperation) {
