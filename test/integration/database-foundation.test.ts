@@ -1276,6 +1276,81 @@ describe('database foundation', () => {
     ).resolves.toEqual([{ entrantId: 'timed-finalization-entrant', gain: 50n }]);
   });
 
+  it('lists and claims an active timed competition for authorized manual finalization', async () => {
+    const now = new Date('2026-08-10T12:00:00.000Z');
+    const repository = new PostgresTimedCompetitionFinalizationRepository(
+      connection.database,
+      () => now,
+    );
+    const creations = new PostgresCompetitionCreationRepository(connection.database);
+    const accounts = new PostgresAccountRegistrationRepository(connection.database);
+    const guildId = 'manual-timed-finalization-guild';
+    const competitionId = 'manual-timed-finalization-competition';
+    await creations.create(
+      competitionDraft({
+        durationSeconds: 60,
+        guildId,
+        id: competitionId,
+        normalizedName: 'manual timed finalization competition',
+        type: 'most_skill_xp',
+      }),
+    );
+    await accounts.register(
+      account({ guildId, id: 'manual-timed-finalization-account' }),
+      initialRecapBaseline(),
+    );
+    await connection.database.transaction(async (transaction) => {
+      await transaction.insert(competitionEntrants).values({
+        competitionId,
+        discordUserId: 'member-one',
+        entrantType: 'discord_member',
+        guildId,
+        id: 'manual-timed-finalization-entrant',
+      });
+      await transaction.insert(competitionContributingAccounts).values({
+        competitionEntrantId: 'manual-timed-finalization-entrant',
+        competitionId,
+        guildId,
+        trackedAccountId: 'manual-timed-finalization-account',
+      });
+      await transaction.insert(competitionAccountSnapshots).values({
+        accountMode: 'main',
+        competitionEntrantId: 'manual-timed-finalization-entrant',
+        competitionId,
+        displayUsername: 'Rune Scape',
+        guildId,
+        startingObservedAt: now,
+        startingValue: 100n,
+        trackedAccountId: 'manual-timed-finalization-account',
+      });
+      await transaction
+        .update(competitions)
+        .set({ endsAt: new Date(now.getTime() + 60_000), state: 'active' })
+        .where(and(eq(competitions.guildId, guildId), eq(competitions.id, competitionId)));
+    });
+
+    await expect(repository.listManuallyFinalizable(guildId)).resolves.toEqual([
+      { displayName: 'Weekend Woodcutting', id: competitionId },
+    ]);
+    await expect(
+      repository.beginManualFinalization({
+        canManageCompetitions: true,
+        competitionId,
+        guildId,
+        requesterDiscordUserId: 'manager-one',
+      }),
+    ).resolves.toMatchObject({
+      kind: 'ready_to_finalize',
+      competition: { competitionId, guildId },
+    });
+    await expect(
+      connection.database
+        .select({ state: competitions.state })
+        .from(competitions)
+        .where(and(eq(competitions.guildId, guildId), eq(competitions.id, competitionId))),
+    ).resolves.toEqual([{ state: 'finish_pending' }]);
+  });
+
   it('claims only due pending competition starts and persists the next retry state', async () => {
     const creationRepository = new PostgresCompetitionCreationRepository(connection.database);
     const accountsRepository = new PostgresAccountRegistrationRepository(connection.database);

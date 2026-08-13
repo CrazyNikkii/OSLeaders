@@ -195,6 +195,11 @@ import {
   CompetitionCancellationCommandHandler,
   DiscordCompetitionCancellationCommandAdapter,
 } from './competition-cancellation-command.js';
+import {
+  bindDiscordCompetitionManualFinalizationCommandAdapter,
+  CompetitionManualFinalizationCommandHandler,
+  DiscordCompetitionManualFinalizationCommandAdapter,
+} from './competition-manual-finalization-command.js';
 
 export interface DevelopmentDiscordRuntime {
   close(): Promise<void>;
@@ -521,17 +526,29 @@ export async function startDevelopmentDiscordRuntime(
         logger,
         targetRaceClaimService,
       );
+    const timedCompetitionFinalizationRepository =
+      new PostgresTimedCompetitionFinalizationRepository(connection.database);
+    const timedCompetitionFinalizationService = new TimedCompetitionFinalizationService(
+      timedCompetitionFinalizationRepository,
+      hiscores,
+      undefined,
+      new TimedCompetitionFinalizationFailureAuditService(
+        audit,
+        new DiscordCompetitionStartFailureAuditPublisher(client, configurationService),
+      ),
+      audit,
+    );
+    const competitionManualFinalizationAdapter =
+      new DiscordCompetitionManualFinalizationCommandAdapter(
+        new CompetitionManualFinalizationCommandHandler(
+          timedCompetitionFinalizationService,
+          timedCompetitionFinalizationRepository,
+          permissions,
+        ),
+      );
     const timedCompetitionFinalizationScheduler =
       dependencies.createTimedCompetitionFinalizationScheduler?.(
-        new TimedCompetitionFinalizationService(
-          new PostgresTimedCompetitionFinalizationRepository(connection.database),
-          hiscores,
-          undefined,
-          new TimedCompetitionFinalizationFailureAuditService(
-            audit,
-            new DiscordCompetitionStartFailureAuditPublisher(client, configurationService),
-          ),
-        ),
+        timedCompetitionFinalizationService,
         logger,
       );
     const targetRaceClaimAdapter = new DiscordCompetitionTargetRaceClaimCommandAdapter(
@@ -551,6 +568,12 @@ export async function startDevelopmentDiscordRuntime(
     bindDiscordCompetitionCancellationCommandAdapter(
       client,
       competitionCancellationAdapter,
+      (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
+      (interaction) => interaction.guildId === configuration.discord.guildId,
+    );
+    bindDiscordCompetitionManualFinalizationCommandAdapter(
+      client,
+      competitionManualFinalizationAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.guildId,
     );

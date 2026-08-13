@@ -2,6 +2,7 @@ import { and, asc, eq, lte, or, sql } from 'drizzle-orm';
 
 import type {
   DueTimedCompetitionFinalization,
+  TimedCompetitionManualBeginResult,
   TimedCompetitionFinalizationRepository,
 } from '../../features/competitions/finalize-timed-competition.js';
 import type { Database, Transaction } from './connection.js';
@@ -66,6 +67,85 @@ export class PostgresTimedCompetitionFinalizationRepository implements TimedComp
         finishAttemptCount: claimed.finishAttemptCount,
         guildId: competition.guildId,
         metric: { kind: competition.metricKind, name: competition.metricName },
+      };
+    });
+  }
+
+  public async listManuallyFinalizable(
+    guildId: string,
+  ): Promise<readonly { id: string; displayName: string }[]> {
+    return this.database
+      .select({ displayName: competitions.displayName, id: competitions.id })
+      .from(competitions)
+      .where(
+        and(
+          eq(competitions.guildId, guildId),
+          eq(competitions.state, 'active'),
+          or(eq(competitions.type, 'most_skill_xp'), eq(competitions.type, 'most_boss_kc')),
+        ),
+      )
+      .orderBy(competitions.endsAt, competitions.id);
+  }
+
+  public async beginManualFinalization(request: {
+    canManageCompetitions: boolean;
+    competitionId: string;
+    guildId: string;
+    requesterDiscordUserId: string;
+  }): Promise<TimedCompetitionManualBeginResult> {
+    return this.database.transaction(async (transaction) => {
+      await lockGuild(transaction, request.guildId);
+      const [competition] = await transaction
+        .select()
+        .from(competitions)
+        .where(
+          and(
+            eq(competitions.guildId, request.guildId),
+            eq(competitions.id, request.competitionId),
+          ),
+        );
+      if (competition === undefined) return { kind: 'competition_not_found' };
+      if (
+        !request.canManageCompetitions &&
+        competition.createdByDiscordUserId !== request.requesterDiscordUserId
+      )
+        return { kind: 'forbidden' };
+      if (
+        competition.state !== 'active' ||
+        (competition.type !== 'most_skill_xp' && competition.type !== 'most_boss_kc') ||
+        competition.endsAt === null
+      )
+        return { kind: 'finalization_locked' };
+      const accounts = await this.listAccounts(transaction, competition.guildId, competition.id);
+      if (accounts.length === 0) return { kind: 'finalization_locked' };
+      const now = this.now();
+      const [claimed] = await transaction
+        .update(competitions)
+        .set({
+          finishAttemptCount: sql`${competitions.finishAttemptCount} + 1`,
+          nextFinishAttemptAt: new Date(now.getTime() + FINISH_LEASE_MS),
+          state: 'finish_pending',
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(competitions.guildId, request.guildId),
+            eq(competitions.id, request.competitionId),
+            eq(competitions.state, 'active'),
+          ),
+        )
+        .returning({ finishAttemptCount: competitions.finishAttemptCount });
+      if (claimed === undefined) return { kind: 'finalization_locked' };
+      return {
+        kind: 'ready_to_finalize',
+        competition: {
+          accounts,
+          competitionId: competition.id,
+          endsAt: competition.endsAt,
+          finishAttemptCount: claimed.finishAttemptCount,
+          guildId: competition.guildId,
+          metric: { kind: competition.metricKind, name: competition.metricName },
+        },
       };
     });
   }

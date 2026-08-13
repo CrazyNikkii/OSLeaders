@@ -389,6 +389,13 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
+`dc2e77b` (2026-08-13) - Merge finished-competition account deletion.
+
+This merged the guild-scoped terminal-history deletion rule. An account retained
+only by `finished` or `cancelled` competition history can now be removed while
+its immutable historical entrant, contribution, snapshot, and result facts are
+preserved. Deletion remains blocked for every non-terminal competition state.
+
 `50671e3` (2026-08-12) - Merge active-competition account-mutation guards.
 
 This merged guild-scoped transactional guards that block deletion, game-mode
@@ -719,16 +726,20 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-`codex/finished-competition-account-deletion` permits removal of an account
-retained only by `finished` or `cancelled` competition history. It preserves
-historical entrant, contributing-account, and immutable snapshot facts while
-keeping deletion blocked for every non-terminal competition state in the same
-guild-scoped transaction.
+`codex/manual-timed-competition-finalization` adds the missing authorized
+manual-completion path for active timed competitions. It uses a bounded,
+guild- and initiator-bound `/competition finish` selection and explicit
+confirmation, then shares the existing guild-locked finalization, fresh
+Hiscores, durable retry, result-delivery, and recovery path. Successful and
+pending manual finalization outcomes create optional administrative audit
+records without undoing the durable state change if local logging fails.
 
 ## Next recommended branch-sized task
 
-After this branch merges, take the smallest Stage 9 slice: reconcile the
-private-beta runbook against the deployed bot, then execute and record the
-real-server automatic-recap and restart acceptance checklist. Do not claim
-broader production backup or restore guarantees, which remain explicitly
+After the current manual timed-competition-finalization branch merges, take
+the smallest Stage 9 slice: execute and record the real-server competition
+acceptance checklist, including a restart during an active competition and an
+automatic result delivery or recovery check. The existing daily-recap and
+restart acceptance remains recorded for the configured private beta. Do not
+claim broader production backup or restore guarantees, which remain explicitly
 deferred for this private beta.

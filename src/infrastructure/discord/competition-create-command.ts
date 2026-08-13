@@ -61,6 +61,9 @@ export const competitionCommandDefinitions = [
       subcommand.setName('start').setDescription('Start a competition manually.'),
     )
     .addSubcommand((subcommand) =>
+      subcommand.setName('finish').setDescription('Finish an active timed competition manually.'),
+    )
+    .addSubcommand((subcommand) =>
       subcommand.setName('schedule').setDescription('Schedule a competition draft to start.'),
     )
     .addSubcommand((subcommand) =>
