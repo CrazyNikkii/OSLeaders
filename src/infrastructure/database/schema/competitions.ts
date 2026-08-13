@@ -15,7 +15,7 @@ import {
 } from 'drizzle-orm/pg-core';
 
 import { guilds } from './guilds.js';
-import { osrsAccountMode, trackedAccounts } from './tracked-accounts.js';
+import { osrsAccountMode } from './tracked-accounts.js';
 
 export const competitionTypes = [
   'most_skill_xp',
@@ -150,11 +150,6 @@ export const competitionAccountSnapshots = pgTable(
       ],
       name: 'competition_account_snapshots_entrant_guild_competition_fk',
     }).onDelete('restrict'),
-    foreignKey({
-      columns: [table.trackedAccountId, table.guildId],
-      foreignColumns: [trackedAccounts.id, trackedAccounts.guildId],
-      name: 'competition_account_snapshots_tracked_account_guild_fk',
-    }).onDelete('restrict'),
   ],
 );
 
@@ -276,11 +271,6 @@ export const competitionEntrants = pgTable(
       foreignColumns: [competitions.id, competitions.guildId],
       name: 'competition_entrants_competition_guild_fk',
     }).onDelete('cascade'),
-    foreignKey({
-      columns: [table.watchlistAccountId, table.guildId],
-      foreignColumns: [trackedAccounts.id, trackedAccounts.guildId],
-      name: 'competition_entrants_watchlist_account_guild_fk',
-    }).onDelete('restrict'),
     check(
       'competition_entrants_association_check',
       sql`(
@@ -320,11 +310,6 @@ export const competitionContributingAccounts = pgTable(
       foreignColumns: [competitions.id, competitions.guildId],
       name: 'competition_contributing_accounts_competition_guild_fk',
     }).onDelete('cascade'),
-    foreignKey({
-      columns: [table.trackedAccountId, table.guildId],
-      foreignColumns: [trackedAccounts.id, trackedAccounts.guildId],
-      name: 'competition_contributing_accounts_tracked_account_guild_fk',
-    }).onDelete('restrict'),
   ],
 );
 

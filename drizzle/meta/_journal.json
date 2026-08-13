@@ -134,6 +134,13 @@
       "when": 1786435733367,
       "tag": "0018_odd_genesis",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1786566753562,
+      "tag": "0019_finished-competition-account-deletion",
+      "breakpoints": true
     }
   ]
 }

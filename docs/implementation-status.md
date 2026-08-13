@@ -247,7 +247,9 @@ within its guild. Its serialized PostgreSQL deletion repairs a removed linked
 member's default account by selecting the oldest remaining linked account, and
 the existing foreign-key cascade removes the daily-recap baseline. Focused unit
 and PostgreSQL integration tests cover authorization, guild isolation, default
-replacement, and baseline deletion. Active-competition guards remain deferred.
+replacement, and baseline deletion. The subsequently merged active-competition
+guards block deletion while a contribution is active or awaits final-value
+collection.
 
 The merged Discord account-command foundation selects the
 `/account` command group and adds its first Discord adapter slice:
@@ -386,6 +388,14 @@ entries by XP with deterministic tie-breakers, and retains per-account failures
 without discarding successful results.
 
 ## Latest merged implementation work
+
+`50671e3` (2026-08-12) - Merge active-competition account-mutation guards.
+
+This merged guild-scoped transactional guards that block deletion, game-mode
+changes, and association conversion for accounts contributing to `active` or
+`finish_pending` competitions. It also blocks normal self-service renames while
+retaining the validated, administrator-authorized genuine-RSN rename path and
+its administrative audit event.
 
 `31b4601` (2026-08-12) - Merge active competition recap summaries.
 
@@ -709,19 +719,16 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-`codex/active-competition-account-mutation-guards` blocks deletion, game-mode
-changes, and association conversion when an account contributes to an active
-competition or awaits final-value collection in `finish_pending`. It also blocks normal self-service renames while retaining the
-validated, administrator-authorized genuine-RSN rename path and its existing
-administrative audit event. The PostgreSQL checks run inside each existing
-guild-scoped mutation transaction, preserving guild isolation and preventing a
-competition from becoming active between a guard check and its mutation.
+`codex/finished-competition-account-deletion` permits removal of an account
+retained only by `finished` or `cancelled` competition history. It preserves
+historical entrant, contributing-account, and immutable snapshot facts while
+keeping deletion blocked for every non-terminal competition state in the same
+guild-scoped transaction.
 
 ## Next recommended branch-sized task
 
-After this branch merges, allow deletion of an account that appears only in
-finished or cancelled competitions while preserving the immutable historical
-account snapshots and results required by the product specification. Review the
-existing restrictive account foreign keys and completed-competition contributor
-records, add a reviewed migration only if necessary, and cover active versus
-completed history explicitly.
+After this branch merges, take the smallest Stage 9 slice: reconcile the
+private-beta runbook against the deployed bot, then execute and record the
+real-server automatic-recap and restart acceptance checklist. Do not claim
+broader production backup or restore guarantees, which remain explicitly
+deferred for this private beta.

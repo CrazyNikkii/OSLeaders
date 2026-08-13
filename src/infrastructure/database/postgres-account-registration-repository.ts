@@ -559,7 +559,7 @@ export class PostgresAccountRegistrationRepository
       if (!canRemoveAccount(account, request)) {
         return { kind: 'forbidden' };
       }
-      if (await this.contributesToLockedCompetition(transaction, guildId, accountId)) {
+      if (await this.contributesToNonTerminalCompetition(transaction, guildId, accountId)) {
         return { kind: 'active_competition_locked' };
       }
 
@@ -622,6 +622,32 @@ export class PostgresAccountRegistrationRepository
           eq(competitionContributingAccounts.guildId, guildId),
           eq(competitionContributingAccounts.trackedAccountId, accountId),
           sql`${competitions.state} IN ('active', 'finish_pending')`,
+        ),
+      )
+      .limit(1);
+    return contribution !== undefined;
+  }
+
+  private async contributesToNonTerminalCompetition(
+    database: Transaction,
+    guildId: string,
+    accountId: string,
+  ): Promise<boolean> {
+    const [contribution] = await database
+      .select({ competitionId: competitions.id })
+      .from(competitionContributingAccounts)
+      .innerJoin(
+        competitions,
+        and(
+          eq(competitions.id, competitionContributingAccounts.competitionId),
+          eq(competitions.guildId, competitionContributingAccounts.guildId),
+        ),
+      )
+      .where(
+        and(
+          eq(competitionContributingAccounts.guildId, guildId),
+          eq(competitionContributingAccounts.trackedAccountId, accountId),
+          sql`${competitions.state} NOT IN ('finished', 'cancelled')`,
         ),
       )
       .limit(1);

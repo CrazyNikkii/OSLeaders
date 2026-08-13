@@ -2695,6 +2695,200 @@ describe('database foundation', () => {
     ).resolves.toEqual({ kind: 'active_competition_locked' });
   });
 
+  it('removes accounts retained only by terminal competition history', async () => {
+    const accounts = new PostgresAccountRegistrationRepository(connection.database);
+    const removal = new AccountRemovalService(accounts);
+    const history = new PostgresCompetitionResultsHistoryRepository(connection.database);
+    const competitionsRepository = new PostgresCompetitionCreationRepository(connection.database);
+    const guildId = 'terminal-competition-account-removal-guild';
+    const finishedAccountId = 'terminal-finished-account';
+    const cancelledAccountId = 'terminal-cancelled-watchlist-account';
+    const pendingAccountId = 'terminal-pending-account';
+    const finishedCompetitionId = 'terminal-finished-competition';
+    const cancelledCompetitionId = 'terminal-cancelled-competition';
+    const pendingCompetitionId = 'terminal-pending-competition';
+
+    await accounts.register(
+      account({
+        displayUsername: 'Finished History Account',
+        guildId,
+        id: finishedAccountId,
+        normalizedUsername: 'finished history account',
+      }),
+      initialRecapBaseline(),
+    );
+    await accounts.register(
+      account({
+        association: { type: 'watchlist' },
+        displayUsername: 'Cancelled History Account',
+        guildId,
+        id: cancelledAccountId,
+        normalizedUsername: 'cancelled history account',
+        quotaOwnerDiscordUserId: 'watchlist-adder',
+        registeredByDiscordUserId: 'watchlist-adder',
+      }),
+      initialRecapBaseline(),
+    );
+    await accounts.register(
+      account({
+        displayUsername: 'Pending Competition Account',
+        guildId,
+        id: pendingAccountId,
+        normalizedUsername: 'pending competition account',
+      }),
+      initialRecapBaseline(),
+    );
+    for (const competitionId of [
+      finishedCompetitionId,
+      cancelledCompetitionId,
+      pendingCompetitionId,
+    ]) {
+      await competitionsRepository.create(
+        competitionDraft({ guildId, id: competitionId, normalizedName: competitionId }),
+      );
+    }
+
+    await connection.database.transaction(async (transaction) => {
+      await transaction.insert(competitionEntrants).values([
+        {
+          competitionId: finishedCompetitionId,
+          discordUserId: 'member-one',
+          entrantType: 'discord_member',
+          guildId,
+          id: 'terminal-finished-entrant',
+        },
+        {
+          competitionId: cancelledCompetitionId,
+          entrantType: 'watchlist',
+          guildId,
+          id: 'terminal-cancelled-entrant',
+          watchlistAccountId: cancelledAccountId,
+        },
+        {
+          competitionId: pendingCompetitionId,
+          discordUserId: 'member-one',
+          entrantType: 'discord_member',
+          guildId,
+          id: 'terminal-pending-entrant',
+        },
+      ]);
+      await transaction.insert(competitionContributingAccounts).values([
+        {
+          competitionEntrantId: 'terminal-finished-entrant',
+          competitionId: finishedCompetitionId,
+          guildId,
+          trackedAccountId: finishedAccountId,
+        },
+        {
+          competitionEntrantId: 'terminal-cancelled-entrant',
+          competitionId: cancelledCompetitionId,
+          guildId,
+          trackedAccountId: cancelledAccountId,
+        },
+        {
+          competitionEntrantId: 'terminal-pending-entrant',
+          competitionId: pendingCompetitionId,
+          guildId,
+          trackedAccountId: pendingAccountId,
+        },
+      ]);
+      await transaction.insert(competitionAccountSnapshots).values({
+        accountMode: 'main',
+        competitionEntrantId: 'terminal-finished-entrant',
+        competitionId: finishedCompetitionId,
+        displayUsername: 'Finished History Account',
+        guildId,
+        startingObservedAt: new Date('2026-08-12T12:00:00.000Z'),
+        startingValue: 100n,
+        trackedAccountId: finishedAccountId,
+      });
+      await transaction.insert(competitionAccountFinalValues).values({
+        competitionId: finishedCompetitionId,
+        finalObservedAt: new Date('2026-08-12T13:00:00.000Z'),
+        finalValue: 175n,
+        guildId,
+        trackedAccountId: finishedAccountId,
+      });
+      await transaction.insert(competitionWinners).values({
+        competitionEntrantId: 'terminal-finished-entrant',
+        competitionId: finishedCompetitionId,
+        finalGain: 75n,
+        guildId,
+      });
+      await transaction
+        .update(competitions)
+        .set({ finishedAt: new Date('2026-08-12T13:00:00.000Z'), state: 'finished' })
+        .where(eq(competitions.id, finishedCompetitionId));
+      await transaction
+        .update(competitions)
+        .set({ state: 'cancelled' })
+        .where(eq(competitions.id, cancelledCompetitionId));
+      await transaction
+        .update(competitions)
+        .set({ state: 'start_pending' })
+        .where(eq(competitions.id, pendingCompetitionId));
+    });
+
+    await expect(
+      removal.remove({
+        accountId: pendingAccountId,
+        canManageAccounts: true,
+        guildId,
+        requesterDiscordUserId: 'manager-one',
+      }),
+    ).resolves.toEqual({ kind: 'active_competition_locked' });
+    await expect(
+      removal.remove({
+        accountId: finishedAccountId,
+        canManageAccounts: true,
+        guildId,
+        requesterDiscordUserId: 'manager-one',
+      }),
+    ).resolves.toMatchObject({ kind: 'removed', account: { id: finishedAccountId } });
+    await expect(
+      removal.remove({
+        accountId: cancelledAccountId,
+        canManageAccounts: true,
+        guildId,
+        requesterDiscordUserId: 'manager-one',
+      }),
+    ).resolves.toMatchObject({ kind: 'removed', account: { id: cancelledAccountId } });
+
+    await expect(accounts.getById(guildId, finishedAccountId)).resolves.toBeUndefined();
+    await expect(accounts.getById(guildId, cancelledAccountId)).resolves.toBeUndefined();
+    await expect(
+      connection.database
+        .select()
+        .from(recapBaselines)
+        .where(inArray(recapBaselines.accountId, [finishedAccountId, cancelledAccountId])),
+    ).resolves.toEqual([]);
+    await expect(
+      connection.database
+        .select({ trackedAccountId: competitionAccountSnapshots.trackedAccountId })
+        .from(competitionAccountSnapshots)
+        .where(eq(competitionAccountSnapshots.competitionId, finishedCompetitionId)),
+    ).resolves.toEqual([{ trackedAccountId: finishedAccountId }]);
+    await expect(
+      connection.database
+        .select({ watchlistAccountId: competitionEntrants.watchlistAccountId })
+        .from(competitionEntrants)
+        .where(eq(competitionEntrants.competitionId, cancelledCompetitionId)),
+    ).resolves.toEqual([{ watchlistAccountId: cancelledAccountId }]);
+    await expect(
+      history.findFinished({ competitionId: finishedCompetitionId, guildId }),
+    ).resolves.toMatchObject({
+      accounts: [
+        {
+          accountMode: 'main',
+          displayUsername: 'Finished History Account',
+          finalValue: 175n,
+          startingValue: 100n,
+        },
+      ],
+      winners: [{ entrantId: 'terminal-finished-entrant', finalGain: 75n }],
+    });
+  });
+
   it('converts account associations atomically while preserving baselines and defaults', async () => {
     const repository = new PostgresAccountRegistrationRepository(connection.database);
     const conversion = new AccountAssociationConversionService(repository);
