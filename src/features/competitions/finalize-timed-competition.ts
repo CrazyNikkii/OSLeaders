@@ -27,6 +27,12 @@ export interface DueTimedCompetitionFinalization {
 
 export interface TimedCompetitionFinalizationRepository {
   claimDueFinalization(): Promise<DueTimedCompetitionFinalization | undefined>;
+  beginManualFinalization(request: {
+    canManageCompetitions: boolean;
+    competitionId: string;
+    guildId: string;
+    requesterDiscordUserId: string;
+  }): Promise<TimedCompetitionManualBeginResult>;
   completeFinalization(request: {
     competitionId: string;
     finalValues: readonly { accountId: string; entrantId: string; value: bigint }[];
@@ -43,6 +49,18 @@ export interface TimedCompetitionFinalizationRepository {
     nextAttemptAt: Date;
   }): Promise<void>;
 }
+
+export interface TimedCompetitionFinalizationPermissionEvaluator {
+  evaluate(request: {
+    guildId: string;
+    hasAdministratorPermission: boolean;
+    memberRoleIds: readonly string[];
+  }): Promise<{ canManageCompetitions: boolean }>;
+}
+
+export type TimedCompetitionManualBeginResult =
+  | { kind: 'ready_to_finalize'; competition: DueTimedCompetitionFinalization }
+  | { kind: 'competition_not_found' | 'forbidden' | 'finalization_locked' };
 
 export type TimedCompetitionFinalizationHiscoreResult =
   | HiscoreParseResult
@@ -73,6 +91,13 @@ export type TimedCompetitionFinalizationResult =
     }
   | { kind: 'finish_locked' };
 
+export type ManualTimedCompetitionFinalizationResult =
+  | Exclude<TimedCompetitionFinalizationResult, { kind: 'no_due_finalization' }>
+  | Extract<
+      TimedCompetitionManualBeginResult,
+      { kind: 'competition_not_found' | 'forbidden' | 'finalization_locked' }
+    >;
+
 export class TimedCompetitionFinalizationService {
   public constructor(
     private readonly repository: TimedCompetitionFinalizationRepository,
@@ -81,11 +106,72 @@ export class TimedCompetitionFinalizationService {
     private readonly failureReporter: TimedCompetitionFinalizationFailureReporter = {
       report: () => Promise.resolve(),
     },
+    private readonly audit?: {
+      record(event: {
+        context: Record<string, unknown>;
+        guildId: string;
+        occurredAt: Date;
+        operation: string;
+        severity: 'info';
+        type: 'competition-lifecycle';
+      }): unknown;
+    },
   ) {}
 
   public async finalizeDue(): Promise<TimedCompetitionFinalizationResult> {
     const competition = await this.repository.claimDueFinalization();
     if (competition === undefined) return { kind: 'no_due_finalization' };
+    return this.finalize(competition);
+  }
+
+  public async finalizeManually(
+    request: {
+      competitionId: string;
+      guildId: string;
+      hasAdministratorPermission: boolean;
+      memberRoleIds: readonly string[];
+      requesterDiscordUserId: string;
+    },
+    permissions: TimedCompetitionFinalizationPermissionEvaluator,
+  ): Promise<ManualTimedCompetitionFinalizationResult> {
+    const evaluated = await permissions.evaluate({
+      guildId: request.guildId,
+      hasAdministratorPermission: request.hasAdministratorPermission,
+      memberRoleIds: request.memberRoleIds,
+    });
+    const begin = await this.repository.beginManualFinalization({
+      canManageCompetitions: evaluated.canManageCompetitions,
+      competitionId: request.competitionId,
+      guildId: request.guildId,
+      requesterDiscordUserId: request.requesterDiscordUserId,
+    });
+    if (begin.kind !== 'ready_to_finalize') return begin;
+    const result = await this.finalize(begin.competition);
+    if (result.kind === 'finished' || result.kind === 'finish_pending') {
+      try {
+        this.audit?.record({
+          context: {
+            competitionId: request.competitionId,
+            outcome: result.kind,
+            requesterDiscordUserId: request.requesterDiscordUserId,
+            ...(result.kind === 'finished' ? { isResultDelayed: result.isResultDelayed } : {}),
+          },
+          guildId: request.guildId,
+          occurredAt: this.now(),
+          operation: 'competition.manual_finalization',
+          severity: 'info',
+          type: 'competition-lifecycle',
+        });
+      } catch {
+        // Administrative logging must not undo a durable finalization or retry state.
+      }
+    }
+    return result;
+  }
+
+  private async finalize(
+    competition: DueTimedCompetitionFinalization,
+  ): Promise<Exclude<TimedCompetitionFinalizationResult, { kind: 'no_due_finalization' }>> {
     let outcomes = await this.fetchAll(competition.accounts, competition.metric);
     if (outcomes.some((outcome) => outcome.kind === 'failure'))
       outcomes = await this.fetchAll(competition.accounts, competition.metric);
