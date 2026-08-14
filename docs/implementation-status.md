@@ -19,10 +19,10 @@ merged.
 - Stage 6 - Lookups and permanent leaderboards for the approved
   slash-command-only v1 scope.
 - Stage 7 - Daily recap configuration, collection, preview, durable delivery,
-  and automatic scheduling. The configured Debian private beta has completed
-  its operational acceptance and has run continuously without reported issues;
-  backup and restore guarantees remain explicitly deferred for this small
-  private beta.
+  and automatic scheduling. The Debian runbook defines the required
+  real-server acceptance checks; this repository does not contain a dated
+  record that those checks have been performed. Backup and restore guarantees
+  remain explicitly deferred for this small private beta.
 
 ## Current implementation stage
 
@@ -389,6 +389,15 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
+`3d803e1` (2026-08-13) - Merge manual timed competition finalization.
+
+This merged the authorized `/competition finish` flow for active timed
+competitions. The bounded, guild- and initiator-bound selection and explicit
+confirmation share the existing guild-locked finalization, fresh Hiscores,
+durable retry, result-delivery, and recovery path. Successful and pending
+manual finalization outcomes create optional administrative audit records
+without undoing the durable state change if local logging fails.
+
 `dc2e77b` (2026-08-13) - Merge finished-competition account deletion.
 
 This merged the guild-scoped terminal-history deletion rule. An account retained
@@ -726,20 +735,18 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-`codex/manual-timed-competition-finalization` adds the missing authorized
-manual-completion path for active timed competitions. It uses a bounded,
-guild- and initiator-bound `/competition finish` selection and explicit
-confirmation, then shares the existing guild-locked finalization, fresh
-Hiscores, durable retry, result-delivery, and recovery path. Successful and
-pending manual finalization outcomes create optional administrative audit
-records without undoing the durable state change if local logging fails.
+`codex/competition-private-beta-acceptance` prepares and records the smallest
+Stage 9 operational acceptance slice. It adds a real-server competition
+checklist covering restart during an active competition plus automatic result
+delivery or durable delivery recovery. The production exercise has not yet
+been performed or recorded, so this work is not complete.
 
 ## Next recommended branch-sized task
 
-After the current manual timed-competition-finalization branch merges, take
-the smallest Stage 9 slice: execute and record the real-server competition
-acceptance checklist, including a restart during an active competition and an
-automatic result delivery or recovery check. The existing daily-recap and
-restart acceptance remains recorded for the configured private beta. Do not
-claim broader production backup or restore guarantees, which remain explicitly
-deferred for this private beta.
+Execute and record the real-server competition acceptance checklist on the
+configured Debian private-beta host, including a restart during an active
+competition and automatic result delivery or durable recovery. The repository
+also has no dated record of the daily-recap and restart acceptance result, so
+record those applicable checks before claiming private-beta operational
+readiness. Do not claim broader production backup or restore guarantees, which
+remain explicitly deferred for this private beta.
