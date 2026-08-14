@@ -753,6 +753,16 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Latest merged implementation work
 
+`f36356b` (2026-08-14) - Merge current Discord member-presence initialization.
+
+This merged the configured-guild startup reconciliation needed for temporary
+competition roles to reach existing eligible Discord-member entrants. The
+reconciliation marks members absent when they left while the bot was offline,
+serializes the startup snapshot with live member events so later departures
+win, and prevents in-flight role-recovery startup from reactivating after
+shutdown. Focused unit, runtime, and PostgreSQL integration coverage verifies
+the reconciliation and shutdown paths.
+
 `de3d723` (2026-08-14) - Merge Discord interaction dispatcher.
 
 This merged the shared runtime-owned Discord interaction dispatcher. All
