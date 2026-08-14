@@ -388,8 +388,8 @@ DRAFT -> START_PENDING -> ACTIVE -> FINISH_PENDING -> FINISHED
   +------------+------------+--------------+----> CANCELLED
 ```
 
-`DRAFT` may transition directly to `ACTIVE` when all manual-start snapshots
-succeed immediately. `ACTIVE` may transition directly to `FINISHED` when all
+`DRAFT` transitions through the due-time scheduler when its configured intended
+start is reached. `ACTIVE` may transition directly to `FINISHED` when all
 final values succeed immediately. Pending states make delayed external work
 visible and recoverable.
 

@@ -760,6 +760,14 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Latest merged implementation work
 
+`f05391e` (2026-08-14) - Record competition private-beta acceptance.
+
+This merged the status record for the successful configured-Debian real-server
+timed-competition exercise: configured-channel delivery, present-member role
+assignment, restart-visible standings, automatic finalization, retained
+history, and role cleanup. The separate target-race acceptance exercise remains
+the outstanding Stage 9 confidence check.
+
 `221eeb2` (2026-08-14) - Merge competition-start embed presentation.
 
 This merged the competition-start announcement presentation update. Public
@@ -791,8 +799,11 @@ both cleanup paths.
 
 ## Next recommended branch-sized task
 
-Run a separate real-server target-race exercise, including a verified
-`/competition claim`, as additional Stage 9 confidence coverage. This is not a
-blocker to the completed private-beta readiness checklist. Do not claim broader
-production backup or restore guarantees, which remain explicitly deferred for
-this beta.
+Complete and merge the current `codex/scheduled-competition-creation` branch.
+It implements the approved product decision that every competition is created
+with an automatic local start time; timed competitions collect local start and
+end times, target-race deadlines use optional whole hours after start, and
+`/competition start` plus `/competition schedule` are retired from the Discord
+command surface. The branch must not be recorded as completed until it is
+merged. Afterward, run a separate real-server target-race exercise, including a
+verified `/competition claim`, as additional Stage 9 confidence coverage.

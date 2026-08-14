@@ -544,10 +544,17 @@ Finished and cancelled competitions remain viewable as history.
 
 ## 24. Starting competitions
 
-Competitions may start:
+Every competition is created as a scheduled draft and starts automatically at
+its configured local date and time. Creation collects the date and time in the
+competition's timezone, and the public draft announcement shows Discord-native
+start timestamps, the competition type, and the selected skill or boss. Members
+may join or be added while the competition remains a draft.
 
-- Manually.
-- Automatically at a scheduled time.
+Timed competitions collect both a local start and local end date and time. The
+stored intended duration is the elapsed time between those instants. Target
+races collect a local start date and time, their target, and an optional whole-
+hour deadline after the actual start. Slash-command users must never calculate
+or enter duration or deadline seconds.
 
 Every selected contributing account must have a trustworthy starting value before the competition becomes active.
 
@@ -572,6 +579,9 @@ The default is the Discord server’s configured timezone.
 The initial default server timezone is `Europe/Helsinki`, but each server may change it.
 
 Discord-native timestamps should be used so scheduled times display correctly for each user’s local timezone.
+
+There is no manual-start or separate scheduling command. An authorized creator
+or competition manager may cancel a draft before it begins.
 
 ## 26. Finishing timed competitions
 

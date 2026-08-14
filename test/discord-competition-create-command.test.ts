@@ -28,9 +28,7 @@ describe('Discord competition create command', () => {
       'leave',
       'add',
       'remove',
-      'start',
       'finish',
-      'schedule',
       'standings',
       'history',
       'claim',
@@ -69,20 +67,23 @@ describe('Discord competition create command', () => {
         hasAdministratorPermission: false,
         memberRoleIds: ['competition-manager'],
         requesterDiscordUserId: 'manager-one',
-        value: '604800',
+        endLocalDateTime: '2026-08-16 21:00',
+        startLocalDateTime: '2026-08-15 09:00',
+        value: '',
       }),
-    ).resolves.toEqual({ kind: 'created', competitionName: 'Weekend Woodcutting' });
+    ).resolves.toMatchObject({ kind: 'created', competitionName: 'Weekend Woodcutting' });
 
     expect(competitions.requests).toEqual([
       {
         createdByDiscordUserId: 'manager-one',
-        durationSeconds: 604800,
+        durationSeconds: 129600,
         guildId: 'guild-one',
         hasAdministratorPermission: false,
         memberRoleIds: ['competition-manager'],
         metric: { kind: 'skill', name: 'Woodcutting' },
         name: ' Weekend Woodcutting ',
         timezone: 'Europe/Helsinki',
+        intendedStartAt: new Date('2026-08-15T06:00:00.000Z'),
         type: 'most_skill_xp',
       },
     ]);
@@ -116,7 +117,8 @@ describe('Discord competition create command', () => {
       hasAdministratorPermission: true,
       memberRoleIds: [],
       requesterDiscordUserId: 'manager-one',
-      deadline: '604800',
+      deadlineHours: '168',
+      startLocalDateTime: '2026-08-15 09:00',
       value: '1000000000000',
     });
 
@@ -176,7 +178,7 @@ describe('Discord competition create command', () => {
           modal
             .toJSON()
             .components.flatMap((row) => row.components.map((input) => input.custom_id)),
-        ).toEqual(['value', 'deadline']);
+        ).toEqual(['value', 'start', 'deadline-hours']);
         return Promise.resolve();
       },
     );
@@ -242,13 +244,46 @@ describe('Discord competition create command', () => {
       hasAdministratorPermission: true,
       memberRoleIds: [],
       requesterDiscordUserId: 'manager-one',
-      value: '86400',
+      endLocalDateTime: '2026-08-16 21:00',
+      startLocalDateTime: '2026-08-15 09:00',
+      value: '',
     });
 
     expect(competitions.requests).toHaveLength(1);
     expect(competitions.requests[0]).toMatchObject({
       metric: { kind: 'skill', name: 'Mining' },
       type: 'most_skill_xp',
+    });
+  });
+
+  it('maps malformed, timezone, daylight-saving, and invalid end-time schedule input to private failures', async () => {
+    await expect(
+      submitTimedDetails({ startLocalDateTime: 'Saturday morning' }),
+    ).resolves.toMatchObject({
+      kind: 'failed',
+      message: 'Enter the start time as `YYYY-MM-DD HH:mm`.',
+    });
+    await expect(submitTimedDetails({}, 'Not/A_Timezone')).resolves.toMatchObject({
+      kind: 'failed',
+      message: 'This server has an invalid timezone. Ask an administrator to correct it.',
+    });
+    await expect(
+      submitTimedDetails({ startLocalDateTime: '2026-03-29 03:30' }),
+    ).resolves.toMatchObject({
+      kind: 'failed',
+      message: 'That start time does not exist because of daylight saving. Choose another time.',
+    });
+    await expect(
+      submitTimedDetails({ endLocalDateTime: '2026-10-25 03:30' }),
+    ).resolves.toMatchObject({
+      kind: 'failed',
+      message: 'That end time is ambiguous because of daylight saving. Choose another time.',
+    });
+    await expect(
+      submitTimedDetails({ endLocalDateTime: '2026-08-15 08:59' }),
+    ).resolves.toMatchObject({
+      kind: 'failed',
+      message: 'The end time must be after the start time.',
     });
   });
 
@@ -297,11 +332,37 @@ describe('Discord competition create command', () => {
       replies.push(reply);
       return Promise.resolve();
     });
-    await adapter.handle(valueModalInteraction(valueCustomId, deferReply, editReply) as never);
+    const send = vi.fn<
+      (message: {
+        embeds: readonly {
+          toJSON(): {
+            color?: number;
+            description?: string;
+            fields?: readonly { name: string; value: string }[];
+            title?: string;
+          };
+        }[];
+      }) => Promise<void>
+    >(() => Promise.resolve());
+    await adapter.handle(
+      valueModalInteraction(valueCustomId, deferReply, editReply, { send }) as never,
+    );
 
     expect(deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
     expect(replies).toHaveLength(1);
     expect(replies[0]?.content).toContain('Created');
+    expect(send).toHaveBeenCalledOnce();
+    const [announcement] = send.mock.calls[0]!;
+    const embed = announcement.embeds[0]?.toJSON();
+    expect(embed).toMatchObject({
+      color: 0xd99b36,
+      description: 'The person who gains the most **Mining XP** wins.',
+      title: 'Mining week',
+    });
+    const fields = embed?.fields ?? [];
+    expect(fields.find((field) => field.name === 'Starts')?.value).toContain('<t:');
+    expect(fields.find((field) => field.name === 'Ends')?.value).toContain('<t:');
+    expect(fields.find((field) => field.name === 'Join')?.value).toContain('/competition join');
   });
 });
 
@@ -317,6 +378,7 @@ class CompetitionStub {
       durationSeconds: request.durationSeconds ?? null,
       guildId: request.guildId,
       id: 'competition-one',
+      intendedStartAt: request.intendedStartAt,
       metric: request.metric,
       normalizedName: request.name.trim().toLowerCase(),
       state: 'draft',
@@ -330,6 +392,8 @@ class CompetitionStub {
 }
 
 class ConfigurationStub {
+  public constructor(private readonly timezone = 'Europe/Helsinki') {}
+
   public getOrCreate(): Promise<GuildConfiguration> {
     return Promise.resolve({
       administrativeLogChannelId: null,
@@ -341,9 +405,43 @@ class ConfigurationStub {
       recapChannelId: null,
       recapEnabled: false,
       recapLocalTime: null,
-      timezone: 'Europe/Helsinki',
+      timezone: this.timezone,
     });
   }
+}
+
+async function submitTimedDetails(
+  overrides: Partial<{ endLocalDateTime: string; startLocalDateTime: string }>,
+  timezone?: string,
+) {
+  const handler = new CompetitionCreateCommandHandler(
+    new CompetitionStub(),
+    new ConfigurationStub(timezone),
+  );
+  const start = handler.start('guild-one', 'manager-one');
+  if (start.kind !== 'name_required') throw new Error('Expected competition name input.');
+  const name = handler.submitName('guild-one', 'manager-one', start.customId, 'Scheduled Mining');
+  if (name.kind !== 'type_selection') throw new Error('Expected type selection.');
+  const type = handler.selectType('guild-one', 'manager-one', name.customId, 'most_skill_xp');
+  if (type.kind !== 'metric_selection') throw new Error('Expected metric selection.');
+  const metric = handler.selectMetric(
+    'guild-one',
+    'manager-one',
+    type.customIdForGroup(0),
+    'Mining',
+  );
+  if (metric.kind !== 'value_required') throw new Error('Expected schedule input.');
+  return handler.submitValue({
+    customId: metric.customId,
+    endLocalDateTime: '2026-08-16 21:00',
+    guildId: 'guild-one',
+    hasAdministratorPermission: true,
+    memberRoleIds: [],
+    requesterDiscordUserId: 'manager-one',
+    startLocalDateTime: '2026-08-15 09:00',
+    value: '',
+    ...overrides,
+  });
 }
 
 class FakeClock {
@@ -383,12 +481,17 @@ function valueModalInteraction(
   customId: string,
   deferReply: ReturnType<typeof vi.fn>,
   editReply: ReturnType<typeof vi.fn>,
+  channel?: { send: ReturnType<typeof vi.fn> },
 ) {
   return {
     customId,
+    channel,
     fields: {
-      fields: { get: () => undefined },
-      getTextInputValue: () => '86400',
+      fields: {
+        get: (inputId: string) => (inputId === 'end' ? { value: '2026-08-16 21:00' } : undefined),
+      },
+      getTextInputValue: (inputId: string) =>
+        inputId === 'start' ? '2026-08-15 09:00' : inputId === 'end' ? '2026-08-16 21:00' : '',
     },
     guildId: 'guild-one',
     isChatInputCommand: () => false,

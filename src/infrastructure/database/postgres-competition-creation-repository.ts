@@ -22,7 +22,7 @@ export class PostgresCompetitionCreationRepository implements CompetitionCreatio
           durationSeconds: draft.durationSeconds,
           guildId: draft.guildId,
           id: draft.id,
-          intendedStartAt: draft.intendedStartAt ?? null,
+          intendedStartAt: draft.intendedStartAt,
           metricKind: draft.metric.kind,
           metricName: draft.metric.name,
           normalizedName: draft.normalizedName,
@@ -58,7 +58,7 @@ function toCompetitionDraft(stored: typeof competitions.$inferSelect): Competiti
     durationSeconds: stored.durationSeconds,
     guildId: stored.guildId,
     id: stored.id,
-    intendedStartAt: stored.intendedStartAt ?? undefined,
+    intendedStartAt: requiredIntendedStartAt(stored.intendedStartAt),
     metric: { kind: stored.metricKind, name: stored.metricName },
     normalizedName: stored.normalizedName,
     state: stored.state,
@@ -67,4 +67,9 @@ function toCompetitionDraft(stored: typeof competitions.$inferSelect): Competiti
     type: stored.type,
     updatedAt: stored.updatedAt,
   };
+}
+
+function requiredIntendedStartAt(value: Date | null): Date {
+  if (value === null) throw new Error('A newly created competition must have an intended start.');
+  return value;
 }

@@ -1,6 +1,7 @@
 import {
   ActionRowBuilder,
   ChannelType,
+  EmbedBuilder,
   Events,
   MessageFlags,
   ModalBuilder,
@@ -25,15 +26,19 @@ import {
   type CreateCompetitionRequest,
   type CreateCompetitionResult,
 } from '../../features/competitions/create-competition.js';
+import { resolveScheduledCompetitionStart } from '../../features/competitions/resolve-scheduled-start.js';
 import type { GuildConfigurationService } from '../../features/guild-configuration/guild-configuration-service.js';
 import { OSRS_BOSS_ACTIVITY_NAMES, OSRS_SKILL_NAMES } from '../hiscores/osrs-hiscore-catalog.js';
 import { bossChoiceMenuRows } from './boss-choice-menu.js';
+import { OSLEADERS_EMBED_COLOR } from './discord-embed-presentation.js';
 
 const COMMAND_NAME = 'competition';
 const INTERACTION_PREFIX = 'osleaders:competition-create';
 const NAME_INPUT_ID = 'name';
 const VALUE_INPUT_ID = 'value';
-const DEADLINE_INPUT_ID = 'deadline';
+const START_INPUT_ID = 'start';
+const END_INPUT_ID = 'end';
+const DEADLINE_HOURS_INPUT_ID = 'deadline-hours';
 const SESSION_LIFETIME_MS = 5 * 60 * 1_000;
 const MAX_PENDING_SESSIONS = 1_000;
 
@@ -58,13 +63,7 @@ export const competitionCommandDefinitions = [
       subcommand.setName('remove').setDescription('Remove a participant from a competition draft.'),
     )
     .addSubcommand((subcommand) =>
-      subcommand.setName('start').setDescription('Start a competition manually.'),
-    )
-    .addSubcommand((subcommand) =>
       subcommand.setName('finish').setDescription('Finish an active timed competition manually.'),
-    )
-    .addSubcommand((subcommand) =>
-      subcommand.setName('schedule').setDescription('Schedule a competition draft to start.'),
     )
     .addSubcommand((subcommand) =>
       subcommand.setName('standings').setDescription('View active competition standings.'),
@@ -202,7 +201,15 @@ export type CompetitionCreateCommandResult =
       metric: 'boss' | 'skill';
     }
   | { kind: 'value_required'; customId: string; type: CompetitionType }
-  | { kind: 'created'; competitionName: string }
+  | {
+      kind: 'created';
+      competitionName: string;
+      durationSeconds: number | null;
+      intendedStartAt: Date;
+      metric: CompetitionMetric;
+      targetValue: bigint | null;
+      type: CompetitionType;
+    }
   | { kind: 'failed'; message: string }
   | { kind: 'expired'; message: string }
   | { kind: 'forbidden'; message: string }
@@ -298,7 +305,9 @@ export class CompetitionCreateCommandHandler {
     hasAdministratorPermission: boolean;
     memberRoleIds: readonly string[];
     requesterDiscordUserId: string;
-    deadline?: string;
+    deadlineHours?: string;
+    endLocalDateTime?: string;
+    startLocalDateTime?: string;
     value: string;
   }): Promise<CompetitionCreateCommandResult> {
     const sessionId = decode(request.customId, 'value');
@@ -309,20 +318,45 @@ export class CompetitionCreateCommandHandler {
     if (!isCompleteSession(session) || session.step !== 'value') {
       return invalidFlow();
     }
-    const numericValue = parsePositiveInteger(request.value);
-    if (numericValue === undefined) return invalidDefinition();
-    const deadlineSeconds = parseOptionalDuration(request.deadline ?? '');
-    if (deadlineSeconds === 'invalid') return invalidDefinition();
     const configuration = await this.configuration.getOrCreate(binding.guildId);
+    const start = resolveScheduledCompetitionStart(
+      request.startLocalDateTime ?? '',
+      configuration.timezone,
+    );
+    if (start.kind !== 'resolved') return scheduleFailure(start.kind, 'start');
+    const targetRace = isTargetRace(session.type);
+    const numericValue = parsePositiveInteger(request.value) ?? 0n;
+    if (targetRace && numericValue === 0n) return invalidDefinition();
+    const deadlineSeconds = parseDeadlineHours(request.deadlineHours ?? '');
+    if (deadlineSeconds === 'invalid') return invalidDefinition();
+    let durationSeconds: number | undefined;
+    if (!targetRace) {
+      const end = resolveScheduledCompetitionStart(
+        request.endLocalDateTime ?? '',
+        configuration.timezone,
+      );
+      if (end.kind !== 'resolved') return scheduleFailure(end.kind, 'end');
+      durationSeconds = Math.floor(
+        (end.intendedStartAt.getTime() - start.intendedStartAt.getTime()) / 1_000,
+      );
+    }
+    if (!targetRace && (durationSeconds === undefined || durationSeconds <= 0)) {
+      return {
+        kind: 'failed',
+        message: 'The end time must be after the start time.',
+      };
+    }
     const result = await this.competitions.create(
       createRequest({
         configurationTimezone: configuration.timezone,
         hasAdministratorPermission: request.hasAdministratorPermission,
         memberRoleIds: request.memberRoleIds,
         deadlineSeconds,
+        durationSeconds,
         numericValue,
         requesterDiscordUserId: request.requesterDiscordUserId,
         session,
+        intendedStartAt: start.intendedStartAt,
       }),
     );
     return creationResult(result);
@@ -364,20 +398,35 @@ export class DiscordCompetitionCreateCommandAdapter {
         });
       } else if (decode(interaction.customId, 'value') !== undefined) {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-        await interaction.editReply(
-          response(
-            await this.handler.submitValue({
-              customId: interaction.customId,
-              guildId: interaction.guildId,
-              hasAdministratorPermission:
-                interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) ?? false,
-              memberRoleIds: memberRoleIds(interaction),
-              requesterDiscordUserId: interaction.user.id,
-              deadline: optionalTextInputValue(interaction, DEADLINE_INPUT_ID),
-              value: interaction.fields.getTextInputValue(VALUE_INPUT_ID),
-            }),
-          ),
-        );
+        const result = await this.handler.submitValue({
+          customId: interaction.customId,
+          guildId: interaction.guildId,
+          hasAdministratorPermission:
+            interaction.memberPermissions?.has(PermissionFlagsBits.Administrator) ?? false,
+          memberRoleIds: memberRoleIds(interaction),
+          requesterDiscordUserId: interaction.user.id,
+          deadlineHours: optionalTextInputValue(interaction, DEADLINE_HOURS_INPUT_ID),
+          endLocalDateTime: optionalTextInputValue(interaction, END_INPUT_ID),
+          startLocalDateTime: interaction.fields.getTextInputValue(START_INPUT_ID),
+          value: optionalTextInputValue(interaction, VALUE_INPUT_ID),
+        });
+        await interaction.editReply(response(result));
+        if (
+          result.kind === 'created' &&
+          interaction.channel !== null &&
+          interaction.channel !== undefined &&
+          'send' in interaction.channel &&
+          typeof interaction.channel.send === 'function'
+        ) {
+          try {
+            await interaction.channel.send({ embeds: [draftAnnouncementEmbed(result)] });
+          } catch {
+            await interaction.editReply({
+              components: [],
+              content: `Created **${result.competitionName}**, but I could not publish its announcement.`,
+            });
+          }
+        }
       }
       return;
     }
@@ -445,16 +494,16 @@ function nameModal(customId: string): ModalBuilder {
 }
 
 function valueModal(customId: string, type: CompetitionType): ModalBuilder {
-  const targetRace = type === 'skill_xp_target_race' || type === 'boss_kc_target_race';
+  const targetRace = isTargetRace(type);
   return new ModalBuilder()
     .setCustomId(customId)
     .setTitle('Competition details')
     .addComponents(
       new ActionRowBuilder<TextInputBuilder>().addComponents(
         new TextInputBuilder()
-          .setCustomId(VALUE_INPUT_ID)
-          .setLabel(targetRace ? 'Target gain' : 'Duration in seconds')
-          .setPlaceholder(targetRace ? 'For example: 1000000' : 'For example: 604800')
+          .setCustomId(targetRace ? VALUE_INPUT_ID : START_INPUT_ID)
+          .setLabel(targetRace ? 'Target gain' : 'Start date and time')
+          .setPlaceholder(targetRace ? 'For example: 1000000' : 'YYYY-MM-DD HH:mm')
           .setRequired(true)
           .setStyle(TextInputStyle.Short),
       ),
@@ -462,14 +511,31 @@ function valueModal(customId: string, type: CompetitionType): ModalBuilder {
         ? [
             new ActionRowBuilder<TextInputBuilder>().addComponents(
               new TextInputBuilder()
-                .setCustomId(DEADLINE_INPUT_ID)
-                .setLabel('Deadline in seconds (optional)')
-                .setPlaceholder('For example: 604800')
+                .setCustomId(START_INPUT_ID)
+                .setLabel('Start date and time')
+                .setPlaceholder('YYYY-MM-DD HH:mm')
+                .setRequired(true)
+                .setStyle(TextInputStyle.Short),
+            ),
+            new ActionRowBuilder<TextInputBuilder>().addComponents(
+              new TextInputBuilder()
+                .setCustomId(DEADLINE_HOURS_INPUT_ID)
+                .setLabel('Deadline after start in hours (optional)')
+                .setPlaceholder('For example: 36')
                 .setRequired(false)
                 .setStyle(TextInputStyle.Short),
             ),
           ]
-        : []),
+        : [
+            new ActionRowBuilder<TextInputBuilder>().addComponents(
+              new TextInputBuilder()
+                .setCustomId(END_INPUT_ID)
+                .setLabel('End date and time')
+                .setPlaceholder('YYYY-MM-DD HH:mm')
+                .setRequired(true)
+                .setStyle(TextInputStyle.Short),
+            ),
+          ]),
     );
 }
 
@@ -503,7 +569,7 @@ function response(result: CompetitionCreateCommandResult) {
     case 'created':
       return {
         components: [],
-        content: `Created the draft competition **${result.competitionName}**.`,
+        content: `Created **${result.competitionName}**. Its public announcement includes the automatic start time.`,
       };
     case 'value_required':
       return { components: [], content: 'Choose the competition metric again.' };
@@ -530,9 +596,11 @@ function select(
 function createRequest(input: {
   configurationTimezone: string;
   deadlineSeconds: number | undefined;
+  durationSeconds: number | undefined;
   hasAdministratorPermission: boolean;
   memberRoleIds: readonly string[];
   numericValue: bigint;
+  intendedStartAt: Date;
   requesterDiscordUserId: string;
   session: CompletedCompetitionCreateSession;
 }): CreateCompetitionRequest {
@@ -542,6 +610,7 @@ function createRequest(input: {
     hasAdministratorPermission: input.hasAdministratorPermission,
     memberRoleIds: input.memberRoleIds,
     name: input.session.name,
+    intendedStartAt: input.intendedStartAt,
     timezone: input.configurationTimezone,
   };
   switch (input.session.type) {
@@ -550,7 +619,7 @@ function createRequest(input: {
         throw new Error('A skill competition requires a skill metric.');
       return {
         ...base,
-        durationSeconds: Number(input.numericValue),
+        durationSeconds: input.durationSeconds!,
         metric: input.session.metric,
         type: input.session.type,
       };
@@ -559,7 +628,7 @@ function createRequest(input: {
         throw new Error('A boss competition requires a boss metric.');
       return {
         ...base,
-        durationSeconds: Number(input.numericValue),
+        durationSeconds: input.durationSeconds!,
         metric: input.session.metric,
         type: input.session.type,
       };
@@ -601,7 +670,15 @@ function isCompleteSession(
 function creationResult(result: CreateCompetitionResult): CompetitionCreateCommandResult {
   switch (result.kind) {
     case 'created':
-      return { kind: 'created', competitionName: result.competition.displayName };
+      return {
+        kind: 'created',
+        competitionName: result.competition.displayName,
+        durationSeconds: result.competition.durationSeconds,
+        intendedStartAt: result.competition.intendedStartAt,
+        metric: result.competition.metric,
+        targetValue: result.competition.targetValue,
+        type: result.competition.type,
+      };
     case 'forbidden':
       return {
         kind: 'forbidden',
@@ -640,11 +717,87 @@ function parsePositiveInteger(value: string): bigint | undefined {
   }
 }
 
-function parseOptionalDuration(value: string): number | 'invalid' | undefined {
+function parseDeadlineHours(value: string): number | 'invalid' | undefined {
   if (value.trim() === '') return undefined;
   const parsed = parsePositiveInteger(value);
-  if (parsed === undefined || parsed > BigInt(Number.MAX_SAFE_INTEGER)) return 'invalid';
-  return Number(parsed);
+  if (parsed === undefined || parsed > 596_523n) return 'invalid';
+  return Number(parsed) * 60 * 60;
+}
+
+function draftAnnouncementEmbed(
+  result: Extract<CompetitionCreateCommandResult, { kind: 'created' }>,
+): EmbedBuilder {
+  const startTimestamp = `<t:${Math.floor(result.intendedStartAt.getTime() / 1_000)}:F>`;
+  const fields = [
+    {
+      name: 'Starts',
+      value: `${startTimestamp} (<t:${Math.floor(result.intendedStartAt.getTime() / 1_000)}:R>)`,
+    },
+  ];
+  if (result.targetValue !== null) {
+    fields.push({
+      name: 'Deadline',
+      value:
+        result.durationSeconds === null
+          ? 'No deadline — first verified claim wins.'
+          : `<t:${Math.floor((result.intendedStartAt.getTime() + result.durationSeconds * 1_000) / 1_000)}:F>`,
+    });
+  } else if (result.durationSeconds !== null) {
+    fields.push({
+      name: 'Ends',
+      value: `<t:${Math.floor((result.intendedStartAt.getTime() + result.durationSeconds * 1_000) / 1_000)}:F>`,
+    });
+  }
+  fields.push({ name: 'Join', value: 'Use `/competition join` before the competition starts.' });
+  return new EmbedBuilder()
+    .setColor(OSLEADERS_EMBED_COLOR)
+    .setTitle(result.competitionName)
+    .setDescription(competitionObjective(result))
+    .addFields(fields)
+    .setFooter({ text: 'Competition announcement' });
+}
+
+function competitionObjective(
+  result: Extract<CompetitionCreateCommandResult, { kind: 'created' }>,
+): string {
+  const metric = `**${result.metric.name} ${result.metric.kind === 'skill' ? 'XP' : 'kills'}**`;
+  switch (result.type) {
+    case 'most_skill_xp':
+    case 'most_boss_kc':
+      return `The person who gains the most ${metric} wins.`;
+    case 'skill_xp_target_race':
+    case 'boss_kc_target_race':
+      return `Be the first to gain **${result.targetValue!.toLocaleString('en-US')} ${result.metric.name} ${result.metric.kind === 'skill' ? 'XP' : 'kills'}** and claim the win.`;
+  }
+}
+
+function isTargetRace(type: CompetitionType): boolean {
+  return type === 'skill_xp_target_race' || type === 'boss_kc_target_race';
+}
+
+function scheduleFailure(
+  kind: 'invalid_format' | 'invalid_timezone' | 'nonexistent_local_time' | 'ambiguous_local_time',
+  boundary: 'start' | 'end',
+): CompetitionCreateCommandResult {
+  switch (kind) {
+    case 'invalid_format':
+      return { kind: 'failed', message: `Enter the ${boundary} time as \`YYYY-MM-DD HH:mm\`.` };
+    case 'invalid_timezone':
+      return {
+        kind: 'failed',
+        message: 'This server has an invalid timezone. Ask an administrator to correct it.',
+      };
+    case 'nonexistent_local_time':
+      return {
+        kind: 'failed',
+        message: `That ${boundary} time does not exist because of daylight saving. Choose another time.`,
+      };
+    case 'ambiguous_local_time':
+      return {
+        kind: 'failed',
+        message: `That ${boundary} time is ambiguous because of daylight saving. Choose another time.`,
+      };
+  }
 }
 
 function optionalTextInputValue(interaction: ModalSubmitInteraction, customId: string): string {

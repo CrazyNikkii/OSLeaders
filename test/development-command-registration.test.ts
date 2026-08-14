@@ -38,7 +38,8 @@ describe('development Discord command registration', () => {
         'options' in command &&
         Array.isArray(command.options),
     );
-    expect(competition?.options).toContainEqual(expect.objectContaining({ name: 'start' }));
+    expect(competition?.options).not.toContainEqual(expect.objectContaining({ name: 'start' }));
+    expect(competition?.options).not.toContainEqual(expect.objectContaining({ name: 'schedule' }));
     expect(competition?.options).toContainEqual(expect.objectContaining({ name: 'standings' }));
     expect(competition?.options).toContainEqual(expect.objectContaining({ name: 'claim' }));
   });
