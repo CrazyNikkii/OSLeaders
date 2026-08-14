@@ -61,6 +61,51 @@ describe('development Discord runtime', () => {
     await runtime.close();
   });
 
+  it('initializes configured-guild member presence before starting role recovery', async () => {
+    const dependencies = new RuntimeDependencies();
+    const runtime = await startDevelopmentDiscordRuntime(
+      configuration(),
+      dependencies.asDependencies(),
+    );
+
+    dependencies.emitReady();
+
+    await vi.waitFor(() =>
+      expect(dependencies.initializeGuildMemberPresence).toHaveBeenCalledWith(
+        dependencies.client,
+        expect.anything(),
+        'development-guild-one',
+      ),
+    );
+    await vi.waitFor(() =>
+      expect(dependencies.competitionRoleRecoveryScheduler.start).toHaveBeenCalledOnce(),
+    );
+    expect(dependencies.initializeGuildMemberPresence.mock.invocationCallOrder[0]).toBeLessThan(
+      dependencies.competitionRoleRecoveryScheduler.start.mock.invocationCallOrder[0]!,
+    );
+    await runtime.close();
+  });
+
+  it('does not start role recovery when shutdown completes while presence initialization is pending', async () => {
+    const dependencies = new RuntimeDependencies();
+    const initialization = deferred<void>();
+    dependencies.initializeGuildMemberPresence.mockReturnValueOnce(initialization.promise);
+    const runtime = await startDevelopmentDiscordRuntime(
+      configuration(),
+      dependencies.asDependencies(),
+    );
+
+    dependencies.emitReady();
+    await vi.waitFor(() =>
+      expect(dependencies.initializeGuildMemberPresence).toHaveBeenCalledOnce(),
+    );
+    await runtime.close();
+    initialization.resolve();
+
+    await Promise.resolve();
+    expect(dependencies.competitionRoleRecoveryScheduler.start).not.toHaveBeenCalled();
+  });
+
   it('closes allocated resources when PostgreSQL validation fails', async () => {
     const dependencies = new RuntimeDependencies();
     dependencies.pool.query.mockRejectedValueOnce(new Error('database unavailable'));
@@ -180,6 +225,7 @@ class RuntimeDependencies {
   };
   public readonly interactionHandlers: ((interaction: never) => void)[] = [];
   public readonly memberPresenceHandlers: ((member: never) => void)[] = [];
+  public readonly readyHandlers: (() => void)[] = [];
   public readonly client = {
     destroy: vi.fn(),
     login: vi.fn(() => Promise.resolve('token-one')),
@@ -197,9 +243,12 @@ class RuntimeDependencies {
         if (index >= 0) this.interactionHandlers.splice(index, 1);
       }
     }),
-    once: vi.fn(),
+    once: vi.fn((event: Events, listener: () => void) => {
+      if (event === Events.ClientReady) this.readyHandlers.push(listener);
+    }),
   };
   public readonly createClient = vi.fn(() => this.client as never);
+  public readonly initializeGuildMemberPresence = vi.fn(() => Promise.resolve());
   public readonly createDatabaseConnection = vi.fn(() => ({
     close: this.closeDatabase,
     database: this.database,
@@ -222,6 +271,10 @@ class RuntimeDependencies {
     stop: vi.fn(),
   };
   public readonly competitionStartDeliveryRecoveryScheduler = {
+    start: vi.fn(() => Promise.resolve()),
+    stop: vi.fn(),
+  };
+  public readonly competitionRoleRecoveryScheduler = {
     start: vi.fn(() => Promise.resolve()),
     stop: vi.fn(),
   };
@@ -253,12 +306,18 @@ class RuntimeDependencies {
       createCompetitionStartDeliveryRecoveryScheduler: vi.fn(
         () => this.competitionStartDeliveryRecoveryScheduler,
       ),
+      createCompetitionRoleRecoveryScheduler: vi.fn(() => this.competitionRoleRecoveryScheduler),
       createTargetRaceDeadlineFinalizationScheduler: this
         .createTargetRaceDeadlineFinalizationScheduler as never,
       createTimedCompetitionFinalizationScheduler: this
         .createTimedCompetitionFinalizationScheduler as never,
       createLogger: () => this.logger,
+      initializeGuildMemberPresence: this.initializeGuildMemberPresence,
     };
+  }
+
+  public emitReady(): void {
+    for (const listener of this.readyHandlers) listener();
   }
 }
 
@@ -281,5 +340,18 @@ function configuration(overrides: Partial<RuntimeConfiguration> = {}): RuntimeCo
     environment: 'development',
     logLevel: 'info',
     ...overrides,
+  };
+}
+
+function deferred<Value>() {
+  let resolve: ((value: Value) => void) | undefined;
+  const promise = new Promise<Value>((promiseResolve) => {
+    resolve = promiseResolve;
+  });
+  return {
+    promise,
+    resolve(value?: Value): void {
+      resolve?.(value as Value);
+    },
   };
 }

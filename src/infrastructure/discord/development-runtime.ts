@@ -130,6 +130,8 @@ import {
   bindDiscordMemberPresenceEventAdapter,
   DiscordMemberPresenceEventAdapter,
 } from './member-presence-events.js';
+import { initializeDiscordGuildMemberPresence } from './member-presence-initialization.js';
+import type { DiscordMemberPresenceSnapshotReconciler } from './member-presence-initialization.js';
 import {
   bindDiscordCompetitionCreateCommandAdapter,
   CompetitionCreateCommandHandler,
@@ -217,6 +219,11 @@ export interface DevelopmentDiscordRuntimeDependencies {
   createClient(): Client;
   createDatabaseConnection(configuration: RuntimeConfiguration['database']): DatabaseConnection;
   createLogger(): StructuredLocalLogger;
+  initializeGuildMemberPresence(
+    client: Client,
+    memberPresence: DiscordMemberPresenceSnapshotReconciler,
+    guildId: string,
+  ): Promise<void>;
   createDailyRecapDeliveryRecoveryScheduler(
     delivery: DailyRecapDeliveryService,
     logger: StructuredLocalLogger,
@@ -261,6 +268,7 @@ const defaultDependencies: DevelopmentDiscordRuntimeDependencies = {
     new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers] }),
   createDatabaseConnection,
   createLogger: () => new StdoutStructuredLocalLogger(),
+  initializeGuildMemberPresence: initializeDiscordGuildMemberPresence,
   createDailyRecapDeliveryRecoveryScheduler: (delivery, logger) =>
     new InProcessDailyRecapDeliveryRecoveryScheduler(delivery, logger),
   createAutomaticDailyRecapSchedulingScheduler: (schedules, logger) =>
@@ -291,14 +299,14 @@ export async function startDevelopmentDiscordRuntime(
   const connection = dependencies.createDatabaseConnection(configuration.database);
   const client = dependencies.createClient();
   let interactionDispatcher: DiscordInteractionDispatcher | undefined;
+  let isRuntimeOpen = true;
 
   try {
     await connection.pool.query('SELECT 1');
 
     const accountRepository = new PostgresAccountRegistrationRepository(connection.database);
-    const memberPresenceAdapter = new DiscordMemberPresenceEventAdapter(
-      new MemberPresenceService(accountRepository),
-    );
+    const memberPresence = new MemberPresenceService(accountRepository);
+    const memberPresenceAdapter = new DiscordMemberPresenceEventAdapter(memberPresence);
     const configurationRepository = new PostgresGuildConfigurationRepository(connection.database);
     const configurationService = new GuildConfigurationService(configurationRepository);
     const permissions = new GuildPermissionService(configurationRepository);
@@ -721,6 +729,15 @@ export async function startDevelopmentDiscordRuntime(
         severity: 'info',
         timestamp: new Date().toISOString(),
       });
+      void dependencies
+        .initializeGuildMemberPresence(client, memberPresenceAdapter, configuration.discord.guildId)
+        .then(() => {
+          if (isRuntimeOpen) return competitionRoleRecoveryScheduler?.start();
+          return undefined;
+        })
+        .catch((error: unknown) =>
+          reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
+        );
     });
     client.on(Events.Error, () => {
       logger.write({
@@ -732,7 +749,6 @@ export async function startDevelopmentDiscordRuntime(
 
     await client.login(configuration.discord.token);
     await competitionResultDeliveryRecoveryScheduler?.start();
-    await competitionRoleRecoveryScheduler?.start();
     await competitionStartDeliveryRecoveryScheduler?.start();
     await deliveryRecoveryScheduler.start();
     await automaticSchedulingScheduler.start();
@@ -754,8 +770,12 @@ export async function startDevelopmentDiscordRuntime(
       timedCompetitionFinalizationScheduler,
       competitionResultDeliveryRecoveryScheduler,
       competitionRoleRecoveryScheduler,
+      () => {
+        isRuntimeOpen = false;
+      },
     );
   } catch (error) {
+    isRuntimeOpen = false;
     interactionDispatcher?.stop();
     await client.destroy();
     await connection.close();
@@ -840,10 +860,12 @@ function createRuntime(
   competitionResultDeliveryRecoveryScheduler:
     CompetitionResultDeliveryRecoveryScheduler | undefined,
   competitionRoleRecoveryScheduler: CompetitionRoleRecoveryScheduler | undefined,
+  onClose: () => void,
 ): DevelopmentDiscordRuntime {
   let closePromise: Promise<void> | undefined;
   return {
     close: () => {
+      onClose();
       closePromise ??= closeRuntime(
         client,
         connection,

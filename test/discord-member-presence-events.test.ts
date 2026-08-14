@@ -53,6 +53,7 @@ describe('Discord member presence events', () => {
     const memberPresence = {
       markAbsent: vi.fn(() => absent.promise),
       markPresent: vi.fn(() => Promise.resolve(presence())),
+      reconcile: vi.fn(() => Promise.resolve()),
     };
     const client = new RecordingClient();
 
@@ -71,6 +72,32 @@ describe('Discord member presence events', () => {
     await vi.waitFor(() => expect(memberPresence.markPresent).toHaveBeenCalledOnce());
   });
 
+  it('applies a leave received during snapshot collection after the snapshot', async () => {
+    const snapshot = deferred<readonly string[]>();
+    const loadSnapshot = vi.fn(() => snapshot.promise);
+    const calls: string[] = [];
+    const adapter = new DiscordMemberPresenceEventAdapter({
+      markAbsent: vi.fn(() => {
+        calls.push('absent');
+        return Promise.resolve(presence());
+      }),
+      markPresent: vi.fn(() => Promise.resolve(presence())),
+      reconcile: vi.fn(() => {
+        calls.push('reconcile');
+        return Promise.resolve();
+      }),
+    });
+
+    const reconciliation = adapter.reconcileSnapshot('guild-one', loadSnapshot);
+    await vi.waitFor(() => expect(loadSnapshot).toHaveBeenCalledOnce());
+    const leaving = adapter.memberLeft(member('guild-one', 'member-one'));
+    snapshot.resolve(['member-one']);
+
+    await reconciliation;
+    await leaving;
+    await vi.waitFor(() => expect(calls).toEqual(['reconcile', 'absent']));
+  });
+
   it('reports a presence write failure without throwing from the Discord event listener', async () => {
     const error = new Error('database unavailable');
     const onError = vi.fn();
@@ -81,6 +108,7 @@ describe('Discord member presence events', () => {
       new DiscordMemberPresenceEventAdapter({
         markAbsent: () => Promise.resolve(presence()),
         markPresent: () => Promise.reject(error),
+        reconcile: () => Promise.resolve(),
       }),
       onError,
     );
@@ -119,6 +147,10 @@ class RecordingMemberPresence {
   public markPresent(guildId: string, userId: string) {
     this.calls.push({ guildId, kind: 'present', userId });
     return Promise.resolve(presence());
+  }
+
+  public reconcile(): Promise<void> {
+    return Promise.resolve();
   }
 }
 

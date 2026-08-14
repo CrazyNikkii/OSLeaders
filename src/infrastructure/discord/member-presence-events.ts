@@ -3,39 +3,47 @@ import { Events, type Client, type GuildMember } from 'discord.js';
 import type { MemberPresenceService } from '../../features/accounts/member-presence.js';
 
 export class DiscordMemberPresenceEventAdapter {
-  private readonly pendingTransitions = new Map<string, Promise<void>>();
+  private readonly pendingGuildTransitions = new Map<string, Promise<void>>();
 
   public constructor(
-    private readonly memberPresence: Pick<MemberPresenceService, 'markAbsent' | 'markPresent'>,
+    private readonly memberPresence: Pick<
+      MemberPresenceService,
+      'markAbsent' | 'markPresent' | 'reconcile'
+    >,
   ) {}
 
   public memberJoined(member: DiscordGuildMemberPresenceEvent): Promise<unknown> {
-    return this.schedule(member, () =>
+    return this.schedule(member.guild.id, () =>
       this.memberPresence.markPresent(member.guild.id, member.user.id),
     );
   }
 
   public memberLeft(member: DiscordGuildMemberPresenceEvent): Promise<unknown> {
-    return this.schedule(member, () =>
+    return this.schedule(member.guild.id, () =>
       this.memberPresence.markAbsent(member.guild.id, member.user.id),
     );
   }
 
-  private schedule(
-    member: DiscordGuildMemberPresenceEvent,
-    transition: () => Promise<unknown>,
-  ): Promise<unknown> {
-    const key = `${member.guild.id}:${member.user.id}`;
-    const previous = this.pendingTransitions.get(key) ?? Promise.resolve();
+  public reconcileSnapshot(
+    guildId: string,
+    loadPresentDiscordUserIds: () => Promise<readonly string[]>,
+  ): Promise<void> {
+    return this.schedule(guildId, async () =>
+      this.memberPresence.reconcile(guildId, await loadPresentDiscordUserIds()),
+    ).then(() => undefined);
+  }
+
+  private schedule(guildId: string, transition: () => Promise<unknown>): Promise<unknown> {
+    const previous = this.pendingGuildTransitions.get(guildId) ?? Promise.resolve();
     const scheduled = previous.catch(() => undefined).then(transition);
     const completed = scheduled.then(
       () => undefined,
       () => undefined,
     );
-    this.pendingTransitions.set(key, completed);
+    this.pendingGuildTransitions.set(guildId, completed);
     void completed.then(() => {
-      if (this.pendingTransitions.get(key) === completed) {
-        this.pendingTransitions.delete(key);
+      if (this.pendingGuildTransitions.get(guildId) === completed) {
+        this.pendingGuildTransitions.delete(guildId);
       }
     });
     return scheduled;

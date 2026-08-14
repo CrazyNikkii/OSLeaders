@@ -1,4 +1,4 @@
-import { and, asc, count, eq, ne, sql } from 'drizzle-orm';
+import { and, asc, count, eq, ne, notInArray, sql } from 'drizzle-orm';
 
 import type { AccountRetrievalRepository } from '../../features/accounts/account-retrieval.js';
 import type { AccountModeChangeRepository } from '../../features/accounts/change-account-mode.js';
@@ -208,6 +208,39 @@ export class PostgresAccountRegistrationRepository
 
   public markMemberPresent(guildId: string, discordUserId: string): Promise<GuildMemberPresence> {
     return this.saveMemberPresence(guildId, discordUserId, true);
+  }
+
+  public async reconcileGuildMemberPresence(
+    guildId: string,
+    presentDiscordUserIds: readonly string[],
+  ): Promise<void> {
+    const currentMemberIds = [...new Set(presentDiscordUserIds)];
+    await this.database.transaction(async (transaction) => {
+      await transaction.insert(guilds).values({ guildId }).onConflictDoNothing();
+      const staleCondition =
+        currentMemberIds.length === 0
+          ? and(eq(guildMemberPresences.guildId, guildId), eq(guildMemberPresences.isPresent, true))
+          : and(
+              eq(guildMemberPresences.guildId, guildId),
+              eq(guildMemberPresences.isPresent, true),
+              notInArray(guildMemberPresences.discordUserId, currentMemberIds),
+            );
+      await transaction
+        .update(guildMemberPresences)
+        .set({ isPresent: false, updatedAt: sql`now()` })
+        .where(staleCondition);
+      if (currentMemberIds.length > 0) {
+        await transaction
+          .insert(guildMemberPresences)
+          .values(
+            currentMemberIds.map((discordUserId) => ({ discordUserId, guildId, isPresent: true })),
+          )
+          .onConflictDoUpdate({
+            target: [guildMemberPresences.guildId, guildMemberPresences.discordUserId],
+            set: { isPresent: true, updatedAt: sql`now()` },
+          });
+      }
+    });
   }
 
   public selectDefault(

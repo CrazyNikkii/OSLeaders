@@ -282,6 +282,26 @@ describe('database foundation', () => {
     ).resolves.toEqual([{ attemptCount: 1, status: 'creating' }]);
   });
 
+  it('reconciles stale member presence only within its guild', async () => {
+    const repository = new PostgresAccountRegistrationRepository(connection.database);
+    await repository.markMemberPresent('presence-reconciliation-guild-one', 'departed-member');
+    await repository.markMemberPresent('presence-reconciliation-guild-two', 'other-guild-member');
+
+    await repository.reconcileGuildMemberPresence('presence-reconciliation-guild-one', [
+      'current-member',
+    ]);
+
+    await expect(
+      repository.getMemberPresence('presence-reconciliation-guild-one', 'departed-member'),
+    ).resolves.toMatchObject({ isPresent: false });
+    await expect(
+      repository.getMemberPresence('presence-reconciliation-guild-one', 'current-member'),
+    ).resolves.toMatchObject({ isPresent: true });
+    await expect(
+      repository.getMemberPresence('presence-reconciliation-guild-two', 'other-guild-member'),
+    ).resolves.toMatchObject({ isPresent: true });
+  });
+
   it('persists an optional duration for a target-race draft', async () => {
     const repository = new PostgresCompetitionCreationRepository(connection.database);
 

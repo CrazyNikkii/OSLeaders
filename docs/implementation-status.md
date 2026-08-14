@@ -365,8 +365,6 @@ absence and the readable delivery and preview layout.
 - Stage 5 - Remaining deferred account-management Discord adapters.
 - Post-v1 - Prefix-command convenience interface, including any prefix
   configuration, Message Content intent, aliases, and free-text parsing.
-- Stage 8 - Competition lifecycle, snapshots, claims, scheduling, roles, and
-  history.
 - Stage 9 - Full acceptance, failure-recovery, resource, and deployment
   testing.
 - Future production-readiness - External backups, restore rehearsal, and
@@ -389,7 +387,7 @@ each tracked account through its stored-mode Hiscores endpoint, sorts successful
 entries by XP with deterministic tie-breakers, and retains per-account failures
 without discarding successful results.
 
-## Latest merged implementation work
+## Earlier merged implementation work
 
 `dede94b` (2026-08-14) - Merge competition role recovery fix.
 
