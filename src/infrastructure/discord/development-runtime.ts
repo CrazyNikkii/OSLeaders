@@ -142,11 +142,6 @@ import {
   CompetitionDraftParticipationCommandHandler,
   DiscordCompetitionDraftParticipationCommandAdapter,
 } from './competition-draft-participation-command.js';
-import {
-  bindDiscordCompetitionStartCommandAdapter,
-  CompetitionStartCommandHandler,
-  DiscordCompetitionStartCommandAdapter,
-} from './competition-start-command.js';
 import { CompetitionStartService } from '../../features/competitions/start-competition.js';
 import { CompetitionStartAnnouncementDeliveryService } from '../../features/competitions/deliver-competition-start-announcement.js';
 import { DiscordCompetitionStartAnnouncer } from './competition-start-discord-publisher.js';
@@ -164,11 +159,6 @@ import { InProcessTimedCompetitionFinalizationScheduler } from './timed-competit
 import { DiscordCompetitionStartFailureAuditPublisher } from './competition-start-failure-audit-publisher.js';
 import { DiscordInteractionDispatcher } from './discord-interaction-dispatcher.js';
 import {
-  bindDiscordCompetitionScheduleCommandAdapter,
-  CompetitionScheduleCommandHandler,
-  DiscordCompetitionScheduleCommandAdapter,
-} from './competition-schedule-command.js';
-import {
   bindDiscordCompetitionStandingsCommandAdapter,
   CompetitionStandingsCommandHandler,
   DiscordCompetitionStandingsCommandAdapter,
@@ -183,8 +173,6 @@ import {
   CompetitionTargetRaceClaimCommandHandler,
   DiscordCompetitionTargetRaceClaimCommandAdapter,
 } from './competition-target-race-claim-command.js';
-import { CompetitionSchedulingService } from '../../features/competitions/schedule-competition.js';
-import { PostgresCompetitionSchedulingRepository } from '../database/postgres-competition-scheduling-repository.js';
 import { DiscordCompetitionResultPublisher } from './competition-result-discord-publisher.js';
 import {
   InProcessCompetitionResultDeliveryRecoveryScheduler,
@@ -472,9 +460,6 @@ export async function startDevelopmentDiscordRuntime(
       ),
       competitionStartDelivery,
     );
-    const competitionStartAdapter = new DiscordCompetitionStartCommandAdapter(
-      new CompetitionStartCommandHandler(competitionStartService, competitionStartRepository),
-    );
     const competitionCancellationRepository = new PostgresCompetitionCancellationRepository(
       connection.database,
     );
@@ -493,15 +478,6 @@ export async function startDevelopmentDiscordRuntime(
         competitionStartDelivery,
         logger,
       );
-    const competitionSchedulingRepository = new PostgresCompetitionSchedulingRepository(
-      connection.database,
-    );
-    const competitionScheduleAdapter = new DiscordCompetitionScheduleCommandAdapter(
-      new CompetitionScheduleCommandHandler(
-        new CompetitionSchedulingService(competitionSchedulingRepository, permissions),
-        competitionSchedulingRepository,
-      ),
-    );
     const competitionStandingsAdapter = new DiscordCompetitionStandingsCommandAdapter(
       new CompetitionStandingsCommandHandler(competitionStandings, competitionStandingsRepository),
     );
@@ -678,18 +654,6 @@ export async function startDevelopmentDiscordRuntime(
     bindDiscordCompetitionDraftParticipationCommandAdapter(
       interactionDispatcher,
       competitionDraftParticipationAdapter,
-      (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
-      (interaction) => interaction.guildId === configuration.discord.guildId,
-    );
-    bindDiscordCompetitionStartCommandAdapter(
-      interactionDispatcher,
-      competitionStartAdapter,
-      (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
-      (interaction) => interaction.guildId === configuration.discord.guildId,
-    );
-    bindDiscordCompetitionScheduleCommandAdapter(
-      interactionDispatcher,
-      competitionScheduleAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.guildId,
     );

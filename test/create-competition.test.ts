@@ -195,6 +195,12 @@ describe('competition creation service', () => {
     ).resolves.toEqual({
       kind: 'invalid_definition',
     });
+    await expect(
+      service.create({
+        ...request(),
+        intendedStartAt: undefined,
+      } as unknown as CreateCompetitionRequest),
+    ).resolves.toEqual({ kind: 'invalid_definition' });
   });
 
   it('accepts values at the PostgreSQL integer and bigint limits', async () => {
@@ -269,6 +275,7 @@ function request(overrides: Partial<CreateCompetitionRequest> = {}): CreateCompe
     durationSeconds: 86400,
     guildId: 'guild-one',
     hasAdministratorPermission: false,
+    intendedStartAt: new Date('2026-08-10T12:30:00.000Z'),
     memberRoleIds: ['competition-manager'],
     metric: { kind: 'skill', name: 'Woodcutting' },
     name: 'Weekend Woodcutting',

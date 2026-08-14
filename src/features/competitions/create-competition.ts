@@ -23,7 +23,7 @@ export interface CompetitionDraft {
   durationSeconds: number | null;
   guildId: string;
   id: string;
-  intendedStartAt?: Date | undefined;
+  intendedStartAt: Date;
   metric: CompetitionMetric;
   normalizedName: string;
   state: 'draft';
@@ -37,7 +37,7 @@ interface CompetitionCreationRequestBase {
   createdByDiscordUserId: string;
   guildId: string;
   hasAdministratorPermission: boolean;
-  intendedStartAt?: Date | undefined;
+  intendedStartAt: Date;
   memberRoleIds: readonly string[];
   name: string;
   timezone: string;
@@ -149,7 +149,8 @@ function isValidDefinition(request: CreateCompetitionRequest): boolean {
   if (
     !isKnownMetric(request.metric) ||
     !isIanaTimezone(request.timezone) ||
-    (request.intendedStartAt !== undefined && Number.isNaN(request.intendedStartAt.getTime()))
+    !(request.intendedStartAt instanceof Date) ||
+    Number.isNaN(request.intendedStartAt.getTime())
   ) {
     return false;
   }
