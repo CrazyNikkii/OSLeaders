@@ -735,18 +735,21 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-`codex/competition-private-beta-acceptance` prepares and records the smallest
-Stage 9 operational acceptance slice. It adds a real-server competition
-checklist covering restart during an active competition plus automatic result
-delivery or durable delivery recovery. The production exercise has not yet
-been performed or recorded, so this work is not complete.
+`codex/competition-role-recovery` fixes the PostgreSQL role-recovery claim
+path discovered during real-server acceptance. Its role-row update referenced
+the competitions table without joining it, so pending role work could not be
+claimed and the scheduler retried without reaching Discord. The branch keeps
+the guild lock and claimed-status check, adds PostgreSQL integration coverage
+for a due role claim, and requires a follow-up real-server role exercise after
+deployment.
 
 ## Next recommended branch-sized task
 
-Execute and record the real-server competition acceptance checklist on the
-configured Debian private-beta host, including a restart during an active
-competition and automatic result delivery or durable recovery. The repository
-also has no dated record of the daily-recap and restart acceptance result, so
-record those applicable checks before claiming private-beta operational
-readiness. Do not claim broader production backup or restore guarantees, which
-remain explicitly deferred for this private beta.
+After the role-recovery fix merges and is deployed, rerun the short real-server
+competition acceptance exercise with the bot's Manage Roles permission enabled.
+Confirm temporary-role creation and cleanup, restart during an active
+competition, and automatic result delivery. The repository also has no dated
+record of the daily-recap and restart acceptance result, so record those
+applicable checks before claiming private-beta operational readiness. Do not
+claim broader production backup or restore guarantees, which remain explicitly
+deferred for this private beta.
