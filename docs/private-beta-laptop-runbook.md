@@ -173,6 +173,41 @@ preview` remains private, then use the confirmed `/recap send` flow and
 7. Record dates, restart behavior, recap duration, and any observed Hiscores
    failures in private operator notes.
 
+## Competition acceptance checklist
+
+Complete and record these additional checks before treating the competition
+work as accepted for the configured private beta. Arrange the exercise with
+the affected server members first: it can create a temporary competition role,
+post a result to the configured competition channel, and retain a finished
+competition in history. Use existing, fetchable tracked accounts; do not add
+synthetic accounts to the live guild solely for this checklist.
+
+1. Confirm a Discord Administrator or member with the configured bot-manager
+   role can configure the competition result channel. Then confirm an
+   authorized competition manager can create a short timed competition, add
+   its intended participant or participants, and start it. Confirm the initial
+   snapshots succeed, the competition is `ACTIVE`, and any temporary role
+   behavior is appropriate for the selected present members.
+2. While that competition is active, stop only the Node process as in the
+   restart check above. Confirm systemd restarts it after 30 seconds and that
+   `/competition standings` still shows the same active competition and its
+   persisted starting context. Do not use a database reset or migrate command
+   during this exercise.
+3. Let the timed competition reach its deadline. Confirm the bot finalizes it
+   and publishes one result in the configured competition channel, then
+   confirm `/competition history` shows its retained result. If delivery is
+   temporarily unavailable, restore the channel condition and confirm the
+   durable delivery recovery publishes the result without re-finalizing the
+   competition.
+4. If a planned manual completion is safer than waiting for the deadline, use
+   the authorized `/competition finish` confirmation flow instead and record
+   that path. Do not claim automatic-finalization acceptance from this
+   substitution; schedule a separate automatic-finalization exercise.
+5. Record the dates, competition type, restart timing, observed lifecycle
+   state, result-delivery outcome, role behavior, and any Hiscores or Discord
+   failures in private operator notes. Do not put Discord tokens, connection
+   strings, member IDs, or database credentials in the repository.
+
 The private beta is ready for continuous use only after the applicable checks
 succeed on the real Debian laptop. This readiness deliberately excludes backup
 and restore guarantees. Passing automated tests or installing these units does
