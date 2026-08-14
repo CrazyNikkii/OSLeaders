@@ -19,10 +19,12 @@ merged.
 - Stage 6 - Lookups and permanent leaderboards for the approved
   slash-command-only v1 scope.
 - Stage 7 - Daily recap configuration, collection, preview, durable delivery,
-  and automatic scheduling. The Debian runbook defines the required
-  real-server acceptance checks; this repository does not contain a dated
-  record that those checks have been performed. Backup and restore guarantees
-  remain explicitly deferred for this small private beta.
+  and automatic scheduling. On 2026-08-14, the configured Debian private-beta
+  guild passed the real-server lookup, leaderboard, recap preview, manual and
+  scheduled recap-delivery, and forced Node-process restart checks after
+  deployment of `d0cc9ea`. The acceptance details are retained only in private
+  operator notes. Backup and restore guarantees remain explicitly deferred for
+  this small private beta.
 
 ## Current implementation stage
 
@@ -751,23 +753,27 @@ Discord and database configuration, guarded production migrations, systemd
 runtime and backup-timer units, protected unattended PostgreSQL credentials,
 and Debian backup, restore-rehearsal, and acceptance guidance.
 
-## Current unmerged implementation work
+## Latest merged implementation work
 
-`codex/competition-start-announcement` adds the approved public competition
-start announcement. After a durable successful start, the shared start service
-will immediately claim a durable configured-channel delivery for manual,
-scheduled, and recovered starts. Failed or interrupted delivery is recovered
-at least once after restart; retries suppress role mentions. The temporary
-competition role is mentioned only on the first delivery when its active role
-ID is already available, and announcement work never waits for role creation.
-The existing initiator-only start confirmation remains private, and a delivery
-failure does not undo the durable start.
+`d0cc9ea` (2026-08-14) - Merge competition start announcements.
+
+This merged the approved public competition-start announcement. After a
+durable successful start, the shared start service immediately claims a
+durable configured-channel delivery for manual, scheduled, and recovered
+starts. Failed or interrupted delivery is recovered at least once after
+restart; retries suppress role mentions. The temporary competition role is
+mentioned only on the first delivery when its active role ID is already
+available, and announcement work never waits for role creation. The existing
+initiator-only start confirmation remains private, and a delivery failure does
+not undo the durable start.
 
 ## Next recommended branch-sized task
 
-After the competition-start announcement merges and is deployed, complete and
-record the remaining real-server daily-recap and restart acceptance checks in
-private operator notes. The repository still has no dated record of those
-checks, so do not claim private-beta operational readiness until they succeed.
-Do not claim broader production backup or restore guarantees, which remain
-explicitly deferred for this private beta.
+Investigate and eliminate the production-startup `MaxListenersExceededWarning`
+for Discord `interactionCreate` handlers without merely suppressing the
+warning. Verify that handlers do not accumulate across reconnects or restarts,
+preserve the existing guild and interaction authorization boundaries, and add
+focused runtime coverage. After that, complete the separate real-server
+competition acceptance checklist before treating competition workflows as
+accepted for the configured private beta. Do not claim broader production
+backup or restore guarantees, which remain explicitly deferred for this beta.
