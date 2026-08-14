@@ -31,6 +31,7 @@ import { PostgresCompetitionCreationRepository } from '../../src/infrastructure/
 import { PostgresCompetitionRoleRepository } from '../../src/infrastructure/database/postgres-competition-role-repository.js';
 import { PostgresCompetitionDraftParticipationRepository } from '../../src/infrastructure/database/postgres-competition-draft-participation-repository.js';
 import { PostgresCompetitionStartRepository } from '../../src/infrastructure/database/postgres-competition-start-repository.js';
+import { PostgresCompetitionStartDeliveryRepository } from '../../src/infrastructure/database/postgres-competition-start-delivery-repository.js';
 import { PostgresCompetitionCancellationRepository } from '../../src/infrastructure/database/postgres-competition-cancellation-repository.js';
 import { PostgresCompetitionStandingsRepository } from '../../src/infrastructure/database/postgres-competition-standings-repository.js';
 import { PostgresCompetitionResultsHistoryRepository } from '../../src/infrastructure/database/postgres-competition-results-history-repository.js';
@@ -45,6 +46,7 @@ import {
   competitionAccountSnapshots,
   competitionEntrants,
   competitionRoles,
+  competitionStartDeliveries,
   competitionTargetClaims,
   competitionWinners,
   competitions,
@@ -87,7 +89,7 @@ describe('database foundation', () => {
   it('applies the committed database migrations to an empty test database', async () => {
     const committedMigrations = await readCommittedMigrations();
     const applicationTables = await connection.pool.query<{ table_name: string }>(
-      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('competition_account_snapshots', 'competition_contributing_accounts', 'competition_entrants', 'competition_roles', 'competition_target_claims', 'competitions', 'daily_recap_deliveries', 'daily_recap_runs', 'guild_configurations', 'guild_member_presences', 'guilds', 'recap_baselines', 'tracked_accounts') ORDER BY table_name",
+      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('competition_account_snapshots', 'competition_contributing_accounts', 'competition_entrants', 'competition_roles', 'competition_start_deliveries', 'competition_target_claims', 'competitions', 'daily_recap_deliveries', 'daily_recap_runs', 'guild_configurations', 'guild_member_presences', 'guilds', 'recap_baselines', 'tracked_accounts') ORDER BY table_name",
     );
     const migrationTables = await connection.pool.query<{ table_name: string }>(
       "SELECT table_name FROM information_schema.tables WHERE table_schema = 'drizzle' AND table_name = '__drizzle_migrations'",
@@ -101,6 +103,7 @@ describe('database foundation', () => {
       { table_name: 'competition_contributing_accounts' },
       { table_name: 'competition_entrants' },
       { table_name: 'competition_roles' },
+      { table_name: 'competition_start_deliveries' },
       { table_name: 'competition_target_claims' },
       { table_name: 'competitions' },
       { table_name: 'daily_recap_deliveries' },
@@ -140,6 +143,75 @@ describe('database foundation', () => {
       targetValue: null,
       type: 'most_skill_xp',
     });
+  });
+
+  it('durably claims active competition-start delivery per guild, snapshots its channel, and recovers a stale lease', async () => {
+    let now = new Date('2026-08-14T10:00:00.000Z');
+    const deliveries = new PostgresCompetitionStartDeliveryRepository(
+      connection.database,
+      () => now,
+    );
+    const creations = new PostgresCompetitionCreationRepository(connection.database);
+    const configurations = new PostgresGuildConfigurationRepository(connection.database);
+    await creations.create(
+      competitionDraft({
+        displayName: 'Start delivery one',
+        guildId: 'start-delivery-guild-one',
+        id: 'start-delivery-one',
+        normalizedName: 'start delivery one',
+      }),
+    );
+    await creations.create(
+      competitionDraft({
+        displayName: 'Start delivery two',
+        guildId: 'start-delivery-guild-two',
+        id: 'start-delivery-two',
+        normalizedName: 'start delivery two',
+      }),
+    );
+    await configurations.update('start-delivery-guild-one', {
+      competitionChannelId: 'start-channel-one',
+    });
+    await connection.database
+      .update(competitions)
+      .set({ startedAt: now, state: 'active' })
+      .where(eq(competitions.id, 'start-delivery-one'));
+    await connection.database
+      .update(competitions)
+      .set({ startedAt: now, state: 'active' })
+      .where(eq(competitions.id, 'start-delivery-two'));
+
+    await expect(
+      deliveries.claimDelivery({
+        competitionId: 'start-delivery-two',
+        guildId: 'start-delivery-guild-two',
+      }),
+    ).resolves.toBeUndefined();
+    await expect(
+      deliveries.claimDelivery({
+        competitionId: 'start-delivery-one',
+        guildId: 'start-delivery-guild-one',
+      }),
+    ).resolves.toMatchObject({ attemptCount: 1, channelId: 'start-channel-one' });
+    await configurations.update('start-delivery-guild-one', {
+      competitionChannelId: 'start-channel-two',
+    });
+    now = new Date('2026-08-14T10:06:00.000Z');
+
+    await expect(deliveries.claimDueDelivery()).resolves.toMatchObject({
+      attemptCount: 2,
+      channelId: 'start-channel-one',
+      competitionId: 'start-delivery-one',
+    });
+    await expect(
+      connection.database
+        .select({ status: competitionStartDeliveries.status })
+        .from(competitionStartDeliveries)
+        .where(eq(competitionStartDeliveries.competitionId, 'start-delivery-one')),
+    ).resolves.toEqual([{ status: 'delivering' }]);
+    await connection.database
+      .delete(guilds)
+      .where(inArray(guilds.guildId, ['start-delivery-guild-one', 'start-delivery-guild-two']));
   });
 
   it('creates one isolated durable role record with each competition draft', async () => {

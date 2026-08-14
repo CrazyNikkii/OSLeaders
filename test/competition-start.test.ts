@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   CompetitionStartService,
@@ -91,11 +91,46 @@ describe('competition start service', () => {
       kind: 'competition_not_found',
     });
   });
+
+  it('announces every successful start, including a recovered scheduled start', async () => {
+    const repository = new StartRepository();
+    repository.dueStart = true;
+    const deliverNow = vi.fn(() => Promise.resolve());
+    const service = new CompetitionStartService(
+      repository,
+      permissions(true),
+      new Hiscores({ 'Rune Scape': skillResult(123456) }),
+      () => new Date('2026-08-10T12:00:00.000Z'),
+      undefined,
+      { deliverNow },
+    );
+
+    await expect(service.retryDue()).resolves.toMatchObject({ kind: 'started' });
+    expect(deliverNow).toHaveBeenCalledWith(
+      expect.objectContaining({ competitionId: 'competition-one', guildId: 'guild-one' }),
+    );
+  });
+
+  it('keeps a completed start successful when its announcement cannot be delivered', async () => {
+    const repository = new StartRepository();
+    const service = new CompetitionStartService(
+      repository,
+      permissions(true),
+      new Hiscores({ 'Rune Scape': skillResult(123456) }),
+      undefined,
+      undefined,
+      { deliverNow: () => Promise.reject(new Error('Discord unavailable')) },
+    );
+
+    await expect(service.start(request())).resolves.toMatchObject({ kind: 'started' });
+    expect(repository.started).toBe(true);
+  });
 });
 
 class StartRepository implements CompetitionStartRepository {
   public readonly completed: { snapshots: readonly CompetitionStartingSnapshot[] }[] = [];
   public readonly scheduledRetries: { failureSummary: string; nextAttemptAt: Date }[] = [];
+  public dueStart = false;
   public started = false;
   private pending = false;
   public constructor(
@@ -145,7 +180,10 @@ class StartRepository implements CompetitionStartRepository {
   }
 
   public claimDueStart(): Promise<CompetitionReadyToStart | undefined> {
-    return Promise.resolve(undefined);
+    if (!this.dueStart) return Promise.resolve(undefined);
+    this.dueStart = false;
+    this.pending = true;
+    return Promise.resolve(competition(this.metric));
   }
 }
 
@@ -182,6 +220,7 @@ function competition(
       },
     ],
     competitionId: 'competition-one',
+    displayName: 'Mining week',
     durationSeconds: 86400,
     guildId: 'guild-one',
     metric,

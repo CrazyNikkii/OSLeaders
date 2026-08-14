@@ -24,6 +24,7 @@ export interface CompetitionStartAccount extends TrackedAccount {
 export interface CompetitionReadyToStart {
   startAttemptCount: number;
   competitionId: string;
+  displayName: string;
   durationSeconds: number | null;
   guildId: string;
   metric: CompetitionMetric;
@@ -104,6 +105,11 @@ export interface CompetitionStartHiscoreFetcher {
   ): Promise<CompetitionStartHiscoreResult>;
 }
 
+/** Delivers a completed start notification without making Discord delivery a lifecycle precondition. */
+export interface CompetitionStartAnnouncementDelivery {
+  deliverNow(request: { competitionId: string; guildId: string }): Promise<unknown>;
+}
+
 export class CompetitionStartService {
   public constructor(
     private readonly repository: CompetitionStartRepository,
@@ -112,6 +118,9 @@ export class CompetitionStartService {
     private readonly now: () => Date = () => new Date(),
     private readonly failureReporter: CompetitionStartFailureReporter = {
       report: () => Promise.resolve(),
+    },
+    private readonly announcements: CompetitionStartAnnouncementDelivery = {
+      deliverNow: () => Promise.resolve(),
     },
   ) {}
 
@@ -179,7 +188,7 @@ export class CompetitionStartService {
       };
     }
 
-    return this.repository.completeStart({
+    const result = await this.repository.completeStart({
       competitionId: competition.competitionId,
       guildId: competition.guildId,
       snapshots: outcomes.map((outcome) => {
@@ -190,6 +199,14 @@ export class CompetitionStartService {
       }),
       startedAt: this.now(),
     });
+    if (result.kind === 'started') {
+      try {
+        await this.announcements.deliverNow(result);
+      } catch {
+        // Delivery has its own durable recovery path and must not interrupt a valid start.
+      }
+    }
+    return result;
   }
 
   private async fetchStartingValue(

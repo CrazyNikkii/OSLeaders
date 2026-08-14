@@ -102,6 +102,7 @@ export class PostgresCompetitionStartRepository implements CompetitionStartRepos
         competition: {
           accounts,
           competitionId: competition.id,
+          displayName: competition.displayName,
           durationSeconds: competition.durationSeconds,
           guildId: competition.guildId,
           metric: { kind: competition.metricKind, name: competition.metricName },
@@ -274,6 +275,7 @@ export class PostgresCompetitionStartRepository implements CompetitionStartRepos
         return {
           accounts,
           competitionId: competition.id,
+          displayName: competition.displayName,
           durationSeconds: competition.durationSeconds,
           guildId: competition.guildId,
           metric: { kind: competition.metricKind, name: competition.metricName },
