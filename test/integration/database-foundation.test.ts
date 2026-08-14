@@ -28,6 +28,7 @@ import { PostgresDailyRecapDeliveryRepository } from '../../src/infrastructure/d
 import { PostgresAutomaticDailyRecapScheduleRepository } from '../../src/infrastructure/database/postgres-automatic-daily-recap-schedule-repository.js';
 import { PostgresAutomaticDailyRecapCollectionRepository } from '../../src/infrastructure/database/postgres-automatic-daily-recap-collection-repository.js';
 import { PostgresCompetitionCreationRepository } from '../../src/infrastructure/database/postgres-competition-creation-repository.js';
+import { PostgresCompetitionRoleRepository } from '../../src/infrastructure/database/postgres-competition-role-repository.js';
 import { PostgresCompetitionDraftParticipationRepository } from '../../src/infrastructure/database/postgres-competition-draft-participation-repository.js';
 import { PostgresCompetitionStartRepository } from '../../src/infrastructure/database/postgres-competition-start-repository.js';
 import { PostgresCompetitionCancellationRepository } from '../../src/infrastructure/database/postgres-competition-cancellation-repository.js';
@@ -176,6 +177,37 @@ describe('database foundation', () => {
         status: 'pending_create',
       },
     ]);
+  });
+
+  it('claims a due pending competition-role operation', async () => {
+    const creation = new PostgresCompetitionCreationRepository(connection.database);
+    const roles = new PostgresCompetitionRoleRepository(connection.database);
+    await connection.database
+      .update(competitionRoles)
+      .set({ nextAttemptAt: new Date(Date.now() + 60_000) });
+    await creation.create(
+      competitionDraft({
+        displayName: 'Role recovery claim',
+        guildId: 'competition-role-recovery-guild',
+        id: 'competition-role-recovery',
+        normalizedName: 'role recovery claim',
+      }),
+    );
+
+    await expect(roles.claimDueOperation()).resolves.toMatchObject({
+      competitionId: 'competition-role-recovery',
+      guildId: 'competition-role-recovery-guild',
+      operation: 'create',
+    });
+    await expect(
+      connection.database
+        .select({
+          attemptCount: competitionRoles.attemptCount,
+          status: competitionRoles.status,
+        })
+        .from(competitionRoles)
+        .where(eq(competitionRoles.competitionId, 'competition-role-recovery')),
+    ).resolves.toEqual([{ attemptCount: 1, status: 'creating' }]);
   });
 
   it('persists an optional duration for a target-race draft', async () => {

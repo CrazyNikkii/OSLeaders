@@ -173,7 +173,6 @@ export class PostgresCompetitionRoleRepository implements CompetitionRoleReposit
           eq(competitionRoles.guildId, guildId),
           eq(competitionRoles.competitionId, role.competitionId),
           inArray(competitionRoles.status, expected),
-          actionableCondition(now),
         ),
       )
       .returning({ competitionId: competitionRoles.competitionId });
