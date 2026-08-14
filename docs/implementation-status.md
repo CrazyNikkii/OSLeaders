@@ -755,25 +755,19 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Latest merged implementation work
 
-`d0cc9ea` (2026-08-14) - Merge competition start announcements.
+`de3d723` (2026-08-14) - Merge Discord interaction dispatcher.
 
-This merged the approved public competition-start announcement. After a
-durable successful start, the shared start service immediately claims a
-durable configured-channel delivery for manual, scheduled, and recovered
-starts. Failed or interrupted delivery is recovered at least once after
-restart; retries suppress role mentions. The temporary competition role is
-mentioned only on the first delivery when its active role ID is already
-available, and announcement work never waits for role creation. The existing
-initiator-only start confirmation remains private, and a delivery failure does
-not undo the durable start.
+This merged the shared runtime-owned Discord interaction dispatcher. All
+command adapters now register through one `interactionCreate` listener instead
+of exceeding the EventEmitter listener threshold at startup. The dispatcher
+retains each adapter's existing guild and interaction eligibility checks, and
+is removed during normal shutdown and failed startup so a restarted runtime
+does not retain handlers. Focused runtime coverage verifies one listener and
+both cleanup paths.
 
 ## Next recommended branch-sized task
 
-The unmerged `codex/discord-interaction-dispatcher` branch is investigating
-and eliminating the production-startup `MaxListenersExceededWarning` for
-Discord `interactionCreate` handlers without suppressing the warning. Until it
-is merged, `d0cc9ea` remains the latest merged implementation work. After this
-branch is merged, complete the separate real-server competition acceptance
-checklist before treating competition workflows as accepted for the configured
-private beta. Do not claim broader production backup or restore guarantees,
-which remain explicitly deferred for this beta.
+Complete the separate real-server competition acceptance checklist before
+treating competition workflows as accepted for the configured private beta.
+Do not claim broader production backup or restore guarantees, which remain
+explicitly deferred for this beta.
