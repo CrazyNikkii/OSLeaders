@@ -1,9 +1,10 @@
-import type { Client } from 'discord.js';
+import { EmbedBuilder, type Client } from 'discord.js';
 
 import type {
   CompetitionStartPublisher,
   PendingCompetitionStartDelivery,
 } from '../../features/competitions/deliver-competition-start-announcement.js';
+import { OSLEADERS_EMBED_COLOR } from './discord-embed-presentation.js';
 
 export class DiscordCompetitionStartAnnouncer implements CompetitionStartPublisher {
   public constructor(
@@ -33,16 +34,16 @@ export class DiscordCompetitionStartAnnouncer implements CompetitionStartPublish
         : undefined;
     const message = await channel.send({
       allowedMentions: roleId === undefined ? { parse: [] } : { roles: [roleId] },
-      content: competitionStartAnnouncementContent(delivery, roleId),
+      ...(roleId === undefined ? {} : { content: `<@&${roleId}>` }),
+      embeds: [competitionStartAnnouncementEmbed(delivery)],
     });
     return { discordMessageId: message.id };
   }
 }
 
-export function competitionStartAnnouncementContent(
+export function competitionStartAnnouncementEmbed(
   announcement: Pick<PendingCompetitionStartDelivery, 'displayName' | 'endsAt' | 'metric'>,
-  roleId: string | undefined,
-): string {
+): EmbedBuilder {
   const metric = `${announcement.metric.name} ${
     announcement.metric.kind === 'skill' ? 'XP' : 'KC'
   }`;
@@ -50,5 +51,9 @@ export function competitionStartAnnouncementContent(
     announcement.endsAt === null
       ? 'Target race with no deadline.'
       : `Ends <t:${Math.floor(announcement.endsAt.getTime() / 1_000)}:R>.`;
-  return `${roleId === undefined ? '' : `<@&${roleId}> `}Competition **${announcement.displayName}** has started! ${metric}. ${timing}`;
+  return new EmbedBuilder()
+    .setColor(OSLEADERS_EMBED_COLOR)
+    .setTitle('Competition started')
+    .setDescription(`**${announcement.displayName}**\n\n**${metric}** - ${timing}`)
+    .setFooter({ text: 'Competition announcement' });
 }
