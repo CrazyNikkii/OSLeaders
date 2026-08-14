@@ -8,12 +8,12 @@ import {
   TextInputBuilder,
   TextInputStyle,
   type ChatInputCommandInteraction,
-  type Client,
   type Interaction,
   type ModalSubmitInteraction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import { randomUUID } from 'node:crypto';
+import type { DiscordInteractionRegistrar } from './discord-interaction-dispatcher.js';
 
 import type { ScheduleCompetitionResult } from '../../features/competitions/schedule-competition.js';
 import { CompetitionSchedulingService } from '../../features/competitions/schedule-competition.js';
@@ -237,7 +237,7 @@ export class DiscordCompetitionScheduleCommandAdapter {
 }
 
 export function bindDiscordCompetitionScheduleCommandAdapter(
-  client: Client,
+  client: DiscordInteractionRegistrar,
   adapter: DiscordCompetitionScheduleCommandAdapter,
   reportUnexpectedError: (error: unknown) => void,
   shouldHandleInteraction: (interaction: Interaction) => boolean = () => true,

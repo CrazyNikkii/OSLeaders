@@ -8,11 +8,11 @@ import {
   StringSelectMenuBuilder,
   type ButtonInteraction,
   type ChatInputCommandInteraction,
-  type Client,
   type Interaction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import { randomUUID } from 'node:crypto';
+import type { DiscordInteractionRegistrar } from './discord-interaction-dispatcher.js';
 
 import {
   TimedCompetitionFinalizationService,
@@ -200,7 +200,7 @@ export class DiscordCompetitionManualFinalizationCommandAdapter {
 }
 
 export function bindDiscordCompetitionManualFinalizationCommandAdapter(
-  client: Client,
+  client: DiscordInteractionRegistrar,
   adapter: DiscordCompetitionManualFinalizationCommandAdapter,
   report: (error: unknown) => void,
   shouldHandle: (interaction: Interaction) => boolean = () => true,

@@ -4,10 +4,10 @@ import {
   MessageFlags,
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
-  type Client,
   type Interaction,
 } from 'discord.js';
 import type { EmbedBuilder } from 'discord.js';
+import type { DiscordInteractionRegistrar } from './discord-interaction-dispatcher.js';
 
 import type { DailyRecapPreview } from '../../features/recaps/daily-recap-presentation.js';
 import { PreviewDailyRecapService } from '../../features/recaps/preview-daily-recap.js';
@@ -100,7 +100,7 @@ export class DiscordDailyRecapPreviewCommandAdapter {
 }
 
 export function bindDiscordDailyRecapPreviewCommandAdapter(
-  client: Client,
+  client: DiscordInteractionRegistrar,
   adapter: DiscordDailyRecapPreviewCommandAdapter,
   reportUnexpectedError: (error: unknown) => void,
   shouldHandleInteraction: (interaction: Interaction) => boolean = () => true,

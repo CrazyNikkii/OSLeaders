@@ -7,10 +7,10 @@ import {
   SlashCommandBuilder,
   type AutocompleteInteraction,
   type ChatInputCommandInteraction,
-  type Client,
   type Interaction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
+import type { DiscordInteractionRegistrar } from './discord-interaction-dispatcher.js';
 
 import { AccountRetrievalService } from '../../features/accounts/account-retrieval.js';
 import { BossLookupService, type BossLookupResult } from '../../features/lookups/boss-lookup.js';
@@ -240,7 +240,7 @@ async function publishBossLookupResult(
 }
 
 export function bindDiscordBossLookupCommandAdapter(
-  client: Client,
+  client: DiscordInteractionRegistrar,
   adapter: DiscordBossLookupCommandAdapter,
   reportUnexpectedError: (error: unknown) => void,
   shouldHandleInteraction: (interaction: Interaction) => boolean = () => true,

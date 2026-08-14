@@ -8,11 +8,11 @@ import {
   StringSelectMenuBuilder,
   type ButtonInteraction,
   type ChatInputCommandInteraction,
-  type Client,
   type Interaction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import { randomUUID } from 'node:crypto';
+import type { DiscordInteractionRegistrar } from './discord-interaction-dispatcher.js';
 
 import {
   TargetRaceClaimService,
@@ -279,7 +279,7 @@ export class DiscordCompetitionTargetRaceClaimCommandAdapter {
 }
 
 export function bindDiscordCompetitionTargetRaceClaimCommandAdapter(
-  client: Client,
+  client: DiscordInteractionRegistrar,
   adapter: DiscordCompetitionTargetRaceClaimCommandAdapter,
   reportUnexpectedError: (error: unknown) => void,
   shouldHandleInteraction: (interaction: Interaction) => boolean = () => true,

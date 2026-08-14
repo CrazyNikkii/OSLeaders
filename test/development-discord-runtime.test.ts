@@ -83,6 +83,8 @@ describe('development Discord runtime', () => {
     expect(dependencies.pool.query).toHaveBeenCalledWith('SELECT 1');
     expect(dependencies.client.destroy).toHaveBeenCalledOnce();
     expect(dependencies.closeDatabase).toHaveBeenCalledOnce();
+    expect(dependencies.interactionHandlers).toHaveLength(0);
+    expect(dependencies.client.off).toHaveBeenCalledOnce();
   });
 
   it('binds the skill lookup adapter to development-guild interactions', async () => {
@@ -110,7 +112,7 @@ describe('development Discord runtime', () => {
     }
     await vi.waitFor(() => expect(reply).toHaveBeenCalledOnce());
 
-    expect(dependencies.interactionHandlers).toHaveLength(20);
+    expect(dependencies.interactionHandlers).toHaveLength(1);
     expect(dependencies.memberPresenceHandlers).toHaveLength(2);
     expect(reply).toHaveBeenCalledWith({
       content: 'You do not have a default linked account in this server.',
@@ -118,6 +120,28 @@ describe('development Discord runtime', () => {
     });
     expect(dependencies.logger.entries).toEqual([]);
     await runtime.close();
+  });
+
+  it('installs one interaction listener and removes it before a runtime restart', async () => {
+    const dependencies = new RuntimeDependencies();
+
+    const firstRuntime = await startDevelopmentDiscordRuntime(
+      configuration(),
+      dependencies.asDependencies(),
+    );
+    expect(dependencies.interactionHandlers).toHaveLength(1);
+
+    await firstRuntime.close();
+    expect(dependencies.interactionHandlers).toHaveLength(0);
+
+    const restartedRuntime = await startDevelopmentDiscordRuntime(
+      configuration(),
+      dependencies.asDependencies(),
+    );
+    expect(dependencies.interactionHandlers).toHaveLength(1);
+
+    await restartedRuntime.close();
+    expect(dependencies.client.off).toHaveBeenCalledTimes(2);
   });
 
   it('records a sanitized diagnostic message and reference for interaction failures', () => {
@@ -165,6 +189,12 @@ class RuntimeDependencies {
       }
       if (event === Events.GuildMemberAdd || event === Events.GuildMemberRemove) {
         this.memberPresenceHandlers.push(listener);
+      }
+    }),
+    off: vi.fn((event: Events, listener: (interaction: never) => void) => {
+      if (event === Events.InteractionCreate) {
+        const index = this.interactionHandlers.indexOf(listener);
+        if (index >= 0) this.interactionHandlers.splice(index, 1);
       }
     }),
     once: vi.fn(),

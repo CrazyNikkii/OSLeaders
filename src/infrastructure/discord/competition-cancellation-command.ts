@@ -8,11 +8,11 @@ import {
   StringSelectMenuBuilder,
   type ButtonInteraction,
   type ChatInputCommandInteraction,
-  type Client,
   type Interaction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import { randomUUID } from 'node:crypto';
+import type { DiscordInteractionRegistrar } from './discord-interaction-dispatcher.js';
 
 import {
   CompetitionCancellationService,
@@ -192,7 +192,7 @@ export class DiscordCompetitionCancellationCommandAdapter {
   }
 }
 export function bindDiscordCompetitionCancellationCommandAdapter(
-  client: Client,
+  client: DiscordInteractionRegistrar,
   adapter: DiscordCompetitionCancellationCommandAdapter,
   report: (error: unknown) => void,
   shouldHandle: (interaction: Interaction) => boolean = () => true,

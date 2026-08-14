@@ -5,11 +5,11 @@ import {
   MessageFlags,
   StringSelectMenuBuilder,
   type ChatInputCommandInteraction,
-  type Client,
   type Interaction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import { randomUUID } from 'node:crypto';
+import type { DiscordInteractionRegistrar } from './discord-interaction-dispatcher.js';
 
 import {
   CompetitionResultsHistoryService,
@@ -194,7 +194,7 @@ export class DiscordCompetitionResultsHistoryCommandAdapter {
 }
 
 export function bindDiscordCompetitionResultsHistoryCommandAdapter(
-  client: Client,
+  client: DiscordInteractionRegistrar,
   adapter: DiscordCompetitionResultsHistoryCommandAdapter,
   reportUnexpectedError: (error: unknown) => void,
   shouldHandleInteraction: (interaction: Interaction) => boolean = () => true,

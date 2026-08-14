@@ -5,9 +5,9 @@ import {
   SlashCommandBuilder,
   type AutocompleteInteraction,
   type ChatInputCommandInteraction,
-  type Client,
   type Interaction,
 } from 'discord.js';
+import type { DiscordInteractionRegistrar } from './discord-interaction-dispatcher.js';
 
 import { AccountRetrievalService } from '../../features/accounts/account-retrieval.js';
 import { SkillLookupService, type SkillLookupResult } from '../../features/lookups/skill-lookup.js';
@@ -138,7 +138,7 @@ export class DiscordSkillLookupCommandAdapter {
 }
 
 export function bindDiscordSkillLookupCommandAdapter(
-  client: Client,
+  client: DiscordInteractionRegistrar,
   adapter: DiscordSkillLookupCommandAdapter,
   reportUnexpectedError: (error: unknown) => void,
   shouldHandleInteraction: (interaction: Interaction) => boolean = () => true,

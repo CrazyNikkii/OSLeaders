@@ -3,9 +3,9 @@ import {
   MessageFlags,
   PermissionFlagsBits,
   type ChatInputCommandInteraction,
-  type Client,
   type Interaction,
 } from 'discord.js';
+import type { DiscordInteractionRegistrar } from './discord-interaction-dispatcher.js';
 
 import type { ConfigureDailyRecapService } from '../../features/recaps/configure-daily-recap.js';
 
@@ -44,7 +44,7 @@ export class DiscordDailyRecapConfigurationCommandAdapter {
 }
 
 export function bindDiscordDailyRecapConfigurationCommandAdapter(
-  client: Client,
+  client: DiscordInteractionRegistrar,
   adapter: DiscordDailyRecapConfigurationCommandAdapter,
   reportUnexpectedError: (error: unknown) => void,
   shouldHandleInteraction: (interaction: Interaction) => boolean = () => true,

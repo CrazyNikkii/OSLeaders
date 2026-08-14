@@ -10,12 +10,12 @@ import {
   TextInputBuilder,
   TextInputStyle,
   type ChatInputCommandInteraction,
-  type Client,
   type Interaction,
   type ModalSubmitInteraction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import { randomUUID } from 'node:crypto';
+import type { DiscordInteractionRegistrar } from './discord-interaction-dispatcher.js';
 
 import {
   COMPETITION_TYPES,
@@ -412,7 +412,7 @@ export class DiscordCompetitionCreateCommandAdapter {
 }
 
 export function bindDiscordCompetitionCreateCommandAdapter(
-  client: Client,
+  client: DiscordInteractionRegistrar,
   adapter: DiscordCompetitionCreateCommandAdapter,
   reportUnexpectedError: (error: unknown) => void,
   shouldHandleInteraction: (interaction: Interaction) => boolean = () => true,

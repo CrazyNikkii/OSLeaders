@@ -52,7 +52,7 @@ describe('Discord account command foundation', () => {
     const adapter = { handle: vi.fn(() => Promise.resolve()) };
 
     bindDiscordAccountCommandAdapter(
-      client as never,
+      client,
       adapter as never,
       () => undefined,
       (interaction) => interaction.guildId === 'guild-one',

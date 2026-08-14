@@ -16,7 +16,6 @@ import {
   type AutocompleteInteraction,
   type ButtonInteraction,
   type ChatInputCommandInteraction,
-  type Client,
   type Interaction,
   type ModalSubmitInteraction,
   type REST,
@@ -24,6 +23,7 @@ import {
   type UserSelectMenuInteraction,
 } from 'discord.js';
 import { randomUUID } from 'node:crypto';
+import type { DiscordInteractionRegistrar } from './discord-interaction-dispatcher.js';
 
 import {
   AccountRetrievalService,
@@ -1590,7 +1590,7 @@ export class DiscordAccountCommandAdapter {
 }
 
 export function bindDiscordAccountCommandAdapter(
-  client: Client,
+  client: DiscordInteractionRegistrar,
   adapter: DiscordAccountCommandAdapter,
   reportUnexpectedError: (error: unknown) => void,
   shouldHandleInteraction: (interaction: Interaction) => boolean = () => true,
