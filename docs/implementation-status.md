@@ -753,6 +753,15 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Latest merged implementation work
 
+`221eeb2` (2026-08-14) - Merge competition-start embed presentation.
+
+This merged the competition-start announcement presentation update. Public
+start announcements now use the standard gold OSLeaders embed style with a
+clear title, competition name, activity metric, native Discord deadline, and
+footer. A temporary competition-role mention remains separate, permitted only
+on the initial durable delivery attempt. Focused publisher coverage verifies
+both mentioned and unmentioned delivery plus the embed presentation.
+
 `f36356b` (2026-08-14) - Merge current Discord member-presence initialization.
 
 This merged the configured-guild startup reconciliation needed for temporary
