@@ -25,11 +25,18 @@ merged.
   deployment of `d0cc9ea`. The acceptance details are retained only in private
   operator notes. Backup and restore guarantees remain explicitly deferred for
   this small private beta.
+- Stage 8 - Competition lifecycle, snapshots, claims, scheduling, roles, and
+  history. On 2026-08-14, the configured Debian private-beta guild passed the
+  documented real-server timed-competition exercise: configured-channel
+  delivery, role assignment for present linked entrants, restart-visible active
+  standings, automatic finalization, retained history, and role cleanup. The
+  acceptance details are retained only in private operator notes.
 
 ## Current implementation stage
 
-Stage 8 - Competition draft creation, participation, start foundation, and
-manual-start adapter. The merged Discord-independent target-race claim
+Stage 9 - Full acceptance, failure-recovery, resource, and deployment testing.
+The completed Stage 8 competition implementation includes the merged
+Discord-independent target-race claim
 foundation durably records a stable claim ID and UTC receipt time before
 cache-bypassing Hiscores verification, combines immutable per-account starting
 snapshots, and finalizes the earliest verified claim deterministically. The
@@ -784,7 +791,8 @@ both cleanup paths.
 
 ## Next recommended branch-sized task
 
-Complete the separate real-server competition acceptance checklist before
-treating competition workflows as accepted for the configured private beta.
-Do not claim broader production backup or restore guarantees, which remain
-explicitly deferred for this beta.
+Run a separate real-server target-race exercise, including a verified
+`/competition claim`, as additional Stage 9 confidence coverage. This is not a
+blocker to the completed private-beta readiness checklist. Do not claim broader
+production backup or restore guarantees, which remain explicitly deferred for
+this beta.
