@@ -12,6 +12,10 @@ export interface MemberPresenceRepository {
   ): Promise<GuildMemberPresence | undefined>;
   markMemberAbsent(guildId: string, discordUserId: string): Promise<GuildMemberPresence>;
   markMemberPresent(guildId: string, discordUserId: string): Promise<GuildMemberPresence>;
+  reconcileGuildMemberPresence(
+    guildId: string,
+    presentDiscordUserIds: readonly string[],
+  ): Promise<void>;
 }
 
 export class MemberPresenceService {
@@ -27,5 +31,9 @@ export class MemberPresenceService {
 
   public markPresent(guildId: string, discordUserId: string): Promise<GuildMemberPresence> {
     return this.repository.markMemberPresent(guildId, discordUserId);
+  }
+
+  public reconcile(guildId: string, presentDiscordUserIds: readonly string[]): Promise<void> {
+    return this.repository.reconcileGuildMemberPresence(guildId, presentDiscordUserIds);
   }
 }

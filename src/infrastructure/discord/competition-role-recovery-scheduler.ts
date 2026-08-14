@@ -12,16 +12,26 @@ export interface CompetitionRoleRecoveryScheduler {
 export class InProcessCompetitionRoleRecoveryScheduler implements CompetitionRoleRecoveryScheduler {
   private interval: ReturnType<typeof setInterval> | undefined;
   private recovering = false;
+  private startGeneration = 0;
+  private starting = false;
   public constructor(
     private readonly roles: Pick<CompetitionRoleLifecycleService, 'recoverDue'>,
     private readonly logger: StructuredLocalLogger,
     private readonly intervalMs = INTERVAL_MS,
   ) {}
   public async start(): Promise<void> {
+    if (this.interval !== undefined || this.starting) return;
+    this.starting = true;
+    const generation = ++this.startGeneration;
     await this.recover();
-    this.interval ??= setInterval(() => void this.recover(), this.intervalMs);
+    if (this.startGeneration === generation) {
+      this.starting = false;
+      this.interval = setInterval(() => void this.recover(), this.intervalMs);
+    }
   }
   public stop(): void {
+    this.startGeneration += 1;
+    this.starting = false;
     if (this.interval !== undefined) {
       clearInterval(this.interval);
       this.interval = undefined;
