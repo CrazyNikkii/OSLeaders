@@ -5,11 +5,11 @@ import {
   PermissionFlagsBits,
   StringSelectMenuBuilder,
   type ChatInputCommandInteraction,
-  type Client,
   type Interaction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import { randomUUID } from 'node:crypto';
+import type { DiscordInteractionRegistrar } from './discord-interaction-dispatcher.js';
 
 import type { TrackedAccount } from '../../features/accounts/register-account.js';
 import {
@@ -423,7 +423,7 @@ export class DiscordCompetitionDraftParticipationCommandAdapter {
 }
 
 export function bindDiscordCompetitionDraftParticipationCommandAdapter(
-  client: Client,
+  client: DiscordInteractionRegistrar,
   adapter: DiscordCompetitionDraftParticipationCommandAdapter,
   reportUnexpectedError: (error: unknown) => void,
   shouldHandleInteraction: (interaction: Interaction) => boolean = () => true,

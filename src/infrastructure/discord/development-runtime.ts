@@ -160,6 +160,7 @@ import {
 import { InProcessTargetRaceDeadlineFinalizationScheduler } from './target-race-deadline-finalization-scheduler.js';
 import { InProcessTimedCompetitionFinalizationScheduler } from './timed-competition-finalization-scheduler.js';
 import { DiscordCompetitionStartFailureAuditPublisher } from './competition-start-failure-audit-publisher.js';
+import { DiscordInteractionDispatcher } from './discord-interaction-dispatcher.js';
 import {
   bindDiscordCompetitionScheduleCommandAdapter,
   CompetitionScheduleCommandHandler,
@@ -289,6 +290,7 @@ export async function startDevelopmentDiscordRuntime(
   const audit = new AuditService(logger, auditContextSanitizer);
   const connection = dependencies.createDatabaseConnection(configuration.database);
   const client = dependencies.createClient();
+  let interactionDispatcher: DiscordInteractionDispatcher | undefined;
 
   try {
     await connection.pool.query('SELECT 1');
@@ -585,122 +587,124 @@ export async function startDevelopmentDiscordRuntime(
       ),
     );
 
+    interactionDispatcher = new DiscordInteractionDispatcher(client);
+
     bindDiscordAccountCommandAdapter(
-      client,
+      interactionDispatcher,
       adapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.guildId,
     );
     bindDiscordCompetitionCancellationCommandAdapter(
-      client,
+      interactionDispatcher,
       competitionCancellationAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.guildId,
     );
     bindDiscordCompetitionManualFinalizationCommandAdapter(
-      client,
+      interactionDispatcher,
       competitionManualFinalizationAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.guildId,
     );
     bindDiscordSkillLookupCommandAdapter(
-      client,
+      interactionDispatcher,
       skillLookupAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.guildId,
     );
     bindDiscordOneTimeSkillLookupCommandAdapter(
-      client,
+      interactionDispatcher,
       oneTimeSkillLookupAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.guildId,
     );
     bindDiscordOneTimeBossLookupCommandAdapter(
-      client,
+      interactionDispatcher,
       oneTimeBossLookupAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.guildId,
     );
     bindDiscordSkillLeaderboardCommandAdapter(
-      client,
+      interactionDispatcher,
       skillLeaderboardAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.guildId,
     );
     bindDiscordBossLeaderboardCommandAdapter(
-      client,
+      interactionDispatcher,
       bossLeaderboardAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.guildId,
     );
     bindDiscordBossLookupCommandAdapter(
-      client,
+      interactionDispatcher,
       bossLookupAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.guildId,
     );
     bindDiscordDailyRecapPreviewCommandAdapter(
-      client,
+      interactionDispatcher,
       dailyRecapPreviewAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.guildId,
     );
     bindDiscordManualDailyRecapSendCommandAdapter(
-      client,
+      interactionDispatcher,
       manualDailyRecapSendAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.guildId,
     );
     bindDiscordDailyRecapConfigurationCommandAdapter(
-      client,
+      interactionDispatcher,
       dailyRecapConfigurationAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.guildId,
     );
     bindDiscordCompetitionCreateCommandAdapter(
-      client,
+      interactionDispatcher,
       competitionCreateAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.guildId,
     );
     bindDiscordCompetitionDraftParticipationCommandAdapter(
-      client,
+      interactionDispatcher,
       competitionDraftParticipationAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.guildId,
     );
     bindDiscordCompetitionStartCommandAdapter(
-      client,
+      interactionDispatcher,
       competitionStartAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.guildId,
     );
     bindDiscordCompetitionScheduleCommandAdapter(
-      client,
+      interactionDispatcher,
       competitionScheduleAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.guildId,
     );
     bindDiscordCompetitionStandingsCommandAdapter(
-      client,
+      interactionDispatcher,
       competitionStandingsAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.guildId,
     );
     bindDiscordCompetitionResultsHistoryCommandAdapter(
-      client,
+      interactionDispatcher,
       competitionResultsHistoryAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.guildId,
     );
     bindDiscordCompetitionChannelConfigurationCommandAdapter(
-      client,
+      interactionDispatcher,
       competitionChannelConfigurationAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.guildId,
     );
     bindDiscordCompetitionTargetRaceClaimCommandAdapter(
-      client,
+      interactionDispatcher,
       targetRaceClaimAdapter,
       (error) => reportDiscordInteractionFailure(logger, auditContextSanitizer, error),
       (interaction) => interaction.guildId === configuration.discord.guildId,
@@ -740,6 +744,7 @@ export async function startDevelopmentDiscordRuntime(
       client,
       connection,
       logger,
+      interactionDispatcher,
       deliveryRecoveryScheduler,
       automaticSchedulingScheduler,
       automaticCollectionScheduler,
@@ -751,6 +756,7 @@ export async function startDevelopmentDiscordRuntime(
       competitionRoleRecoveryScheduler,
     );
   } catch (error) {
+    interactionDispatcher?.stop();
     await client.destroy();
     await connection.close();
     throw error;
@@ -786,6 +792,7 @@ async function closeRuntime(
   client: Client,
   connection: DatabaseConnection,
   logger: StructuredLocalLogger,
+  interactionDispatcher: DiscordInteractionDispatcher,
   deliveryRecoveryScheduler: DailyRecapDeliveryRecoveryScheduler,
   automaticSchedulingScheduler: AutomaticDailyRecapSchedulingScheduler,
   automaticCollectionScheduler: AutomaticDailyRecapCollectionScheduler,
@@ -807,6 +814,7 @@ async function closeRuntime(
   timedCompetitionFinalizationScheduler?.stop();
   competitionResultDeliveryRecoveryScheduler?.stop();
   competitionRoleRecoveryScheduler?.stop();
+  interactionDispatcher.stop();
   await client.destroy();
   await connection.close();
   logger.write({
@@ -820,6 +828,7 @@ function createRuntime(
   client: Client,
   connection: DatabaseConnection,
   logger: StructuredLocalLogger,
+  interactionDispatcher: DiscordInteractionDispatcher,
   deliveryRecoveryScheduler: DailyRecapDeliveryRecoveryScheduler,
   automaticSchedulingScheduler: AutomaticDailyRecapSchedulingScheduler,
   automaticCollectionScheduler: AutomaticDailyRecapCollectionScheduler,
@@ -839,6 +848,7 @@ function createRuntime(
         client,
         connection,
         logger,
+        interactionDispatcher,
         deliveryRecoveryScheduler,
         automaticSchedulingScheduler,
         automaticCollectionScheduler,

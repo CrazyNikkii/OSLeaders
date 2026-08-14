@@ -9,9 +9,9 @@ import {
   PermissionFlagsBits,
   type ButtonInteraction,
   type ChatInputCommandInteraction,
-  type Client,
   type Interaction,
 } from 'discord.js';
+import type { DiscordInteractionRegistrar } from './discord-interaction-dispatcher.js';
 
 import type { ManualDailyRecapSendService } from '../../features/recaps/send-daily-recap.js';
 import type { DailyRecapDeliveryService } from '../../features/recaps/deliver-daily-recap.js';
@@ -216,7 +216,7 @@ export class DiscordManualDailyRecapSendCommandAdapter {
 }
 
 export function bindDiscordManualDailyRecapSendCommandAdapter(
-  client: Client,
+  client: DiscordInteractionRegistrar,
   adapter: DiscordManualDailyRecapSendCommandAdapter,
   reportUnexpectedError: (error: unknown) => void,
   shouldHandleInteraction: (interaction: Interaction) => boolean = () => true,

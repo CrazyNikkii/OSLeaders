@@ -3,9 +3,9 @@ import {
   Events,
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
-  type Client,
   type Interaction,
 } from 'discord.js';
+import type { DiscordInteractionRegistrar } from './discord-interaction-dispatcher.js';
 
 import {
   SkillLeaderboardService,
@@ -100,7 +100,7 @@ export class DiscordSkillLeaderboardCommandAdapter {
 }
 
 export function bindDiscordSkillLeaderboardCommandAdapter(
-  client: Client,
+  client: DiscordInteractionRegistrar,
   adapter: DiscordSkillLeaderboardCommandAdapter,
   reportUnexpectedError: (error: unknown) => void,
   shouldHandleInteraction: (interaction: Interaction) => boolean = () => true,

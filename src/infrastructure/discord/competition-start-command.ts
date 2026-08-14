@@ -5,11 +5,11 @@ import {
   PermissionFlagsBits,
   StringSelectMenuBuilder,
   type ChatInputCommandInteraction,
-  type Client,
   type Interaction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import { randomUUID } from 'node:crypto';
+import type { DiscordInteractionRegistrar } from './discord-interaction-dispatcher.js';
 
 import {
   CompetitionStartService,
@@ -182,7 +182,7 @@ export class DiscordCompetitionStartCommandAdapter {
 }
 
 export function bindDiscordCompetitionStartCommandAdapter(
-  client: Client,
+  client: DiscordInteractionRegistrar,
   adapter: DiscordCompetitionStartCommandAdapter,
   reportUnexpectedError: (error: unknown) => void,
   shouldHandleInteraction: (interaction: Interaction) => boolean = () => true,

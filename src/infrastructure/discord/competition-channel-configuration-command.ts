@@ -3,9 +3,9 @@ import {
   MessageFlags,
   PermissionFlagsBits,
   type ChatInputCommandInteraction,
-  type Client,
   type Interaction,
 } from 'discord.js';
+import type { DiscordInteractionRegistrar } from './discord-interaction-dispatcher.js';
 
 import type { ConfigureCompetitionChannelService } from '../../features/competitions/configure-competition-channel.js';
 
@@ -45,7 +45,7 @@ export class DiscordCompetitionChannelConfigurationCommandAdapter {
 }
 
 export function bindDiscordCompetitionChannelConfigurationCommandAdapter(
-  client: Client,
+  client: DiscordInteractionRegistrar,
   adapter: DiscordCompetitionChannelConfigurationCommandAdapter,
   reportUnexpectedError: (error: unknown) => void,
   shouldHandleInteraction: (interaction: Interaction) => boolean = () => true,

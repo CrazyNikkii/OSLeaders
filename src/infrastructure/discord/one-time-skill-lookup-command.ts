@@ -9,12 +9,12 @@ import {
   TextInputBuilder,
   TextInputStyle,
   type ChatInputCommandInteraction,
-  type Client,
   type Interaction,
   type ModalSubmitInteraction,
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import { randomUUID } from 'node:crypto';
+import type { DiscordInteractionRegistrar } from './discord-interaction-dispatcher.js';
 
 import { SkillLookupService, type SkillLookupResult } from '../../features/lookups/skill-lookup.js';
 import {
@@ -306,7 +306,7 @@ export class DiscordOneTimeSkillLookupCommandAdapter {
 }
 
 export function bindDiscordOneTimeSkillLookupCommandAdapter(
-  client: Client,
+  client: DiscordInteractionRegistrar,
   adapter: DiscordOneTimeSkillLookupCommandAdapter,
   reportUnexpectedError: (error: unknown) => void,
   shouldHandleInteraction: (interaction: Interaction) => boolean = () => true,

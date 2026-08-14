@@ -769,11 +769,11 @@ not undo the durable start.
 
 ## Next recommended branch-sized task
 
-Investigate and eliminate the production-startup `MaxListenersExceededWarning`
-for Discord `interactionCreate` handlers without merely suppressing the
-warning. Verify that handlers do not accumulate across reconnects or restarts,
-preserve the existing guild and interaction authorization boundaries, and add
-focused runtime coverage. After that, complete the separate real-server
-competition acceptance checklist before treating competition workflows as
-accepted for the configured private beta. Do not claim broader production
-backup or restore guarantees, which remain explicitly deferred for this beta.
+The unmerged `codex/discord-interaction-dispatcher` branch is investigating
+and eliminating the production-startup `MaxListenersExceededWarning` for
+Discord `interactionCreate` handlers without suppressing the warning. Until it
+is merged, `d0cc9ea` remains the latest merged implementation work. After this
+branch is merged, complete the separate real-server competition acceptance
+checklist before treating competition workflows as accepted for the configured
+private beta. Do not claim broader production backup or restore guarantees,
+which remain explicitly deferred for this beta.
