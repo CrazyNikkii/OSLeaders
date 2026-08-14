@@ -58,6 +58,16 @@ export const competitionResultDeliveryStatus = pgEnum(
   'competition_result_delivery_status',
   competitionResultDeliveryStatuses,
 );
+export const competitionStartDeliveryStatuses = [
+  'pending',
+  'delivering',
+  'delivered',
+  'failed',
+] as const;
+export const competitionStartDeliveryStatus = pgEnum(
+  'competition_start_delivery_status',
+  competitionStartDeliveryStatuses,
+);
 export const competitionRoleStatuses = [
   'pending_create',
   'creating',
@@ -384,6 +394,43 @@ export const competitionResultDeliveries = pgTable(
       table.nextAttemptAt,
     ),
     check('competition_result_deliveries_attempt_count_check', sql`${table.attemptCount} >= 0`),
+  ],
+);
+
+/** Durable, at-least-once competition-start posts. A record is created before Discord delivery. */
+export const competitionStartDeliveries = pgTable(
+  'competition_start_deliveries',
+  {
+    id: text('id').primaryKey(),
+    guildId: text('guild_id')
+      .notNull()
+      .references(() => guilds.guildId, { onDelete: 'cascade' }),
+    competitionId: text('competition_id').notNull(),
+    channelId: text('channel_id').notNull(),
+    status: competitionStartDeliveryStatus('status').notNull().default('pending'),
+    attemptCount: integer('attempt_count').notNull().default(0),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }),
+    lastFailureSummary: text('last_failure_summary'),
+    discordMessageId: text('discord_message_id'),
+    deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique('competition_start_deliveries_competition_guild_unique').on(
+      table.competitionId,
+      table.guildId,
+    ),
+    foreignKey({
+      columns: [table.competitionId, table.guildId],
+      foreignColumns: [competitions.id, competitions.guildId],
+      name: 'competition_start_deliveries_competition_guild_fk',
+    }).onDelete('cascade'),
+    index('competition_start_deliveries_status_next_attempt_at_index').on(
+      table.status,
+      table.nextAttemptAt,
+    ),
+    check('competition_start_deliveries_attempt_count_check', sql`${table.attemptCount} >= 0`),
   ],
 );
 

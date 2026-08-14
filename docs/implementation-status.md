@@ -389,6 +389,24 @@ without discarding successful results.
 
 ## Latest merged implementation work
 
+`dede94b` (2026-08-14) - Merge competition role recovery fix.
+
+This merged the PostgreSQL role-recovery claim correction found during the
+real-server competition acceptance exercise. Due role work now joins its owning
+competition while claiming, preserving guild locking and the claimed-status
+guard. PostgreSQL integration coverage verifies a due role claim. The fix has
+been deployed to the configured Debian laptop: the previously stuck role record
+was cleaned, and a second real competition completed without a stored role
+failure. The bot has Manage Roles enabled.
+
+`7e17083` (2026-08-14) - Merge competition private-beta acceptance checklist.
+
+This merged the documented real-server competition acceptance checklist into
+the Debian private-beta runbook. It covers configured-channel permissions,
+temporary-role behavior, active-competition restart recovery, automatic result
+delivery, retained history, and private operator records without publishing
+credentials or member identifiers.
+
 `3d803e1` (2026-08-13) - Merge manual timed competition finalization.
 
 This merged the authorized `/competition finish` flow for active timed
@@ -735,21 +753,21 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Current unmerged implementation work
 
-`codex/competition-role-recovery` fixes the PostgreSQL role-recovery claim
-path discovered during real-server acceptance. Its role-row update referenced
-the competitions table without joining it, so pending role work could not be
-claimed and the scheduler retried without reaching Discord. The branch keeps
-the guild lock and claimed-status check, adds PostgreSQL integration coverage
-for a due role claim, and requires a follow-up real-server role exercise after
-deployment.
+`codex/competition-start-announcement` adds the approved public competition
+start announcement. After a durable successful start, the shared start service
+will immediately claim a durable configured-channel delivery for manual,
+scheduled, and recovered starts. Failed or interrupted delivery is recovered
+at least once after restart; retries suppress role mentions. The temporary
+competition role is mentioned only on the first delivery when its active role
+ID is already available, and announcement work never waits for role creation.
+The existing initiator-only start confirmation remains private, and a delivery
+failure does not undo the durable start.
 
 ## Next recommended branch-sized task
 
-After the role-recovery fix merges and is deployed, rerun the short real-server
-competition acceptance exercise with the bot's Manage Roles permission enabled.
-Confirm temporary-role creation and cleanup, restart during an active
-competition, and automatic result delivery. The repository also has no dated
-record of the daily-recap and restart acceptance result, so record those
-applicable checks before claiming private-beta operational readiness. Do not
-claim broader production backup or restore guarantees, which remain explicitly
-deferred for this private beta.
+After the competition-start announcement merges and is deployed, complete and
+record the remaining real-server daily-recap and restart acceptance checks in
+private operator notes. The repository still has no dated record of those
+checks, so do not claim private-beta operational readiness until they succeed.
+Do not claim broader production backup or restore guarantees, which remain
+explicitly deferred for this private beta.

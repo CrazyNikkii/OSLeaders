@@ -36,6 +36,8 @@ describe('development Discord runtime', () => {
     expect(dependencies.automaticCollectionScheduler.stop).toHaveBeenCalledOnce();
     expect(dependencies.competitionStartRetryScheduler.start).toHaveBeenCalledOnce();
     expect(dependencies.competitionStartRetryScheduler.stop).toHaveBeenCalledOnce();
+    expect(dependencies.competitionStartDeliveryRecoveryScheduler.start).toHaveBeenCalledOnce();
+    expect(dependencies.competitionStartDeliveryRecoveryScheduler.stop).toHaveBeenCalledOnce();
     expect(dependencies.createTargetRaceDeadlineFinalizationScheduler).toHaveBeenCalledOnce();
     expect(dependencies.targetRaceDeadlineFinalizationScheduler.start).toHaveBeenCalledOnce();
     expect(dependencies.targetRaceDeadlineFinalizationScheduler.stop).toHaveBeenCalledOnce();
@@ -189,6 +191,10 @@ class RuntimeDependencies {
     start: vi.fn(() => Promise.resolve()),
     stop: vi.fn(),
   };
+  public readonly competitionStartDeliveryRecoveryScheduler = {
+    start: vi.fn(() => Promise.resolve()),
+    stop: vi.fn(),
+  };
   public readonly targetRaceDeadlineFinalizationScheduler = {
     start: vi.fn(() => Promise.resolve()),
     stop: vi.fn(),
@@ -214,6 +220,9 @@ class RuntimeDependencies {
       createAutomaticDailyRecapSchedulingScheduler: vi.fn(() => this.automaticSchedulingScheduler),
       createAutomaticDailyRecapCollectionScheduler: vi.fn(() => this.automaticCollectionScheduler),
       createCompetitionStartRetryScheduler: vi.fn(() => this.competitionStartRetryScheduler),
+      createCompetitionStartDeliveryRecoveryScheduler: vi.fn(
+        () => this.competitionStartDeliveryRecoveryScheduler,
+      ),
       createTargetRaceDeadlineFinalizationScheduler: this
         .createTargetRaceDeadlineFinalizationScheduler as never,
       createTimedCompetitionFinalizationScheduler: this

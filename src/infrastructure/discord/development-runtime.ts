@@ -47,6 +47,7 @@ import { PostgresAutomaticDailyRecapCollectionRepository } from '../database/pos
 import { PostgresCompetitionCreationRepository } from '../database/postgres-competition-creation-repository.js';
 import { PostgresCompetitionDraftParticipationRepository } from '../database/postgres-competition-draft-participation-repository.js';
 import { PostgresCompetitionStartRepository } from '../database/postgres-competition-start-repository.js';
+import { PostgresCompetitionStartDeliveryRepository } from '../database/postgres-competition-start-delivery-repository.js';
 import { PostgresCompetitionStandingsRepository } from '../database/postgres-competition-standings-repository.js';
 import { PostgresCompetitionResultsHistoryRepository } from '../database/postgres-competition-results-history-repository.js';
 import { PostgresTargetRaceClaimRepository } from '../database/postgres-target-race-claim-repository.js';
@@ -145,6 +146,12 @@ import {
   DiscordCompetitionStartCommandAdapter,
 } from './competition-start-command.js';
 import { CompetitionStartService } from '../../features/competitions/start-competition.js';
+import { CompetitionStartAnnouncementDeliveryService } from '../../features/competitions/deliver-competition-start-announcement.js';
+import { DiscordCompetitionStartAnnouncer } from './competition-start-discord-publisher.js';
+import {
+  InProcessCompetitionStartDeliveryRecoveryScheduler,
+  type CompetitionStartDeliveryRecoveryScheduler,
+} from './competition-start-delivery-recovery-scheduler.js';
 import { CompetitionStartFailureAuditService } from '../../features/competitions/report-competition-start-failures.js';
 import {
   InProcessCompetitionStartRetryScheduler,
@@ -225,6 +232,10 @@ export interface DevelopmentDiscordRuntimeDependencies {
     starts: CompetitionStartService,
     logger: StructuredLocalLogger,
   ): CompetitionStartRetryScheduler;
+  createCompetitionStartDeliveryRecoveryScheduler?(
+    deliveries: CompetitionStartAnnouncementDeliveryService,
+    logger: StructuredLocalLogger,
+  ): CompetitionStartDeliveryRecoveryScheduler;
   createCompetitionResultDeliveryRecoveryScheduler?(
     deliveries: CompetitionResultDeliveryService,
     logger: StructuredLocalLogger,
@@ -257,6 +268,8 @@ const defaultDependencies: DevelopmentDiscordRuntimeDependencies = {
     new InProcessAutomaticDailyRecapCollectionScheduler(collection, logger),
   createCompetitionStartRetryScheduler: (starts, logger) =>
     new InProcessCompetitionStartRetryScheduler(starts, logger),
+  createCompetitionStartDeliveryRecoveryScheduler: (deliveries, logger) =>
+    new InProcessCompetitionStartDeliveryRecoveryScheduler(deliveries, logger),
   createCompetitionResultDeliveryRecoveryScheduler: (deliveries, logger) =>
     new InProcessCompetitionResultDeliveryRecoveryScheduler(deliveries, logger),
   createCompetitionRoleRecoveryScheduler: (roles, logger) =>
@@ -431,6 +444,13 @@ export async function startDevelopmentDiscordRuntime(
         ),
       );
     const competitionStartRepository = new PostgresCompetitionStartRepository(connection.database);
+    const competitionStartDelivery = new CompetitionStartAnnouncementDeliveryService(
+      new PostgresCompetitionStartDeliveryRepository(connection.database),
+      new DiscordCompetitionStartAnnouncer(
+        client,
+        new PostgresCompetitionRoleRepository(connection.database),
+      ),
+    );
     const competitionStartService = new CompetitionStartService(
       competitionStartRepository,
       permissions,
@@ -440,6 +460,7 @@ export async function startDevelopmentDiscordRuntime(
         audit,
         new DiscordCompetitionStartFailureAuditPublisher(client, configurationService),
       ),
+      competitionStartDelivery,
     );
     const competitionStartAdapter = new DiscordCompetitionStartCommandAdapter(
       new CompetitionStartCommandHandler(competitionStartService, competitionStartRepository),
@@ -457,6 +478,11 @@ export async function startDevelopmentDiscordRuntime(
       competitionStartService,
       logger,
     );
+    const competitionStartDeliveryRecoveryScheduler =
+      dependencies.createCompetitionStartDeliveryRecoveryScheduler?.(
+        competitionStartDelivery,
+        logger,
+      );
     const competitionSchedulingRepository = new PostgresCompetitionSchedulingRepository(
       connection.database,
     );
@@ -703,6 +729,7 @@ export async function startDevelopmentDiscordRuntime(
     await client.login(configuration.discord.token);
     await competitionResultDeliveryRecoveryScheduler?.start();
     await competitionRoleRecoveryScheduler?.start();
+    await competitionStartDeliveryRecoveryScheduler?.start();
     await deliveryRecoveryScheduler.start();
     await automaticSchedulingScheduler.start();
     await automaticCollectionScheduler.start();
@@ -717,6 +744,7 @@ export async function startDevelopmentDiscordRuntime(
       automaticSchedulingScheduler,
       automaticCollectionScheduler,
       competitionStartRetryScheduler,
+      competitionStartDeliveryRecoveryScheduler,
       targetRaceDeadlineFinalizationScheduler,
       timedCompetitionFinalizationScheduler,
       competitionResultDeliveryRecoveryScheduler,
@@ -762,6 +790,7 @@ async function closeRuntime(
   automaticSchedulingScheduler: AutomaticDailyRecapSchedulingScheduler,
   automaticCollectionScheduler: AutomaticDailyRecapCollectionScheduler,
   competitionStartRetryScheduler: CompetitionStartRetryScheduler,
+  competitionStartDeliveryRecoveryScheduler: CompetitionStartDeliveryRecoveryScheduler | undefined,
   targetRaceDeadlineFinalizationScheduler:
     InProcessTargetRaceDeadlineFinalizationScheduler | undefined,
   timedCompetitionFinalizationScheduler: InProcessTimedCompetitionFinalizationScheduler | undefined,
@@ -773,6 +802,7 @@ async function closeRuntime(
   automaticSchedulingScheduler.stop();
   automaticCollectionScheduler.stop();
   competitionStartRetryScheduler.stop();
+  competitionStartDeliveryRecoveryScheduler?.stop();
   targetRaceDeadlineFinalizationScheduler?.stop();
   timedCompetitionFinalizationScheduler?.stop();
   competitionResultDeliveryRecoveryScheduler?.stop();
@@ -794,6 +824,7 @@ function createRuntime(
   automaticSchedulingScheduler: AutomaticDailyRecapSchedulingScheduler,
   automaticCollectionScheduler: AutomaticDailyRecapCollectionScheduler,
   competitionStartRetryScheduler: CompetitionStartRetryScheduler,
+  competitionStartDeliveryRecoveryScheduler: CompetitionStartDeliveryRecoveryScheduler | undefined,
   targetRaceDeadlineFinalizationScheduler:
     InProcessTargetRaceDeadlineFinalizationScheduler | undefined,
   timedCompetitionFinalizationScheduler: InProcessTimedCompetitionFinalizationScheduler | undefined,
@@ -812,6 +843,7 @@ function createRuntime(
         automaticSchedulingScheduler,
         automaticCollectionScheduler,
         competitionStartRetryScheduler,
+        competitionStartDeliveryRecoveryScheduler,
         targetRaceDeadlineFinalizationScheduler,
         timedCompetitionFinalizationScheduler,
         competitionResultDeliveryRecoveryScheduler,

@@ -141,6 +141,13 @@
       "when": 1786566753562,
       "tag": "0019_finished-competition-account-deletion",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1786702945901,
+      "tag": "0020_overrated_gwen_stacy",
+      "breakpoints": true
     }
   ]
 }
