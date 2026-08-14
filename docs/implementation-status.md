@@ -760,6 +760,15 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Latest merged implementation work
 
+`4460422` (2026-08-14) - Merge scheduled competition creation.
+
+This merged the approved automatic-competition scheduling model. Every new
+competition now has a required scheduled start; timed competitions collect local
+start and end times, target-race deadlines accept optional whole hours after
+start, and the creation flow publishes a standard gold announcement embed with
+objective, timing, and join guidance. The retired `/competition start` and
+`/competition schedule` adapters are no longer registered or runtime-bound.
+
 `f05391e` (2026-08-14) - Record competition private-beta acceptance.
 
 This merged the status record for the successful configured-Debian real-server
@@ -799,11 +808,8 @@ both cleanup paths.
 
 ## Next recommended branch-sized task
 
-Complete and merge the current `codex/scheduled-competition-creation` branch.
-It implements the approved product decision that every competition is created
-with an automatic local start time; timed competitions collect local start and
-end times, target-race deadlines use optional whole hours after start, and
-`/competition start` plus `/competition schedule` are retired from the Discord
-command surface. The branch must not be recorded as completed until it is
-merged. Afterward, run a separate real-server target-race exercise, including a
-verified `/competition claim`, as additional Stage 9 confidence coverage.
+Run a separate real-server target-race exercise, including a verified
+`/competition claim`, as additional Stage 9 confidence coverage. This is not a
+blocker to the completed private-beta readiness checklist. Do not claim broader
+production backup or restore guarantees, which remain explicitly deferred for
+this beta.
