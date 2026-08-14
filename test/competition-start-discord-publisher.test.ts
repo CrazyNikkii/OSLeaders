@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { DiscordCompetitionStartAnnouncer } from '../src/infrastructure/discord/competition-start-discord-publisher.js';
+import {
+  competitionStartAnnouncementEmbed,
+  DiscordCompetitionStartAnnouncer,
+} from '../src/infrastructure/discord/competition-start-discord-publisher.js';
+import { OSLEADERS_EMBED_COLOR } from '../src/infrastructure/discord/discord-embed-presentation.js';
 
 const announcement = {
   competitionId: 'competition-one',
@@ -31,11 +35,8 @@ describe('DiscordCompetitionStartAnnouncer', () => {
 
     expect(send).toHaveBeenCalledWith({
       allowedMentions: { roles: ['role-one'] },
-      content:
-        'Competition **Mining week** has started! Woodcutting XP. Ends <t:1786449600:R>.'.replace(
-          'Competition',
-          '<@&role-one> Competition',
-        ),
+      content: '<@&role-one>',
+      embeds: [competitionStartAnnouncementEmbed(announcement)],
     });
   });
 
@@ -64,7 +65,22 @@ describe('DiscordCompetitionStartAnnouncer', () => {
 
     expect(send).toHaveBeenCalledWith({
       allowedMentions: { parse: [] },
-      content: 'Competition **Mining week** has started! Zulrah KC. Target race with no deadline.',
+      embeds: [
+        competitionStartAnnouncementEmbed({
+          ...announcement,
+          endsAt: null,
+          metric: { kind: 'boss', name: 'Zulrah' },
+        }),
+      ],
+    });
+  });
+
+  it('uses the standard OSLeaders embed presentation for the announcement', () => {
+    expect(competitionStartAnnouncementEmbed(announcement).toJSON()).toEqual({
+      color: OSLEADERS_EMBED_COLOR,
+      description: '**Mining week**\n\n**Woodcutting XP** - Ends <t:1786449600:R>.',
+      footer: { text: 'Competition announcement' },
+      title: 'Competition started',
     });
   });
 });
