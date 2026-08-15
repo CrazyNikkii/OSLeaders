@@ -41,7 +41,9 @@ public winner announcement, retained final results, `/competition history`, and
 temporary-role cleanup all succeeded. The exercise also exposed a role-assignment
 defect: a present member who joined after the draft's empty temporary role was
 created did not receive that role before the competition started. The target-race
-claim path is accepted; the role-assignment fix remains unmerged.
+claim path is accepted. `ee498f3` merged the focused durable role-assignment
+fix; one short real-server confirmation remains to verify it assigns the role
+to a present member who joins an existing draft before its scheduled start.
 
 The completed Stage 8 competition implementation includes the merged
 Discord-independent target-race claim
@@ -768,6 +770,14 @@ and Debian backup, restore-rehearsal, and acceptance guidance.
 
 ## Latest merged implementation work
 
+`ee498f3` (2026-08-15) - Merge draft competition role assignment.
+
+This merged the fix for a present member joining a draft after its temporary
+role already exists. Draft join, add, leave, and remove changes now queue a
+durable role sync. A lease token prevents an in-flight stale sync from replacing
+that immediate follow-up with its routine delay. Focused unit and clean
+PostgreSQL integration coverage verify the interleaving.
+
 `4460422` (2026-08-14) - Merge scheduled competition creation.
 
 This merged the approved automatic-competition scheduling model. Every new
@@ -816,10 +826,8 @@ both cleanup paths.
 
 ## Next recommended branch-sized task
 
-Review and merge the focused draft-participation role-assignment fix, which
-queues a durable role sync whenever draft entrants change. Then perform one
-short real-server confirmation that a present member who joins an existing
-draft receives its temporary role before the scheduled start. This is not a
-blocker to the completed private-beta readiness checklist. Do not claim broader
-production backup or restore guarantees, which remain explicitly deferred for
-this beta.
+Deploy `ee498f3`, then perform one short real-server confirmation that a
+present member who joins an existing draft receives its temporary role before
+the scheduled start. This is not a blocker to the completed private-beta
+readiness checklist. Do not claim broader production backup or restore
+guarantees, which remain explicitly deferred for this beta.
