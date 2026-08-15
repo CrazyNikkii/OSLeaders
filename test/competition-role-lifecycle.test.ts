@@ -16,6 +16,7 @@ const operation = {
   displayName: 'Winter grind',
   discordRoleId: null,
   guildId: 'guild-1',
+  leaseExpiresAt: new Date('2026-08-15T12:05:00.000Z'),
   memberDiscordUserIds: ['member-1'],
   operation: 'create' as const,
 };

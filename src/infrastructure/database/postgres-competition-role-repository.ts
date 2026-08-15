@@ -108,10 +108,22 @@ export class PostgresCompetitionRoleRepository implements CompetitionRoleReposit
   public recordSynced(request: {
     competitionId: string;
     guildId: string;
+    leaseExpiresAt: Date;
     nextAttemptAt: Date;
   }): Promise<void> {
-    return this.finish(request.guildId, request.competitionId, 'active', {
-      nextAttemptAt: request.nextAttemptAt,
+    return this.database.transaction(async (transaction) => {
+      await lockGuild(transaction, request.guildId);
+      await transaction
+        .update(competitionRoles)
+        .set({ nextAttemptAt: request.nextAttemptAt, updatedAt: this.now() })
+        .where(
+          and(
+            eq(competitionRoles.guildId, request.guildId),
+            eq(competitionRoles.competitionId, request.competitionId),
+            eq(competitionRoles.status, 'active'),
+            eq(competitionRoles.nextAttemptAt, request.leaseExpiresAt),
+          ),
+        );
     });
   }
 
@@ -160,11 +172,12 @@ export class PostgresCompetitionRoleRepository implements CompetitionRoleReposit
           : (['active'] as const);
     const nextStatus =
       operation === 'create' ? 'creating' : operation === 'cleanup' ? 'cleaning' : 'active';
+    const leaseExpiresAt = new Date(now.getTime() + LEASE_MS);
     const [claimed] = await transaction
       .update(competitionRoles)
       .set({
         attemptCount: sql`${competitionRoles.attemptCount} + 1`,
-        nextAttemptAt: new Date(now.getTime() + LEASE_MS),
+        nextAttemptAt: leaseExpiresAt,
         status: nextStatus,
         updatedAt: now,
       })
@@ -185,6 +198,7 @@ export class PostgresCompetitionRoleRepository implements CompetitionRoleReposit
       displayName: role.displayName,
       discordRoleId: role.discordRoleId,
       guildId,
+      leaseExpiresAt,
       memberDiscordUserIds,
       operation,
     };

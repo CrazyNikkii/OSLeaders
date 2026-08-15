@@ -282,6 +282,67 @@ describe('database foundation', () => {
     ).resolves.toEqual([{ attemptCount: 1, status: 'creating' }]);
   });
 
+  it('queues a draft role sync when a present member joins after the empty role sync', async () => {
+    const creation = new PostgresCompetitionCreationRepository(connection.database);
+    const roles = new PostgresCompetitionRoleRepository(connection.database);
+    const accounts = new PostgresAccountRegistrationRepository(connection.database);
+    const participation = new PostgresCompetitionDraftParticipationRepository(connection.database);
+    const guildId = 'competition-role-participation-guild';
+    const competitionId = 'competition-role-participation';
+    const nextAttemptAt = new Date(Date.now() + 60 * 60_000);
+
+    await connection.database.update(competitionRoles).set({ nextAttemptAt });
+    await creation.create(
+      competitionDraft({
+        displayName: 'Role participation sync',
+        guildId,
+        id: competitionId,
+        intendedStartAt: new Date('2100-01-01T12:00:00.000Z'),
+        normalizedName: 'role participation sync',
+      }),
+    );
+    await accounts.register(
+      account({ guildId, id: 'competition-role-participation-account' }),
+      initialRecapBaseline(),
+    );
+
+    await expect(roles.claimDueOperation()).resolves.toMatchObject({
+      competitionId,
+      memberDiscordUserIds: [],
+      operation: 'create',
+    });
+    await roles.recordCreated({ competitionId, discordRoleId: 'role-one', guildId });
+    const emptySync = await roles.claimDueOperation();
+    expect(emptySync).toMatchObject({
+      competitionId,
+      memberDiscordUserIds: [],
+      operation: 'sync',
+    });
+    if (emptySync === undefined) throw new Error('Expected the empty draft role sync.');
+
+    await accounts.markMemberPresent(guildId, 'member-one');
+    await participation.join({
+      competitionId,
+      contributingAccountIds: ['competition-role-participation-account'],
+      entrantId: 'competition-role-participation-entrant',
+      guildId,
+      requesterDiscordUserId: 'member-one',
+    });
+    await roles.recordSynced({
+      competitionId,
+      guildId,
+      leaseExpiresAt: emptySync.leaseExpiresAt,
+      nextAttemptAt,
+    });
+
+    await expect(roles.claimDueOperation()).resolves.toMatchObject({
+      competitionId,
+      guildId,
+      memberDiscordUserIds: ['member-one'],
+      operation: 'sync',
+    });
+  });
+
   it('reconciles stale member presence only within its guild', async () => {
     const repository = new PostgresAccountRegistrationRepository(connection.database);
     await repository.markMemberPresent('presence-reconciliation-guild-one', 'departed-member');
