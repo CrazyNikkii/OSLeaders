@@ -42,8 +42,9 @@ temporary-role cleanup all succeeded. The exercise also exposed a role-assignmen
 defect: a present member who joined after the draft's empty temporary role was
 created did not receive that role before the competition started. The target-race
 claim path is accepted. `ee498f3` merged the focused durable role-assignment
-fix; one short real-server confirmation remains to verify it assigns the role
-to a present member who joins an existing draft before its scheduled start.
+fix. After deployment, a present member joined an existing draft, received its
+temporary role before the scheduled start, and cancellation removed the role.
+The target-race claim and draft role-assignment acceptance checks are complete.
 
 The completed Stage 8 competition implementation includes the merged
 Discord-independent target-race claim
@@ -826,8 +827,8 @@ both cleanup paths.
 
 ## Next recommended branch-sized task
 
-Deploy `ee498f3`, then perform one short real-server confirmation that a
-present member who joins an existing draft receives its temporary role before
-the scheduled start. This is not a blocker to the completed private-beta
-readiness checklist. Do not claim broader production backup or restore
-guarantees, which remain explicitly deferred for this beta.
+Choose the next smallest Stage 9 failure-recovery, resource, or deployment
+confidence scenario from the approved acceptance scope before opening another
+implementation branch. There is no remaining private-beta blocker from the
+target-race or temporary-role workflows. Do not claim broader production backup
+or restore guarantees, which remain explicitly deferred for this beta.
