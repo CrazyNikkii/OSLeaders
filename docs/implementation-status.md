@@ -35,6 +35,14 @@ merged.
 ## Current implementation stage
 
 Stage 9 - Full acceptance, failure-recovery, resource, and deployment testing.
+On 2026-08-15, the configured Debian private-beta guild successfully exercised
+a target-race claim with a real tracked account: fresh Hiscores verification,
+public winner announcement, retained final results, `/competition history`, and
+temporary-role cleanup all succeeded. The exercise also exposed a role-assignment
+defect: a present member who joined after the draft's empty temporary role was
+created did not receive that role before the competition started. The target-race
+claim path is accepted; the role-assignment fix remains unmerged.
+
 The completed Stage 8 competition implementation includes the merged
 Discord-independent target-race claim
 foundation durably records a stable claim ID and UTC receipt time before
@@ -808,8 +816,10 @@ both cleanup paths.
 
 ## Next recommended branch-sized task
 
-Run a separate real-server target-race exercise, including a verified
-`/competition claim`, as additional Stage 9 confidence coverage. This is not a
+Review and merge the focused draft-participation role-assignment fix, which
+queues a durable role sync whenever draft entrants change. Then perform one
+short real-server confirmation that a present member who joins an existing
+draft receives its temporary role before the scheduled start. This is not a
 blocker to the completed private-beta readiness checklist. Do not claim broader
 production backup or restore guarantees, which remain explicitly deferred for
 this beta.

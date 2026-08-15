@@ -5,6 +5,7 @@ export interface PendingCompetitionRoleOperation {
   displayName: string;
   discordRoleId: string | null;
   guildId: string;
+  leaseExpiresAt: Date;
   memberDiscordUserIds: readonly string[];
   operation: 'create' | 'cleanup' | 'sync';
 }
@@ -27,6 +28,7 @@ export interface CompetitionRoleRepository {
   recordSynced(request: {
     competitionId: string;
     guildId: string;
+    leaseExpiresAt: Date;
     nextAttemptAt: Date;
   }): Promise<void>;
   recordMissingRole(request: { competitionId: string; guildId: string }): Promise<void>;

@@ -10,6 +10,7 @@ import type { Database, Transaction } from './connection.js';
 import {
   competitionContributingAccounts,
   competitionEntrants,
+  competitionRoles,
   competitions,
   trackedAccounts,
 } from './schema/index.js';
@@ -151,6 +152,7 @@ export class PostgresCompetitionDraftParticipationRepository implements Competit
             eq(competitionEntrants.id, stored.id),
           ),
         );
+      await this.queueDraftRoleSync(transaction, request.guildId, request.competitionId);
       return { kind: 'left', entrant };
     });
   }
@@ -199,6 +201,7 @@ export class PostgresCompetitionDraftParticipationRepository implements Competit
             eq(competitionEntrants.id, stored.id),
           ),
         );
+      await this.queueDraftRoleSync(transaction, request.guildId, request.competitionId);
       return { kind: 'removed', entrant };
     });
   }
@@ -306,6 +309,7 @@ export class PostgresCompetitionDraftParticipationRepository implements Competit
         trackedAccountId,
       })),
     );
+    await this.queueDraftRoleSync(transaction, request.guildId, request.competitionId);
     return {
       kind: request.resultKind,
       entrant:
@@ -327,6 +331,23 @@ export class PostgresCompetitionDraftParticipationRepository implements Competit
               watchlistAccountId: request.entrant.watchlistAccountId,
             },
     };
+  }
+
+  private async queueDraftRoleSync(
+    transaction: Transaction,
+    guildId: string,
+    competitionId: string,
+  ): Promise<void> {
+    await transaction
+      .update(competitionRoles)
+      .set({ nextAttemptAt: sql`now()`, updatedAt: sql`now()` })
+      .where(
+        and(
+          eq(competitionRoles.guildId, guildId),
+          eq(competitionRoles.competitionId, competitionId),
+          eq(competitionRoles.status, 'active'),
+        ),
+      );
   }
 
   private async toEntrant(
