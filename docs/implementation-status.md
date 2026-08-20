@@ -23,8 +23,7 @@ merged.
   guild passed the real-server lookup, leaderboard, recap preview, manual and
   scheduled recap-delivery, and forced Node-process restart checks after
   deployment of `d0cc9ea`. The acceptance details are retained only in private
-  operator notes. Backup and restore guarantees remain explicitly deferred for
-  this small private beta.
+  operator notes.
 - Stage 8 - Competition lifecycle, snapshots, claims, scheduling, roles, and
   history. On 2026-08-14, the configured Debian private-beta guild passed the
   documented real-server timed-competition exercise: configured-channel
@@ -385,9 +384,6 @@ absence and the readable delivery and preview layout.
   configuration, Message Content intent, aliases, and free-text parsing.
 - Stage 9 - Full acceptance, failure-recovery, resource, and deployment
   testing.
-- Future production-readiness - External backups, restore rehearsal, and
-  retention policy if the product is prepared for public distribution, paid
-  use, or a larger community.
 
 ## Previous merged implementation work
 
@@ -727,12 +723,6 @@ account managers can select a corrected stored game mode; OSLeaders validates
 the selected mode before saving it, keeps the response private, and records
 the successful edit through the administrative-log policy.
 
-`9967972` (2026-08-07) - Merge private-beta backup deferral.
-
-This recorded the approved decision that the small private beta may continue
-without backup or restore guarantees. The operational assets remain retained
-for a future public, paid, or larger-community deployment.
-
 `6bca34d` (2026-08-05) - Merge boss selection coverage fix.
 
 This merged the `/boss` bounded-menu fix. Boss choices are now shared with the
@@ -756,8 +746,8 @@ run the existing Debian operational-assets test.
 `6fa38a5` (2026-08-05) - Add private beta laptop readiness.
 
 This merged the initial Windows single-server private-beta operating path. Its
-Windows runtime and backup assets are superseded by the merged Debian
-deployment path below; Windows remains the development environment.
+Windows runtime assets are superseded by the merged Debian deployment path
+below; Windows remains the development environment.
 
 Documentation-only maintenance commits may be newer; Git history remains the
 authority for the latest repository change.
@@ -766,8 +756,7 @@ authority for the latest repository change.
 
 This merged the Debian 13 headless-SSH operating path: separate production
 Discord and database configuration, guarded production migrations, systemd
-runtime and backup-timer units, protected unattended PostgreSQL credentials,
-and Debian backup, restore-rehearsal, and acceptance guidance.
+runtime, and acceptance guidance.
 
 ## Latest merged implementation work
 
@@ -830,5 +819,4 @@ both cleanup paths.
 Choose the next smallest Stage 9 failure-recovery, resource, or deployment
 confidence scenario from the approved acceptance scope before opening another
 implementation branch. There is no remaining private-beta blocker from the
-target-race or temporary-role workflows. Do not claim broader production backup
-or restore guarantees, which remain explicitly deferred for this beta.
+target-race or temporary-role workflows.

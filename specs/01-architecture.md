@@ -25,9 +25,6 @@ particular:
   provisional until tested on the production laptop.
 - PostgreSQL runs locally and directly on both the Windows development
   machine and the production Linux system. Containers are not required.
-- The production backup destination and retention schedule are deferred to
-  deployment planning, but backups must leave the laptop's internal disk and
-  must not introduce a recurring cost.
 
 ## 2. Architectural goals
 
@@ -122,7 +119,7 @@ OSLeaders communicates with four external boundaries:
 2. **Jagex Old School Hiscores** supplies current account statistics.
 3. **PostgreSQL** stores all durable state.
 4. **The operating system** supplies process supervision, local logs, clock,
-   networking, and backup scheduling.
+   networking, and scheduled work.
 
 All external boundaries are accessed through application-owned adapters. Core
 product rules must not directly call discord.js, node-postgres, the operating
@@ -714,51 +711,22 @@ The deployment design uses:
 - Node.js and PostgreSQL installed directly on the host.
 - PostgreSQL bound locally unless deployment testing identifies a justified
   need for remote access.
-- Minimal filesystem permissions for secrets and backups.
+- Minimal filesystem permissions for secrets.
 - Graceful shutdown that stops accepting work, closes Discord, and closes the
   database pool.
 - Database migrations as an explicit deployment step, not an uncontrolled side
-  effect of every application startup. The current private beta accepts the
-  documented risk of operating without a backup; backup verification becomes
-  required only for a future public, paid, or larger-community deployment.
+  effect of every application startup.
 
 The exact Linux distribution, release, Node.js LTS release, PostgreSQL release,
 and installation method are recorded in the deployment specification after
 hardware testing.
 
-## 25. Backups and restoration
-
-Automatic PostgreSQL backups and restoration are deferred for the current
-small, private beta. The operator accepts possible permanent loss of the
-database, and the deployment does not require an external backup device or a
-restore rehearsal to continue operating.
-
-If the product is prepared for public distribution, paid use, or a larger
-community, its production-readiness work must provide PostgreSQL logical
-backups sufficient to restore all persistent product data. Backup files must
-be validated, rotated, and copied outside the laptop's internal disk. The
-external destination and retention schedule must use already-owned storage or
-another zero-recurring-cost option.
-
-That future backup architecture is not complete until it includes:
-
-- Scheduled backup creation.
-- Failure visibility in local logs and, while the bot is online, the
-  administrative Discord channel.
-- Integrity or restore-readability checks.
-- A documented restore procedure.
-- At least one successful restore rehearsal before production acceptance.
-- Protection against the external destination silently remaining unavailable.
-
-A second directory on the same internal disk does not satisfy that future
-external-backup requirement.
-
-## 26. Testing strategy
+## 25. Testing strategy
 
 Testing is layered so most rules run quickly without Discord, PostgreSQL, or
 live Jagex access.
 
-### 26.1 Unit tests
+### 25.1 Unit tests
 
 Pure tests cover:
 
@@ -770,7 +738,7 @@ Pure tests cover:
 - Recap positive-change calculation and comparison-period wording.
 - Discord output pagination and limit handling.
 
-### 26.2 Database integration tests
+### 25.2 Database integration tests
 
 Tests against real PostgreSQL cover:
 
@@ -785,7 +753,7 @@ Tests against real PostgreSQL cover:
 Database-specific behaviour must not be tested only with an in-memory
 substitute.
 
-### 26.3 Adapter and contract tests
+### 25.3 Adapter and contract tests
 
 - Hiscore parsing uses stored sanitized fixtures for success and failure
   shapes.
@@ -798,14 +766,14 @@ substitute.
 Live Jagex tests are kept separate from deterministic automated tests because
 external availability and account values change.
 
-### 26.4 Recovery tests
+### 25.4 Recovery tests
 
 Tests simulate interruption during pending start, pending finish, recap send,
 notification delivery, and role cleanup. Restarting the application must
 resume durable work without corrupting state. Rare duplicate delivery is an
 accepted outcome only at the documented external-transaction boundary.
 
-## 27. Acceptance-criteria traceability
+## 26. Acceptance-criteria traceability
 
 The product acceptance criteria are covered by these architectural areas:
 
@@ -818,13 +786,13 @@ The product acceptance criteria are covered by these architectural areas:
 | 23-25: audit, history, long output | Audit and logging, historical records, centralized presenters |
 | 26-27: cache, cooldowns, environment separation | Hiscore policy, command policy, configuration and secrets |
 | 28: automated tests | Unit, PostgreSQL integration, contract, and recovery tests |
-| 29-30: production and backups | Headless service deployment, resource budget, external rotating backups |
+| 29: production deployment | Headless service deployment and resource budget |
 
 Each implementation stage should identify the relevant product acceptance
 criteria, and the test suite should provide clear coverage for them. Passing
 tests do not replace a final end-to-end acceptance review.
 
-## 28. Implementation sequence
+## 27. Implementation sequence
 
 After this architecture is approved, implementation should proceed in small,
 reviewable stages:
@@ -843,13 +811,13 @@ reviewable stages:
    exist.
 8. Competition lifecycle, snapshots, claims, scheduling, roles, and history.
 9. Full acceptance, failure-recovery, resource, and deployment testing.
-10. Deployment and backup specification based on the actual laptop.
+10. Deployment refinement based on the actual laptop.
 
 Each stage should include its migrations, tests, documentation, and a review
 of relevant acceptance criteria. OpenSpec, custom skills, or additional agent
 tooling are not prerequisites for this workflow.
 
-## 29. Deferred decisions and required investigations
+## 28. Deferred decisions and required investigations
 
 The following are deliberately deferred rather than accidentally omitted:
 
@@ -857,7 +825,6 @@ The following are deliberately deferred rather than accidentally omitted:
 - Exact production Linux distribution and version after laptop testing.
 - Exact PostgreSQL release after development and production compatibility
   checks.
-- Exact external backup destination and retention during deployment planning.
 - Final Hiscores endpoint mapping and mode-verification matrix after live
   investigation.
 - Measured connection-pool, request-concurrency, timeout, retry, and cache-size

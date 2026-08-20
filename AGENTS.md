@@ -66,6 +66,6 @@ early private beta, not a claim that the complete v1 feature set is finished.
   do not introduce hosted services or production Docker for this goal.
 - Before saying the bot is ready for this 24/7 private-beta use, verify and
   explicitly report the required laptop startup/restart path, PostgreSQL
-  migration and backup/restore procedure, Discord command registration and
+  migration procedure, Discord command registration and
   permissions, and a successful real-server recap/restart acceptance checklist.
 - Tell the user explicitly when that private-beta readiness point is reached.

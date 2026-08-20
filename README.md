@@ -10,8 +10,8 @@ skill and boss lookups, one-time lookups, permanent leaderboards, and automatic
 daily recaps. Competitions and several less-used account-management Discord
 flows are still deferred.
 
-For the Debian 13 private-beta operating procedure, including backups, restart
-checks, and the real-server acceptance checklist, see
+For the Debian 13 private-beta operating procedure, restart checks, and the
+real-server acceptance checklist, see
 [the private-beta laptop runbook](docs/private-beta-laptop-runbook.md).
 
 ## Prerequisites
