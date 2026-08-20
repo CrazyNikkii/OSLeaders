@@ -1,11 +1,16 @@
 import {
   EmbedBuilder,
   Events,
+  MessageFlags,
   SlashCommandBuilder,
   type ChatInputCommandInteraction,
   type Interaction,
 } from 'discord.js';
 import type { DiscordInteractionRegistrar } from './discord-interaction-dispatcher.js';
+import {
+  discordCommandCooldownMessage,
+  InMemoryDiscordCommandCooldown,
+} from './discord-command-cooldown.js';
 
 import {
   SkillLeaderboardService,
@@ -69,7 +74,10 @@ export class SkillLeaderboardCommandHandler {
 }
 
 export class DiscordSkillLeaderboardCommandAdapter {
-  public constructor(private readonly handler: SkillLeaderboardCommandHandler) {}
+  public constructor(
+    private readonly handler: SkillLeaderboardCommandHandler,
+    private readonly cooldown: InMemoryDiscordCommandCooldown = new InMemoryDiscordCommandCooldown(),
+  ) {}
 
   public async handle(interaction: ChatInputCommandInteraction): Promise<void> {
     if (interaction.commandName !== SKILL_LEADERBOARD_COMMAND_NAME) {
@@ -78,6 +86,18 @@ export class DiscordSkillLeaderboardCommandAdapter {
 
     if (interaction.guildId === null) {
       await interaction.reply({ content: 'This command can only be used in a Discord server.' });
+      return;
+    }
+
+    const cooldown = this.cooldown.tryAcquire({
+      guildId: interaction.guildId,
+      requesterDiscordUserId: interaction.user.id,
+    });
+    if (cooldown.kind === 'cooling_down') {
+      await interaction.reply({
+        content: discordCommandCooldownMessage(cooldown.retryAfterSeconds),
+        flags: MessageFlags.Ephemeral,
+      });
       return;
     }
 

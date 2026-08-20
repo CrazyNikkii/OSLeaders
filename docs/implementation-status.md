@@ -45,6 +45,14 @@ fix. After deployment, a present member joined an existing draft, received its
 temporary role before the scheduled start, and cancellation removed the role.
 The target-race claim and draft role-assignment acceptance checks are complete.
 
+The unmerged `codex/add-discord-command-cooldowns` branch adds the remaining
+short, per-guild-member cooldown for Hiscores-backed work. It shares one
+lightweight in-memory gate across tracked and one-time lookups, leaderboards,
+and competition standings. Guided flows acquire it only at their final
+selection, immediately before the Hiscores request, while administrative
+interactions remain unaffected. This work is under review and is not yet a
+completed stage or merged implementation record.
+
 The completed Stage 8 competition implementation includes the merged
 Discord-independent target-race claim
 foundation durably records a stable claim ID and UTC receipt time before
@@ -816,7 +824,9 @@ both cleanup paths.
 
 ## Next recommended branch-sized task
 
-Choose the next smallest Stage 9 failure-recovery, resource, or deployment
-confidence scenario from the approved acceptance scope before opening another
-implementation branch. There is no remaining private-beta blocker from the
-target-race or temporary-role workflows.
+After the cooldown branch is merged, complete and record the smallest remaining
+Stage 9 real-server failure-recovery scenario: temporarily prevent configured
+competition-result delivery, restore the channel condition, and verify that
+durable recovery posts exactly one result without re-finalizing the competition.
+There is no remaining private-beta blocker from the target-race or temporary-role
+workflows.

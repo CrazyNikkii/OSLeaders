@@ -9,6 +9,7 @@ import {
   DiscordBossLookupCommandAdapter,
   bossLookupCommandDefinitions,
 } from '../src/infrastructure/discord/boss-lookup-command.js';
+import { InMemoryDiscordCommandCooldown } from '../src/infrastructure/discord/discord-command-cooldown.js';
 import {
   bossChoiceGroups,
   bossChoiceGroupLabel,
@@ -134,6 +135,35 @@ describe('Discord boss lookup command', () => {
     });
   });
 
+  it('applies the cooldown when the boss selection would start the lookup', async () => {
+    const services = new LookupServices([]);
+    const cooldown = new InMemoryDiscordCommandCooldown({
+      now: () => new Date('2026-08-20T10:00:00.000Z'),
+    });
+    const adapter = new DiscordBossLookupCommandAdapter(
+      new BossLookupCommandHandler(services),
+      cooldown,
+    );
+    const command = commandInteraction();
+
+    await adapter.handle(command as never);
+    const response = command.reply.mock.calls[0]?.[0];
+    if (response === undefined) throw new Error('Expected boss menu response.');
+    const customId = response.components[0]?.toJSON().components[0]?.custom_id;
+    if (customId === undefined) throw new Error('Expected boss selector.');
+    cooldown.tryAcquire({ guildId: 'guild-one', requesterDiscordUserId: 'member-one' });
+    const selection = selectInteraction(customId, 'Abyssal Sire');
+
+    await adapter.handle(selection as never);
+
+    expect(services.requests).toEqual([]);
+    expect(selection.deferUpdate).not.toHaveBeenCalled();
+    expect(selection.reply).toHaveBeenCalledWith({
+      content: 'Please wait 3 seconds before another Hiscores command.',
+      flags: MessageFlags.Ephemeral,
+    });
+  });
+
   it('binds selections to their guild and requester and expires them after five minutes', async () => {
     const services = new LookupServices([]);
     const clock = new FakeClock();
@@ -217,6 +247,7 @@ function selectInteraction(customId: string, value: string) {
     isAutocomplete: () => false,
     isChatInputCommand: () => false,
     isStringSelectMenu: () => true,
+    reply: vi.fn(() => Promise.resolve()),
     user: { id: 'member-one' },
     values: [value],
   };

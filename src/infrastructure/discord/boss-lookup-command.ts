@@ -11,6 +11,10 @@ import {
   type StringSelectMenuInteraction,
 } from 'discord.js';
 import type { DiscordInteractionRegistrar } from './discord-interaction-dispatcher.js';
+import {
+  discordCommandCooldownMessage,
+  InMemoryDiscordCommandCooldown,
+} from './discord-command-cooldown.js';
 
 import { AccountRetrievalService } from '../../features/accounts/account-retrieval.js';
 import { BossLookupService, type BossLookupResult } from '../../features/lookups/boss-lookup.js';
@@ -166,7 +170,10 @@ export class BossLookupCommandHandler {
 }
 
 export class DiscordBossLookupCommandAdapter {
-  public constructor(private readonly handler: BossLookupCommandHandler) {}
+  public constructor(
+    private readonly handler: BossLookupCommandHandler,
+    private readonly cooldown: InMemoryDiscordCommandCooldown = new InMemoryDiscordCommandCooldown(),
+  ) {}
 
   public async handle(
     interaction:
@@ -203,6 +210,19 @@ export class DiscordBossLookupCommandAdapter {
       decodeBossSelection(interaction.customId) === undefined
     ) {
       return;
+    }
+    if (interaction.guildId !== null) {
+      const cooldown = this.cooldown.tryAcquire({
+        guildId: interaction.guildId,
+        requesterDiscordUserId: interaction.user.id,
+      });
+      if (cooldown.kind === 'cooling_down') {
+        await interaction.reply({
+          content: discordCommandCooldownMessage(cooldown.retryAfterSeconds),
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
     }
     await interaction.deferUpdate();
     const result = await this.handler.selectBoss(

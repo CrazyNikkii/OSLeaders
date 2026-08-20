@@ -8,6 +8,7 @@ import {
   SkillLookupCommandHandler,
   skillLookupCommandDefinitions,
 } from '../src/infrastructure/discord/skill-lookup-command.js';
+import { InMemoryDiscordCommandCooldown } from '../src/infrastructure/discord/discord-command-cooldown.js';
 
 describe('Discord skill lookup command', () => {
   it('registers a guild-only command with canonical skill choices and account autocomplete', () => {
@@ -78,6 +79,28 @@ describe('Discord skill lookup command', () => {
 
     expect(reply).toHaveBeenCalledWith({
       content: 'You do not have a default linked account in this server.',
+      flags: MessageFlags.Ephemeral,
+    });
+  });
+
+  it('does not call the lookup service again while the member is cooling down', async () => {
+    const services = new LookupServices([]);
+    const cooldown = new InMemoryDiscordCommandCooldown({
+      now: () => new Date('2026-08-20T10:00:00Z'),
+    });
+    const adapter = new DiscordSkillLookupCommandAdapter(
+      new SkillLookupCommandHandler(services),
+      cooldown,
+    );
+    const firstReply = vi.fn(() => Promise.resolve());
+    const secondReply = vi.fn(() => Promise.resolve());
+
+    await adapter.handle(chatInteraction(firstReply) as never);
+    await adapter.handle(chatInteraction(secondReply) as never);
+
+    expect(services.requests).toHaveLength(1);
+    expect(secondReply).toHaveBeenCalledWith({
+      content: 'Please wait 3 seconds before another Hiscores command.',
       flags: MessageFlags.Ephemeral,
     });
   });

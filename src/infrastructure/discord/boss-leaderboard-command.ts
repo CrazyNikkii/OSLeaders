@@ -9,6 +9,10 @@ import {
 } from 'discord.js';
 import { randomUUID } from 'node:crypto';
 import type { DiscordInteractionRegistrar } from './discord-interaction-dispatcher.js';
+import {
+  discordCommandCooldownMessage,
+  InMemoryDiscordCommandCooldown,
+} from './discord-command-cooldown.js';
 
 import {
   BossLeaderboardService,
@@ -147,7 +151,10 @@ export class BossLeaderboardCommandHandler {
 }
 
 export class DiscordBossLeaderboardCommandAdapter {
-  public constructor(private readonly handler: BossLeaderboardCommandHandler) {}
+  public constructor(
+    private readonly handler: BossLeaderboardCommandHandler,
+    private readonly cooldown: InMemoryDiscordCommandCooldown = new InMemoryDiscordCommandCooldown(),
+  ) {}
 
   public async handle(
     interaction: ChatInputCommandInteraction | StringSelectMenuInteraction,
@@ -175,6 +182,19 @@ export class DiscordBossLeaderboardCommandAdapter {
       decodeBossSelection(interaction.customId) === undefined
     )
       return;
+    if (interaction.guildId !== null) {
+      const cooldown = this.cooldown.tryAcquire({
+        guildId: interaction.guildId,
+        requesterDiscordUserId: interaction.user.id,
+      });
+      if (cooldown.kind === 'cooling_down') {
+        await interaction.reply({
+          content: discordCommandCooldownMessage(cooldown.retryAfterSeconds),
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+    }
     await interaction.deferUpdate();
     const result = await this.handler.selectBoss(
       interaction.guildId,

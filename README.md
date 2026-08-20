@@ -7,8 +7,9 @@ approved technical design is in `specs/01-architecture.md`.
 This repository contains a runnable single-guild Discord bot for the early
 private beta. It supports account registration and selected account management,
 skill and boss lookups, one-time lookups, permanent leaderboards, and automatic
-daily recaps. Competitions and several less-used account-management Discord
-flows are still deferred.
+daily recaps, plus the full competition lifecycle. Account-association
+conversion and several less-used account-management Discord flows are still
+deferred.
 
 For the Debian 13 private-beta operating procedure, restart checks, and the
 real-server acceptance checklist, see

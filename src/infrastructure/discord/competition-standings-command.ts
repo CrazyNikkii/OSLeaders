@@ -10,6 +10,10 @@ import {
 } from 'discord.js';
 import { randomUUID } from 'node:crypto';
 import type { DiscordInteractionRegistrar } from './discord-interaction-dispatcher.js';
+import {
+  discordCommandCooldownMessage,
+  InMemoryDiscordCommandCooldown,
+} from './discord-command-cooldown.js';
 
 import {
   CompetitionStandingsService,
@@ -148,7 +152,10 @@ export class CompetitionStandingsCommandHandler {
 }
 
 export class DiscordCompetitionStandingsCommandAdapter {
-  public constructor(private readonly handler: CompetitionStandingsCommandHandler) {}
+  public constructor(
+    private readonly handler: CompetitionStandingsCommandHandler,
+    private readonly cooldown: InMemoryDiscordCommandCooldown = new InMemoryDiscordCommandCooldown(),
+  ) {}
 
   public async handle(
     interaction: ChatInputCommandInteraction | StringSelectMenuInteraction,
@@ -167,6 +174,19 @@ export class DiscordCompetitionStandingsCommandAdapter {
     }
     if (!interaction.isStringSelectMenu() || !interaction.customId.startsWith(INTERACTION_PREFIX))
       return;
+    if (interaction.guildId !== null) {
+      const cooldown = this.cooldown.tryAcquire({
+        guildId: interaction.guildId,
+        requesterDiscordUserId: interaction.user.id,
+      });
+      if (cooldown.kind === 'cooling_down') {
+        await interaction.reply({
+          content: discordCommandCooldownMessage(cooldown.retryAfterSeconds),
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+    }
     await interaction.deferUpdate();
     const result = await this.handler.selectCompetition({
       competitionId: interaction.values[0] ?? '',

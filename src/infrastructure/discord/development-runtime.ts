@@ -158,6 +158,7 @@ import { InProcessTargetRaceDeadlineFinalizationScheduler } from './target-race-
 import { InProcessTimedCompetitionFinalizationScheduler } from './timed-competition-finalization-scheduler.js';
 import { DiscordCompetitionStartFailureAuditPublisher } from './competition-start-failure-audit-publisher.js';
 import { DiscordInteractionDispatcher } from './discord-interaction-dispatcher.js';
+import { InMemoryDiscordCommandCooldown } from './discord-command-cooldown.js';
 import {
   bindDiscordCompetitionStandingsCommandAdapter,
   CompetitionStandingsCommandHandler,
@@ -299,6 +300,7 @@ export async function startDevelopmentDiscordRuntime(
     const configurationService = new GuildConfigurationService(configurationRepository);
     const permissions = new GuildPermissionService(configurationRepository);
     const hiscores = new OsrsHiscoreHttpClient();
+    const hiscoresCommandCooldown = new InMemoryDiscordCommandCooldown();
     const accountModeValidator = new AccountModeValidator(hiscores, OSRS_MODE_FETCH_STRATEGIES);
     const adapter = createDiscordAccountCommandAdapter(
       createAccountRemovalCommandHandler(accountRepository, permissions),
@@ -323,28 +325,34 @@ export async function startDevelopmentDiscordRuntime(
         accountRepository,
         new SkillLookupService(accountRepository, hiscores),
       ),
+      hiscoresCommandCooldown,
     );
     const oneTimeSkillLookupAdapter = new DiscordOneTimeSkillLookupCommandAdapter(
       new OneTimeSkillLookupCommandHandler(new SkillLookupService(accountRepository, hiscores)),
+      hiscoresCommandCooldown,
     );
     const oneTimeBossLookupAdapter = new DiscordOneTimeBossLookupCommandAdapter(
       new OneTimeBossLookupCommandHandler(new BossLookupService(accountRepository, hiscores)),
+      hiscoresCommandCooldown,
     );
     const skillLeaderboardAdapter = new DiscordSkillLeaderboardCommandAdapter(
       new SkillLeaderboardCommandHandler({
         skillLeaderboard: new SkillLeaderboardService(accountRepository, hiscores),
       }),
+      hiscoresCommandCooldown,
     );
     const bossLeaderboardAdapter = new DiscordBossLeaderboardCommandAdapter(
       new BossLeaderboardCommandHandler({
         bossLeaderboard: new BossLeaderboardService(accountRepository, hiscores),
       }),
+      hiscoresCommandCooldown,
     );
     const bossLookupAdapter = new DiscordBossLookupCommandAdapter(
       createBossLookupCommandHandler(
         accountRepository,
         new BossLookupService(accountRepository, hiscores),
       ),
+      hiscoresCommandCooldown,
     );
     const competitionStandingsRepository = new PostgresCompetitionStandingsRepository(
       connection.database,
@@ -480,6 +488,7 @@ export async function startDevelopmentDiscordRuntime(
       );
     const competitionStandingsAdapter = new DiscordCompetitionStandingsCommandAdapter(
       new CompetitionStandingsCommandHandler(competitionStandings, competitionStandingsRepository),
+      hiscoresCommandCooldown,
     );
     const competitionResultsHistoryRepository = new PostgresCompetitionResultsHistoryRepository(
       connection.database,
