@@ -15,6 +15,10 @@ import {
 } from 'discord.js';
 import { randomUUID } from 'node:crypto';
 import type { DiscordInteractionRegistrar } from './discord-interaction-dispatcher.js';
+import {
+  discordCommandCooldownMessage,
+  InMemoryDiscordCommandCooldown,
+} from './discord-command-cooldown.js';
 
 import { SkillLookupService, type SkillLookupResult } from '../../features/lookups/skill-lookup.js';
 import {
@@ -249,7 +253,10 @@ export class OneTimeSkillLookupCommandHandler {
 }
 
 export class DiscordOneTimeSkillLookupCommandAdapter {
-  public constructor(private readonly handler: OneTimeSkillLookupCommandHandler) {}
+  public constructor(
+    private readonly handler: OneTimeSkillLookupCommandHandler,
+    private readonly cooldown: InMemoryDiscordCommandCooldown = new InMemoryDiscordCommandCooldown(),
+  ) {}
 
   public async handle(
     interaction: ChatInputCommandInteraction | ModalSubmitInteraction | StringSelectMenuInteraction,
@@ -289,6 +296,19 @@ export class DiscordOneTimeSkillLookupCommandAdapter {
           ),
         );
       } else if (decode(interaction.customId, 'skill') !== undefined) {
+        if (interaction.guildId !== null) {
+          const cooldown = this.cooldown.tryAcquire({
+            guildId: interaction.guildId,
+            requesterDiscordUserId: interaction.user.id,
+          });
+          if (cooldown.kind === 'cooling_down') {
+            await interaction.reply({
+              content: discordCommandCooldownMessage(cooldown.retryAfterSeconds),
+              flags: MessageFlags.Ephemeral,
+            });
+            return;
+          }
+        }
         await interaction.deferUpdate();
         await interaction.editReply(
           response(

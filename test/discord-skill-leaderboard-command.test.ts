@@ -145,6 +145,7 @@ function interaction(
         return results;
       },
     },
+    user: { id: 'member-one' },
     ...responses,
   };
 }

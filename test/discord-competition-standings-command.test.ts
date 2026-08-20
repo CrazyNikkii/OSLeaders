@@ -8,6 +8,7 @@ import {
   competitionStandingsEmbeds,
   type CompetitionStandingsChoices,
 } from '../src/infrastructure/discord/competition-standings-command.js';
+import { InMemoryDiscordCommandCooldown } from '../src/infrastructure/discord/discord-command-cooldown.js';
 
 describe('Discord competition standings command', () => {
   it('binds the active-competition selection to its initiating member and guild', async () => {
@@ -124,6 +125,38 @@ describe('Discord competition standings command', () => {
     expect(embed.data.description).toContain('+50');
     expect(embed.data.description).toContain('Alpha');
     expect(embed.data.description).toContain('score may be incomplete');
+  });
+
+  it('applies the cooldown when a competition selection would collect standings', async () => {
+    const standings = new Standings();
+    const handler = new CompetitionStandingsCommandHandler(standings, new Choices());
+    const cooldown = new InMemoryDiscordCommandCooldown({
+      now: () => new Date('2026-08-20T10:00:00.000Z'),
+    });
+    const adapter = new DiscordCompetitionStandingsCommandAdapter(handler, cooldown);
+    const selection = await handler.start('guild-one', 'member-one');
+    if (selection.kind !== 'competition_selection') throw new Error('Expected selection.');
+    cooldown.tryAcquire({ guildId: 'guild-one', requesterDiscordUserId: 'member-one' });
+    const reply = vi.fn(() => Promise.resolve());
+    const deferUpdate = vi.fn(() => Promise.resolve());
+
+    await adapter.handle({
+      customId: selection.customId,
+      deferUpdate,
+      guildId: 'guild-one',
+      isChatInputCommand: () => false,
+      isStringSelectMenu: () => true,
+      reply,
+      user: { id: 'member-one' },
+      values: ['competition-one'],
+    } as never);
+
+    expect(standings.requests).toEqual([]);
+    expect(deferUpdate).not.toHaveBeenCalled();
+    expect(reply).toHaveBeenCalledWith({
+      content: 'Please wait 3 seconds before another Hiscores command.',
+      flags: MessageFlags.Ephemeral,
+    });
   });
 });
 

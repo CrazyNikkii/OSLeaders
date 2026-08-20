@@ -15,6 +15,10 @@ import {
 } from 'discord.js';
 import { randomUUID } from 'node:crypto';
 import type { DiscordInteractionRegistrar } from './discord-interaction-dispatcher.js';
+import {
+  discordCommandCooldownMessage,
+  InMemoryDiscordCommandCooldown,
+} from './discord-command-cooldown.js';
 
 import { BossLookupService, type BossLookupResult } from '../../features/lookups/boss-lookup.js';
 import {
@@ -239,7 +243,10 @@ export class OneTimeBossLookupCommandHandler {
 }
 
 export class DiscordOneTimeBossLookupCommandAdapter {
-  public constructor(private readonly handler: OneTimeBossLookupCommandHandler) {}
+  public constructor(
+    private readonly handler: OneTimeBossLookupCommandHandler,
+    private readonly cooldown: InMemoryDiscordCommandCooldown = new InMemoryDiscordCommandCooldown(),
+  ) {}
 
   public async handle(
     interaction: ChatInputCommandInteraction | ModalSubmitInteraction | StringSelectMenuInteraction,
@@ -275,6 +282,19 @@ export class DiscordOneTimeBossLookupCommandAdapter {
         );
         await interaction.update(response(result));
       } else if (decodeBoss(interaction.customId) !== undefined) {
+        if (interaction.guildId !== null) {
+          const cooldown = this.cooldown.tryAcquire({
+            guildId: interaction.guildId,
+            requesterDiscordUserId: interaction.user.id,
+          });
+          if (cooldown.kind === 'cooling_down') {
+            await interaction.reply({
+              content: discordCommandCooldownMessage(cooldown.retryAfterSeconds),
+              flags: MessageFlags.Ephemeral,
+            });
+            return;
+          }
+        }
         await interaction.deferUpdate();
         const result = await this.handler.selectBoss(
           interaction.guildId,
