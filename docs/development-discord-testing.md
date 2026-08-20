@@ -56,7 +56,7 @@ guarded test-database commands at either database.
     baselines unchanged. Then use `/recap send`, confirm it with the button,
     and confirm the recap appears in the configured channel.
 
-For the full laptop startup, backup, recovery, and restart acceptance procedure,
+For the full laptop startup, recovery, and restart acceptance procedure,
 use [the private-beta laptop runbook](private-beta-laptop-runbook.md).
 
 Administrative-log configuration does not yet have a Discord configuration

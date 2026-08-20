@@ -1052,26 +1052,7 @@ The database does not store:
 
 For an active competition account, only the starting value, latest successfully observed value and timestamp, and final value are retained. A new successful progress check replaces the previous rolling latest-known value instead of creating a full progress history.
 
-## 43. Production backups
-
-Automatic rotating PostgreSQL backups are deferred for the current small,
-private beta. The operator explicitly accepts that database data may be lost
-if the laptop or its database fails. A backup or restore rehearsal is not a
-condition of continuing the current private beta.
-
-If OSLeaders is ever prepared for public distribution, paid use, or a larger
-community, production deployment must add automatic rotating PostgreSQL
-backups that protect:
-
-- Account registrations.
-- Server configuration.
-- Recap baselines.
-- Competition history.
-
-The retention schedule and backup location will be defined as part of that
-future production-readiness work.
-
-## 44. Development and deployment environments
+## 43. Development and deployment environments
 
 The complete application must be developable and testable on the developer’s Windows desktop.
 
@@ -1096,7 +1077,7 @@ Production uses:
 
 Secrets must never be committed to source control.
 
-## 45. First-version non-goals
+## 44. First-version non-goals
 
 The first version does not include:
 
@@ -1117,7 +1098,7 @@ The first version does not include:
 - Public large-scale bot distribution.
 - Configurable command-only channels.
 
-## 46. Product-level acceptance criteria
+## 45. Product-level acceptance criteria
 
 The first complete version is acceptable when:
 
@@ -1150,9 +1131,7 @@ The first complete version is acceptable when:
 27. Development and production use separate bots and databases.
 28. Automated tests verify core account, leaderboard, competition and recap behaviour.
 29. The production bot runs continuously on the headless Debian laptop.
-30. Production PostgreSQL data is backed up automatically.
-
-## 47. Reference material
+## 46. Reference material
 
 These pages are reference material for design and implementation. OSLeaders does not query the wiki during normal bot operation.
 
